@@ -52,6 +52,9 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 - `backend/src/erp/` — ERP connections: `adapters/` (Frappe REST client, read-only MariaDB client,
   SQL guard), `connection-tester.ts` (read-only checks), `connections/` (API + service),
   `request-log.service.ts` (every ERP call, for the System monitor)
+- `backend/src/erp/sync/` — master data sync: `specs.ts` (doctype → table mapping, pure),
+  `erp-sync.service.ts` (incremental by `modified`, 500 per page), `erp-webhooks.service.ts`
+  (signed webhooks, setup in ERPNext, the two sync automations — both off by default)
 - `backend/src/core/crypto/` — AES-256-GCM secret encryption with key versions
 - `backend/src/core/security/network-guard.ts` — SSRF protection for admin-entered addresses
 - `backend/src/core/queue/` — BullMQ queues (one per area) and workers; `QueueService.register()`
@@ -130,6 +133,9 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   `/api/v1/auth`. Playwright's `request` fixture doesn't share browser cookies.
 - **IP-literal hosts skip DNS lookup**, so the guarded lookup alone doesn't cover them. Call
   `assertHostAllowed()` before connecting (the ERP clients do).
+- **Two dev processes share `.next`**: running `npm run typecheck` (which runs `next typegen`)
+  while `next dev` is running can leave a half-written `.next/dev/types/routes.d.ts`; restart
+  `next dev` or re-save a file if type errors appear only in that file.
 - **Playwright label matching**: required fields render a visual `*` inside the label, so
   `getByLabel(..., { exact: true })` fails for them; match without `exact`.
 - **Keep-alive**: the API sets `keepAliveTimeout` to 65 s (`main.ts`) so the web proxy never

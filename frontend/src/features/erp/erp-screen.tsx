@@ -26,6 +26,7 @@ import {
 } from "./api";
 import { ConnectionDrawer } from "./connection-drawer";
 import { TestResultView } from "./test-result-view";
+import { WebhooksDialog } from "./webhooks-dialog";
 
 const STATUS: Record<ConnectionStatus, { label: string; tone: Tone; help: string }> = {
   UNTESTED: {
@@ -60,6 +61,7 @@ export function ErpScreen() {
   const [deleting, setDeleting] = useState<Connection | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [webhooksFor, setWebhooksFor] = useState<Connection | null>(null);
 
   const refresh = () => Promise.all([connections.mutate(), purposes.mutate()]);
 
@@ -249,6 +251,11 @@ export function ErpScreen() {
                 <Button size="sm" variant="ghost" onClick={() => setEditing(connection)}>
                   Edit
                 </Button>
+                {connection.status === "ACTIVE" && (
+                  <Button size="sm" variant="ghost" onClick={() => setWebhooksFor(connection)}>
+                    Webhooks
+                  </Button>
+                )}
                 <Popover
                   className="w-56"
                   trigger={(props) => (
@@ -348,6 +355,12 @@ export function ErpScreen() {
             </Button>
           </>
         }
+      />
+      <WebhooksDialog
+        connectionId={webhooksFor?.id ?? null}
+        connectionName={webhooksFor?.name ?? ""}
+        onClose={() => setWebhooksFor(null)}
+        stepUp={stepUp.run}
       />
       {stepUp.dialog}
     </>

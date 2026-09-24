@@ -370,6 +370,15 @@ export class ErpConnectionsService {
     );
   }
 
+  /** Called when real traffic (sync, write-back) fails at the connection level. */
+  async markFailing(id: string): Promise<void> {
+    const { count } = await this.prisma.erpConnection.updateMany({
+      where: { id, status: 'ACTIVE' },
+      data: { status: 'FAILING', consecutiveFailures: { increment: 1 } },
+    });
+    if (count) await this.onFailing?.(id);
+  }
+
   /** Saved secrets for the edit form. Needs a fresh password check; every reveal is audited. */
   async revealCredentials(actor: AuthUser, id: string, client: ClientInfo) {
     const row = await this.get(id);

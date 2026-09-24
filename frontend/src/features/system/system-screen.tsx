@@ -55,7 +55,7 @@ const when = (iso: string | null) =>
 
 export function SystemScreen() {
   const { can, me } = useSession();
-  const [tab, setTab] = useState<"queues" | "requests" | "connections">("queues");
+  const [tab, setTab] = useState<"queues" | "requests" | "webhooks" | "connections">("queues");
 
   if (me && !can("system.monitor")) {
     return (
@@ -85,11 +85,13 @@ export function SystemScreen() {
         items={[
           { key: "queues", label: "Queues" },
           { key: "requests", label: "ERP requests" },
+          { key: "webhooks", label: "Webhooks" },
           { key: "connections", label: "Connections" },
         ]}
       >
         {tab === "queues" && <QueuesTab />}
         {tab === "requests" && <RequestsTab />}
+        {tab === "webhooks" && <WebhooksTab />}
         {tab === "connections" && <ConnectionsTab />}
       </Tabs>
     </>
@@ -652,6 +654,138 @@ function ConnectionsTab() {
           ))}
         </tbody>
       </Table>
+    </Card>
+  );
+}
+
+interface WebhookEvent {
+  id: string;
+  connection: { name: string } | null;
+  doctype: string | null;
+  docName: string | null;
+  event: string | null;
+  signatureValid: boolean;
+  status: "QUEUED" | "PROCESSED" | "IGNORED" | "REJECTED" | "FAILED";
+  detail: string | null;
+  receivedAt: string;
+}
+
+const WEBHOOK_TONE: Record<WebhookEvent["status"], Tone> = {
+  QUEUED: "prog",
+  PROCESSED: "ok",
+  IGNORED: "done",
+  REJECTED: "bad",
+  FAILED: "bad",
+};
+
+function WebhooksTab() {
+  const toast = useToast();
+  const [status, setStatus] = useState("");
+  const [page, setPage] = useState(1);
+  const { data, error, isLoading, mutate } = useSWR<Page<WebhookEvent>>(
+    `/system/webhooks?page=${page}${status ? `&status=${status}` : ""}`,
+    fetcher,
+    POLL,
+  );
+
+  const reprocess = async (id: string) => {
+    try {
+      await apiFetch(`/system/webhooks/${id}/reprocess`, { method: "POST" });
+      toast.success("Queued again.");
+      await mutate();
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : "Something went wrong. Try again.");
+    }
+  };
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
+        <Segmented
+          label="Webhook status"
+          size="sm"
+          value={status || "all"}
+          onChange={(value) => {
+            setStatus(value === "all" ? "" : value);
+            setPage(1);
+          }}
+          options={[
+            { value: "all", label: "All" },
+            { value: "FAILED", label: "Failed" },
+            { value: "REJECTED", label: "Rejected" },
+            { value: "IGNORED", label: "Ignored" },
+          ]}
+        />
+        <span className="text-xs text-muted">
+          Every webhook ERPNext sent. Unsigned ones are rejected.
+        </span>
+      </div>
+      {isLoading && !data && <TableSkeleton rows={3} label="Loading webhooks" />}
+      {error && !data && (
+        <ErrorState title="Couldn't load webhooks" onRetry={() => void mutate()} />
+      )}
+      {data?.data.length === 0 && <p className="px-4 py-6 text-muted">No webhooks received yet.</p>}
+      {data && data.data.length > 0 && (
+        <Table caption="Webhooks received">
+          <thead>
+            <tr>
+              <Th>Received</Th>
+              <Th>Record</Th>
+              <Th>Status</Th>
+              <Th>
+                <span className="sr-only">Actions</span>
+              </Th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.data.map((row) => (
+              <Tr key={row.id}>
+                <Td className="whitespace-nowrap text-muted">{when(row.receivedAt)}</Td>
+                <Td className="min-w-56">
+                  <span className="font-semibold">
+                    {row.doctype ?? "Unknown"} {row.docName ?? ""}
+                  </span>
+                  <Sub>
+                    {row.connection?.name ?? "—"} · {row.event ?? "on_update"}
+                  </Sub>
+                </Td>
+                <Td className="max-w-md">
+                  <StatusPill tone={WEBHOOK_TONE[row.status]}>
+                    {row.status.toLowerCase()}
+                  </StatusPill>
+                  {row.detail && <Sub>{row.detail}</Sub>}
+                </Td>
+                <Td align="right">
+                  {(row.status === "FAILED" || row.status === "IGNORED") &&
+                    row.signatureValid &&
+                    row.doctype && (
+                      <Button size="sm" onClick={() => void reprocess(row.id)}>
+                        Process again
+                      </Button>
+                    )}
+                </Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+      {data && data.meta.total > data.meta.pageSize && (
+        <div className="flex items-center gap-2 border-t border-line px-4 py-2.5 text-[12.5px] text-muted">
+          {data.meta.total.toLocaleString()} webhooks
+          <span className="ml-auto flex gap-2">
+            <Button size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+              Newer
+            </Button>
+            <Button
+              size="sm"
+              disabled={page * data.meta.pageSize >= data.meta.total}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Older
+            </Button>
+          </span>
+        </div>
+      )}
     </Card>
   );
 }

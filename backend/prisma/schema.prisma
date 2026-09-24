@@ -205,8 +205,12 @@ model ErpConnection {
   updatedAt           DateTime            @updatedAt
   version             Int                 @default(1)
 
+  /// Signs webhooks from ERPNext (HMAC-SHA256). Encrypted; set when webhooks are set up.
+  webhookSecretEnc String?
+
   purposes ErpPurposeBinding[]
   requests ErpRequestLog[]
+  webhooks ErpWebhookEvent[]
 }
 
 model ErpPurposeBinding {
@@ -292,4 +296,231 @@ model JobRun {
 
   @@index([automationKey, startedAt])
   @@index([status])
+}
+
+// ─── Master data mirrored from the ERP ──────────────────────────────────────
+// Read-only copies. `source` says where a row came from; ERP rows are keyed by
+// (erpConnectionId, erpName). Rows missing from the ERP are marked inactive,
+// never deleted, so tickets that reference them keep working.
+
+enum RecordSource {
+  DEMO
+  ERP
+  LOCAL
+}
+
+model Customer {
+  id              String            @id @default(cuid())
+  source          RecordSource
+  erpConnectionId String?
+  erpName         String?
+  name            String
+  customerGroup   String?
+  territory       String?
+  taxId           String?
+  mobile          String?
+  email           String?
+  active          Boolean           @default(true)
+  erpModified     DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  contacts        CustomerContact[]
+  sites           Site[]
+  equipment       Equipment[]
+
+  @@unique([erpConnectionId, erpName])
+  @@index([name])
+}
+
+model CustomerContact {
+  id              String       @id @default(cuid())
+  source          RecordSource
+  erpConnectionId String?
+  erpName         String?
+  customerId      String?
+  customer        Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  /// ERP customer name, kept so the link can be made when the customer arrives later.
+  customerErpName String?
+  fullName        String
+  email           String?
+  mobile          String?
+  phone           String?
+  isPrimary       Boolean      @default(false)
+  active          Boolean      @default(true)
+  erpModified     DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([erpConnectionId, erpName])
+  @@index([customerId])
+}
+
+/// A customer location, from the ERP's Address.
+model Site {
+  id              String       @id @default(cuid())
+  source          RecordSource
+  erpConnectionId String?
+  erpName         String?
+  customerId      String?
+  customer        Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerErpName String?
+  title           String
+  line1           String?
+  line2           String?
+  city            String?
+  state           String?
+  pincode         String?
+  country         String?
+  gstin           String?
+  active          Boolean      @default(true)
+  erpModified     DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([erpConnectionId, erpName])
+  @@index([customerId])
+  @@index([pincode])
+}
+
+/// A machine at a customer site, from the ERP's Serial No.
+model Equipment {
+  id                String       @id @default(cuid())
+  source            RecordSource
+  erpConnectionId   String?
+  erpName           String?
+  serialNo          String
+  itemCode          String?
+  itemName          String?
+  customerId        String?
+  customer          Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  customerErpName   String?
+  erpStatus         String?
+  warrantyExpiresOn DateTime?    @db.Date
+  amcExpiresOn      DateTime?    @db.Date
+  active            Boolean      @default(true)
+  erpModified       DateTime?
+  syncedAt          DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([erpConnectionId, erpName])
+  @@index([serialNo])
+  @@index([customerId])
+}
+
+model Item {
+  id              String       @id @default(cuid())
+  source          RecordSource
+  erpConnectionId String?
+  erpName         String?
+  itemCode        String
+  name            String
+  itemGroup       String?
+  uom             String?
+  isStockItem     Boolean      @default(true)
+  active          Boolean      @default(true)
+  erpModified     DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([erpConnectionId, erpName])
+  @@index([itemCode])
+}
+
+model ItemPrice {
+  id              String       @id @default(cuid())
+  source          RecordSource
+  erpConnectionId String?
+  erpName         String?
+  itemCode        String
+  priceList       String
+  rate            Decimal      @db.Decimal(18, 4)
+  currency        String
+  selling         Boolean      @default(true)
+  buying          Boolean      @default(false)
+  active          Boolean      @default(true)
+  erpModified     DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([erpConnectionId, erpName])
+  @@index([itemCode, priceList])
+}
+
+model Warehouse {
+  id              String       @id @default(cuid())
+  source          RecordSource
+  erpConnectionId String?
+  erpName         String?
+  name            String
+  company         String?
+  isGroup         Boolean      @default(false)
+  active          Boolean      @default(true)
+  erpModified     DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([erpConnectionId, erpName])
+}
+
+/// Stock of an item in a warehouse, from the ERP's Bin.
+model StockLevel {
+  id              String       @id @default(cuid())
+  source          RecordSource
+  erpConnectionId String?
+  erpName         String?
+  itemCode        String
+  warehouse       String
+  actualQty       Decimal      @db.Decimal(18, 4)
+  projectedQty    Decimal      @db.Decimal(18, 4)
+  erpModified     DateTime?
+  syncedAt        DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([erpConnectionId, erpName])
+  @@index([itemCode])
+}
+
+/// Where the incremental sync got to, per connection and doctype.
+model SyncCursor {
+  /// "{connectionId}:{doctype}"
+  key          String   @id
+  /// ERPNext's own "modified" text (sortable), so no time-zone conversion can skip records.
+  lastModified String?
+  updatedAt    DateTime @updatedAt
+}
+
+enum WebhookEventStatus {
+  QUEUED
+  PROCESSED
+  IGNORED
+  REJECTED
+  FAILED
+}
+
+/// Every webhook ERPNext sent, for the System monitor.
+model ErpWebhookEvent {
+  id             String             @id @default(cuid())
+  connectionId   String?
+  connection     ErpConnection?     @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  doctype        String?
+  docName        String?
+  event          String?
+  signatureValid Boolean
+  status         WebhookEventStatus
+  /// Plain-English reason for IGNORED / REJECTED / FAILED.
+  detail         String?
+  jobId          String?
+  receivedAt     DateTime           @default(now())
+  processedAt    DateTime?
+
+  @@index([connectionId, receivedAt])
+  @@index([status, receivedAt])
 }

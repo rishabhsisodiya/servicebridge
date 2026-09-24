@@ -9,7 +9,8 @@ import { AppConfig } from './core/config/app-config.service';
 const KEEP_ALIVE_MS = 65_000;
 
 async function main(): Promise<void> {
-  const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  // rawBody: webhook signatures are computed over the exact bytes ERPNext sent.
+  const app = await NestFactory.create(AppModule, { bufferLogs: true, rawBody: true });
   app.useLogger(app.get(Logger));
   configureApp(app);
 

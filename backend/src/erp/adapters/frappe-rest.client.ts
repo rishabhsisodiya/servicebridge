@@ -213,6 +213,70 @@ export class FrappeRestClient {
     });
   }
 
+  // ── Reads used by the sync ──
+
+  /** One page of a doctype via frappe.client.get_list. `parent` is required for child tables. */
+  async list<T = Record<string, unknown>>(
+    doctype: string,
+    options: {
+      fields?: string[];
+      filters?: unknown[];
+      orderBy?: string;
+      start?: number;
+      pageLength?: number;
+      parent?: string;
+    } = {},
+  ): Promise<T[]> {
+    const body = await this.request<{ message?: T[] }>(
+      'GET',
+      '/api/method/frappe.client.get_list',
+      {
+        query: {
+          doctype,
+          fields: JSON.stringify(options.fields ?? ['*']),
+          filters: JSON.stringify(options.filters ?? []),
+          order_by: options.orderBy ?? 'modified asc, name asc',
+          limit_start: options.start ?? 0,
+          limit_page_length: options.pageLength ?? 500,
+          ...(options.parent ? { parent: options.parent } : {}),
+        },
+        doctype,
+      },
+    );
+    return body.message ?? [];
+  }
+
+  /** A single document, or undefined when it no longer exists. */
+  async getDoc<T = Record<string, unknown>>(doctype: string, name: string): Promise<T | undefined> {
+    try {
+      const body = await this.request<{ data?: T }>(
+        'GET',
+        `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
+        { doctype },
+      );
+      return body.data;
+    } catch (error) {
+      if (error instanceof ErpError && error.kind === 'not_found') return undefined;
+      throw error;
+    }
+  }
+
+  /** Creates a document (used only by explicit, admin-confirmed setup actions and write-backs). */
+  async create<T = Record<string, unknown>>(
+    doctype: string,
+    doc: Record<string, unknown>,
+  ): Promise<T> {
+    const body = await this.request<{ data: T }>(
+      'POST',
+      `/api/resource/${encodeURIComponent(doctype)}`,
+      {
+        body: doc,
+        doctype,
+      },
+    );
+    return body.data;
+  }
+
   // ── Calls used by the connection test ──
 
   /** Email of the ERP user the key belongs to. */
