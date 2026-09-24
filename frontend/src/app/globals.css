@@ -1,29 +1,252 @@
 @import "tailwindcss";
 
-/* Placeholder until the design tokens land in session 2. */
-:root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+/*
+ * ServiceBridge design tokens.
+ * Style: data-dense dashboard. Slate structure, one emerald accent, semantic
+ * status colours kept separate from the accent. Every text/background pair
+ * used by components meets WCAG AA (4.5:1) in both themes.
+ *
+ * `data-theme` on <html> is always "light" or "dark": the inline script in the
+ * root layout resolves the saved preference (light / dark / system) before
+ * first paint, so components only ever key off [data-theme].
+ */
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface-2: #f1f4f8;
+  --surface-3: #e5eaf1;
+  --text: #0f172a;
+  --muted: #475569;
+  --faint: #5b6b82;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+
+  --primary: #334155;
+  --on-primary: #ffffff;
+  --accent: #059669; /* indicators, focus, charts — not for text on white */
+  --accent-strong: #047857; /* filled buttons: white text 5.5:1 */
+  --on-accent-strong: #ffffff;
+  --accent-soft: #ecfdf5;
+  --accent-ink: #065f46;
+  --focus: #059669;
+
+  --ok: #166534;
+  --ok-bg: #dcfce7;
+  --warn: #92400e;
+  --warn-bg: #fef3c7;
+  --bad: #b91c1c;
+  --bad-bg: #fee2e2;
+  --info: #1d4ed8;
+  --info-bg: #dbeafe;
+  --prog: #9a3412;
+  --prog-bg: #ffedd5;
+  --done: #475569;
+  --done-bg: #e2e8f0;
+
+  --rail: #0f172a;
+  --rail-2: #1e293b;
+  --rail-text: #e2e8f0;
+  --rail-muted: #94a3b8;
+  --rail-accent: #34d399;
+
+  --chart-1: #334155;
+  --chart-2: #059669;
+  --chart-3: #2563eb;
+  --chart-4: #d97706;
+  --chart-5: #94a3b8;
+
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06);
+  --shadow-md: 0 1px 2px rgb(15 23 42 / 0.05), 0 4px 14px rgb(15 23 42 / 0.06);
+  --shadow-lg: 0 16px 48px rgb(2 6 23 / 0.24);
+  --scrim: rgb(2 6 23 / 0.5);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0b1120;
-    --foreground: #e2e8f0;
-  }
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0a0f1c;
+  --surface: #111a2e;
+  --surface-2: #16213a;
+  --surface-3: #1e2a44;
+  --text: #e2e8f0;
+  --muted: #a3b1c6;
+  --faint: #8594ab;
+  --line: #1f2b45;
+  --line-strong: #2f3e5e;
+
+  --primary: #cbd5e1;
+  --on-primary: #0f172a;
+  --accent: #34d399;
+  --accent-strong: #34d399;
+  --on-accent-strong: #022c22;
+  --accent-soft: #0b2e24;
+  --accent-ink: #6ee7b7;
+  --focus: #34d399;
+
+  --ok: #4ade80;
+  --ok-bg: #0f2e1d;
+  --warn: #fbbf24;
+  --warn-bg: #33260b;
+  --bad: #fca5a5;
+  --bad-bg: #3a1416;
+  --info: #93c5fd;
+  --info-bg: #152a4f;
+  --prog: #fdba74;
+  --prog-bg: #3a1f0e;
+  --done: #cbd5e1;
+  --done-bg: #1e2a44;
+
+  --rail: #060a14;
+  --rail-2: #131c30;
+  --rail-text: #e2e8f0;
+  --rail-muted: #8e9bb3;
+  --rail-accent: #34d399;
+
+  --chart-1: #94a3b8;
+  --chart-2: #34d399;
+  --chart-3: #60a5fa;
+  --chart-4: #fbbf24;
+  --chart-5: #475569;
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.3);
+  --shadow-md: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 14px rgb(0 0 0 / 0.25);
+  --shadow-lg: 0 16px 48px rgb(0 0 0 / 0.55);
+  --scrim: rgb(0 0 0 / 0.6);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --font-sans: var(--font-fira-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-fira-code), ui-monospace, "SFMono-Regular", monospace;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-primary: var(--primary);
+  --color-on-primary: var(--on-primary);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-on-accent-strong: var(--on-accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-focus: var(--focus);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-bad: var(--bad);
+  --color-bad-bg: var(--bad-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-prog: var(--prog);
+  --color-prog-bg: var(--prog-bg);
+  --color-done: var(--done);
+  --color-done-bg: var(--done-bg);
+  --color-rail: var(--rail);
+  --color-rail-2: var(--rail-2);
+  --color-rail-text: var(--rail-text);
+  --color-rail-muted: var(--rail-muted);
+  --color-rail-accent: var(--rail-accent);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  /* Layering scale: content < sticky < rail < overlay < toast. */
+  --z-sticky: 20;
+  --z-rail: 40;
+  --z-overlay: 80;
+  --z-toast: 90;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+@layer base {
+  html {
+    /* Dense UI: 14px base. Inputs go to 16px on small screens (no iOS zoom). */
+    font-size: 14px;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+    line-height: 1.25;
+  }
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  /* Headings receive focus after route changes; the ring would be noise there. */
+  h1[tabindex="-1"]:focus {
+    outline: none;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  dialog::backdrop {
+    background: var(--scrim);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes sb-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+@keyframes sb-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes sb-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@utility animate-pop {
+  animation: sb-pop 160ms ease-out;
+}
+@utility animate-slide-in {
+  animation: sb-slide-in 200ms ease-out;
+}
+@utility skeleton {
+  background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2));
+  background-size: 200% 100%;
+  animation: sb-shimmer 1.2s linear infinite;
+  border-radius: 6px;
 }

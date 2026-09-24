@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 
 const port = Number(process.env.STUB_API_PORT ?? 4599);
 
-createServer((req, res) => {
+const server = createServer((req, res) => {
   res.setHeader("content-type", "application/json");
   if (req.url === "/api/v1/health/ready") {
     res.end(
@@ -21,4 +21,8 @@ createServer((req, res) => {
   }
   res.statusCode = 404;
   res.end(JSON.stringify({ error: { code: "NOT_FOUND", message: "Not found" } }));
-}).listen(port, "127.0.0.1");
+});
+// Same keep-alive settings as the real API (backend/src/main.ts).
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+server.listen(port, "127.0.0.1");

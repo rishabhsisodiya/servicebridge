@@ -8,7 +8,7 @@ const LABELS: Record<keyof Readiness["checks"], string> = {
   redis: "Queue store (Redis)",
 };
 
-/** Temporary foundations widget; replaced by the real shell in session 2. */
+/** Live API, database and Redis status (shown on the design-system page). */
 export function SystemStatus() {
   const { data, error, isLoading } = useSWR("health/ready", getReadiness, {
     refreshInterval: 0,

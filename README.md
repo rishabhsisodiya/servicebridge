@@ -4,7 +4,7 @@ Service desk and ERP operations in one app: tickets, field visits, AMC contracts
 for your service team, plus sales, finance and production dashboards read from ERPNext. ERP
 connections are added by an administrator in the app, not in config files.
 
-> Status: early build. Foundations only (API health, web shell placeholder).
+> Status: early build. API foundations, design system and app shell (sample data on four screens).
 
 ## Requirements
 

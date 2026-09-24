@@ -44,7 +44,18 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 - `backend/prisma/schema.prisma` — ServiceBridge's own schema (never an ERP schema)
 - `frontend/src/proxy.ts` — forwards `/api/*` to `API_INTERNAL_URL` at runtime
 - `frontend/src/lib/api/` — typed API client (`apiFetch`, `ApiError`)
-- `frontend/e2e/` — Playwright tests and the stub API they run against
+- `frontend/src/app/globals.css` — design tokens (light + dark) mapped to Tailwind colours
+  (`bg-surface`, `text-muted`, `text-bad`…). Use tokens, never raw hex, in components.
+- `frontend/src/components/ui/` — Button, Field/Input/Select/Textarea, StatusPill, Card, KpiCard,
+  Table, Tabs, Segmented, Dialog/Drawer (native `<dialog>`), Popover, Toast, Empty/Error/Skeleton
+- `frontend/src/components/shell/nav-config.ts` — single source for the sidebar, breadcrumbs,
+  ⌘K search and placeholder pages. A new screen: add/adjust its entry, remove `plannedSession`.
+- `frontend/src/app/(app)/[...slug]` — placeholder for menu entries not built yet; a real route
+  takes precedence automatically
+- `frontend/src/features/<area>/` — feature code (e.g. `tickets/display.tsx` stages, priority, SLA)
+- `frontend/src/mocks/` — TEMPORARY sample data; delete each file when its API arrives
+- `frontend/src/app/(app)/settings/design-system` — live reference of tokens, components, states
+- `frontend/e2e/` — Playwright tests (incl. axe WCAG scans in both themes) and the stub API
 
 ## Conventions
 
@@ -60,6 +71,22 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   (same-origin `/api/v1`).
 - **Tests**: API unit tests sit next to code as `*.spec.ts`; web unit tests as `*.test.ts(x)`.
 - **Imports (API)**: normal default imports are fine (`esModuleInterop` is on).
+- **UI**: every screen starts with `PageHeader` (the only `h1`; it takes focus after navigation);
+  card titles are `h2` via `CardHeader`. Icons are `lucide-react` with `aria-hidden`; icon-only
+  buttons use `IconButton` (label required). Status always has shape + text, never colour alone.
+- **Theme**: `data-theme` on `<html>` is set before paint by `themeInitScript`; style with the
+  `dark:` variant or tokens, never `prefers-color-scheme` directly.
+- **New screen checklist**: add it to `BUILT_PAGES` in `frontend/e2e/shell.spec.ts` so it gets the
+  axe scans (light + dark) and the 375 px no-sideways-scroll check.
+
+## Gotchas
+
+- **Responsive grids need a base column**: `grid md:grid-cols-2` alone sizes its single mobile
+  column to the widest child (a table), breaking the page width. Always `grid grid-cols-1 md:…`.
+- **Scroll containers must be `relative`**: absolutely positioned children (e.g. `sr-only` text)
+  escape a non-positioned `overflow-x-auto` box and widen the page. `Table` already does this.
+- **Keep-alive**: the API sets `keepAliveTimeout` to 65 s (`main.ts`) so the web proxy never
+  reuses a socket the API just closed (ECONNRESET under load). Keep any stub API the same.
 
 ## Product rules (do not break)
 

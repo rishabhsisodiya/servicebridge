@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-test("home page reports API status through the proxy", async ({ page }) => {
-  await page.goto("/");
-  await expect(page.getByRole("heading", { name: "ServiceBridge" })).toBeVisible();
+test("design-system page reports API status through the proxy", async ({ page }) => {
+  await page.goto("/settings/design-system");
+  await expect(page.getByRole("heading", { name: "Design system", level: 1 })).toBeVisible();
   await expect(page.getByLabel("API status")).toContainText("Database");
   await expect(page.getByText("Up · 4 ms")).toBeVisible();
 });
