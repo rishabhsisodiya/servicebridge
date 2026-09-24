@@ -244,3 +244,52 @@ model ErpRequestLog {
   @@index([connectionId, createdAt])
   @@index([ok, createdAt])
 }
+
+// ─── Automations & background jobs ──────────────────────────────────────────
+
+/// On/off switch and settings for one automation. Definitions (what each one
+/// does, its defaults) live in code: src/automations/definitions.ts.
+model AutomationSetting {
+  key         String   @id
+  enabled     Boolean
+  /// Periodic automations only: cron expression in `timezone`.
+  cron        String?
+  timezone    String   @default("Asia/Kolkata")
+  /// Automation-specific options, validated in code.
+  params      Json     @default("{}")
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+}
+
+enum JobTrigger {
+  SCHEDULE
+  MANUAL
+  EVENT
+}
+
+enum JobRunStatus {
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+/// History of automation runs shown in the Automations screen. Per-record
+/// timers (SLA etc.) are visible in the System monitor instead, to keep this small.
+model JobRun {
+  id            String       @id @default(cuid())
+  automationKey String
+  queue         String
+  jobId         String?
+  trigger       JobTrigger
+  actorId       String?
+  status        JobRunStatus @default(RUNNING)
+  startedAt     DateTime     @default(now())
+  finishedAt    DateTime?
+  /// Plain-English outcome, e.g. "Removed 1,204 old request log rows".
+  summary       String?
+  error         String?
+
+  @@index([automationKey, startedAt])
+  @@index([status])
+}

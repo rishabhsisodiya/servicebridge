@@ -243,7 +243,6 @@ export const NAV: NavGroup[] = [
         permission: "automations.manage",
         label: "Automations",
         icon: Workflow,
-        plannedSession: 5,
         summary: "Switch SLA alerts, escalations, syncs and write-backs on or off.",
       },
       {
@@ -251,7 +250,6 @@ export const NAV: NavGroup[] = [
         permission: "system.monitor",
         label: "System monitor",
         icon: Activity,
-        plannedSession: 5,
         summary: "Queues, scheduled jobs, ERP requests and webhooks.",
       },
       {

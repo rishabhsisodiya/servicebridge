@@ -85,14 +85,12 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
         label: "Automations",
         description: "Syncs, SLA alerts, escalations, write-backs",
         href: "/settings/automations",
-        session: 5,
       },
       {
         icon: Activity,
         label: "System monitor",
         description: "Queues, jobs, ERP requests and webhooks",
         href: "/settings/system",
-        session: 5,
       },
       {
         icon: FileUp,

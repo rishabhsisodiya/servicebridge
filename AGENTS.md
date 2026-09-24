@@ -54,6 +54,10 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   `request-log.service.ts` (every ERP call, for the System monitor)
 - `backend/src/core/crypto/` — AES-256-GCM secret encryption with key versions
 - `backend/src/core/security/network-guard.ts` — SSRF protection for admin-entered addresses
+- `backend/src/core/queue/` — BullMQ queues (one per area) and workers; `QueueService.register()`
+- `backend/src/automations/` — Automations: definitions + switch/schedule in `AutomationSetting`,
+  run history in `JobRun`, weekly clean-up (`housekeeping.ts`)
+- `backend/src/system/` — System monitor API (queues, jobs, ERP requests, connection health)
 - `backend/src/cli/` — command-line tools (`create-admin.ts`, `reencrypt-secrets.ts`)
 - `backend/prisma/schema.prisma` — ServiceBridge's own schema (never an ERP schema)
 - `frontend/src/proxy.ts` — forwards `/api/*` to `API_INTERNAL_URL` at runtime, and redirects
@@ -93,6 +97,11 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   go through `select()`, which refuses anything but one SELECT/WITH statement.
 - **Secrets**: store with `CryptoService.encrypt`; never return them from the API, log them or put
   them in audit entries. Show only a hint (e.g. last 4 characters).
+- **Background work**: add it as an automation — `AutomationsService.define(definition, handler)`
+  in the feature's `onModuleInit`; the handler returns a plain-English summary. Periodic ones get
+  a cron schedule (synced to BullMQ from the setting); event ones are enqueued with a fixed
+  `jobId` (so repeats don't duplicate) and a `delay`. Handlers must re-read the database, since
+  a queued job may be stale. Never add a polling cron for per-record work.
 - **Concurrency**: editable records carry a `version`; updates check it and return
   `VERSION_CONFLICT` when stale.
 - **Logging**: secrets are redacted by key name (`REDACT_PATHS`); pass driver/HTTP error text

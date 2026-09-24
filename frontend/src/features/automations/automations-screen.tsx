@@ -1,0 +1,409 @@
+"use client";
+
+import cronstrue from "cronstrue";
+import { CalendarClock, History, Lock, Play, Workflow } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import useSWR from "swr";
+import { StatusPill, type Tone } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Dialog, Drawer } from "@/components/ui/dialog";
+import { Field, Input, Select } from "@/components/ui/field";
+import { PageHeader } from "@/components/ui/misc";
+import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/components/ui/toast";
+import { apiFetch, ApiError } from "@/lib/api/client";
+import { useSession } from "@/lib/auth/session";
+
+type RunStatus = "RUNNING" | "SUCCEEDED" | "FAILED" | "SKIPPED";
+
+interface JobRun {
+  id: string;
+  trigger: "SCHEDULE" | "MANUAL" | "EVENT";
+  status: RunStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  summary: string | null;
+  error: string | null;
+}
+
+interface Automation {
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  kind: "periodic" | "event";
+  enabled: boolean;
+  cron: string | null;
+  timezone: string;
+  nextRunAt: string | null;
+  lastRun: JobRun | null;
+}
+
+const RUN_STATUS: Record<RunStatus, { label: string; tone: Tone }> = {
+  RUNNING: { label: "Running", tone: "prog" },
+  SUCCEEDED: { label: "Succeeded", tone: "ok" },
+  FAILED: { label: "Failed", tone: "bad" },
+  SKIPPED: { label: "Skipped", tone: "done" },
+};
+
+const TRIGGER: Record<JobRun["trigger"], string> = {
+  SCHEDULE: "On schedule",
+  MANUAL: "Run now",
+  EVENT: "Triggered",
+};
+
+const PRESETS = [
+  { cron: "0 3 * * 0", label: "Weekly, Sunday 03:00" },
+  { cron: "30 2 * * *", label: "Daily, 02:30" },
+  { cron: "0 */6 * * *", label: "Every 6 hours" },
+  { cron: "0 * * * *", label: "Every hour" },
+];
+
+export function describeCron(cron: string | null): string {
+  if (!cron) return "No schedule";
+  try {
+    return cronstrue.toString(cron, { use24HourTimeFormat: true, verbose: false });
+  } catch {
+    return cron;
+  }
+}
+
+const when = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "—";
+
+const fetcher = <T,>(key: string) => apiFetch<T>(key);
+
+export function AutomationsScreen() {
+  const { can, me } = useSession();
+  const toast = useToast();
+  const allowed = can("automations.manage");
+  const { data, error, isLoading, mutate } = useSWR<Automation[]>(
+    allowed ? "/automations" : null,
+    fetcher,
+    {
+      refreshInterval: 10_000,
+    },
+  );
+  const [busy, setBusy] = useState<string | null>(null);
+  const [scheduling, setScheduling] = useState<Automation | null>(null);
+  const [history, setHistory] = useState<Automation | null>(null);
+
+  const fail = (caught: unknown) =>
+    toast.error(caught instanceof ApiError ? caught.message : "Something went wrong. Try again.");
+
+  const toggle = async (automation: Automation, enabled: boolean) => {
+    setBusy(`toggle:${automation.key}`);
+    try {
+      await apiFetch(`/automations/${automation.key}`, { method: "PATCH", json: { enabled } });
+      toast.success(`“${automation.name}” is ${enabled ? "on" : "off"}.`);
+      await mutate();
+    } catch (caught) {
+      fail(caught);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const runNow = async (automation: Automation) => {
+    setBusy(`run:${automation.key}`);
+    try {
+      await apiFetch(`/automations/${automation.key}/run`, { method: "POST" });
+      toast.success(`“${automation.name}” has started. Its result appears here when it finishes.`);
+      setTimeout(() => void mutate(), 2000);
+    } catch (caught) {
+      fail(caught);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (me && !allowed) {
+    return (
+      <>
+        <PageHeader title="Automations" />
+        <Card>
+          <EmptyState
+            icon={<Lock className="size-6" />}
+            title="You don't have access to this"
+            description="Only administrators can manage automations."
+          />
+        </Card>
+      </>
+    );
+  }
+
+  const groups = [...new Set((data ?? []).map((a) => a.category))];
+
+  return (
+    <>
+      <PageHeader
+        title="Automations"
+        description="Background work ServiceBridge does on its own. Each one can be switched off. Nothing runs unless there is work to do."
+      />
+      {isLoading && (
+        <Card>
+          <TableSkeleton rows={3} label="Loading automations" />
+        </Card>
+      )}
+      {error && !data && (
+        <Card>
+          <ErrorState
+            title="Couldn't load automations"
+            description={error instanceof ApiError ? error.message : undefined}
+            onRetry={() => void mutate()}
+          />
+        </Card>
+      )}
+      {data?.length === 0 && (
+        <Card>
+          <EmptyState icon={<Workflow className="size-6" />} title="No automations yet" />
+        </Card>
+      )}
+
+      {groups.map((group) => (
+        <Card key={group} aria-labelledby={`group-${group}`}>
+          <CardHeader titleId={`group-${group}`} title={group} />
+          <ul className="m-0 list-none p-0">
+            {data!
+              .filter((a) => a.category === group)
+              .map((automation) => {
+                const last = automation.lastRun;
+                return (
+                  <li
+                    key={automation.key}
+                    className="flex flex-wrap items-start gap-4 border-b border-line px-4 py-4 last:border-b-0"
+                  >
+                    <Switch
+                      label={automation.name}
+                      checked={automation.enabled}
+                      busy={busy === `toggle:${automation.key}`}
+                      onChange={(enabled) => void toggle(automation, enabled)}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <p className="font-semibold">{automation.name}</p>
+                      <p className="max-w-[75ch] text-[13px] text-muted">
+                        {automation.description}
+                      </p>
+                      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
+                        {automation.kind === "periodic" ? (
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarClock className="size-3.5" aria-hidden />
+                            {describeCron(automation.cron)} ({automation.timezone})
+                          </span>
+                        ) : (
+                          <span>Runs when needed</span>
+                        )}
+                        {automation.enabled && automation.nextRunAt && (
+                          <span>Next: {when(automation.nextRunAt)}</span>
+                        )}
+                        {!automation.enabled && <span>Switched off</span>}
+                      </p>
+                      {last && (
+                        <p className="flex flex-wrap items-center gap-2 text-xs">
+                          <StatusPill tone={RUN_STATUS[last.status].tone}>
+                            {RUN_STATUS[last.status].label}
+                          </StatusPill>
+                          <span className="text-muted">{when(last.startedAt)}</span>
+                          <span className="min-w-0 [overflow-wrap:anywhere]">
+                            {last.error ?? last.summary}
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2 max-sm:w-full">
+                      {automation.kind === "periodic" && (
+                        <>
+                          <Button
+                            size="sm"
+                            icon={<Play className="size-3.5" aria-hidden />}
+                            loading={busy === `run:${automation.key}`}
+                            onClick={() => void runNow(automation)}
+                          >
+                            Run now
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setScheduling(automation)}
+                          >
+                            Change schedule
+                          </Button>
+                        </>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        icon={<History className="size-3.5" aria-hidden />}
+                        onClick={() => setHistory(automation)}
+                      >
+                        History
+                      </Button>
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+        </Card>
+      ))}
+
+      <ScheduleDialog
+        automation={scheduling}
+        onClose={() => setScheduling(null)}
+        onSaved={() => void mutate()}
+      />
+      <HistoryDrawer automation={history} onClose={() => setHistory(null)} />
+    </>
+  );
+}
+
+function ScheduleDialog({
+  automation,
+  onClose,
+  onSaved,
+}: {
+  automation: Automation | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  return automation ? (
+    <ScheduleForm
+      key={automation.key}
+      automation={automation}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  ) : null;
+}
+
+function ScheduleForm({
+  automation,
+  onClose,
+  onSaved,
+}: {
+  automation: Automation;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const [cron, setCron] = useState(automation.cron ?? "");
+  const [error, setError] = useState<string>();
+  const [saving, setSaving] = useState(false);
+  const preset = PRESETS.find((p) => p.cron === cron)?.cron ?? "custom";
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await apiFetch(`/automations/${automation.key}`, {
+        method: "PATCH",
+        json: { cron: cron.trim() },
+      });
+      toast.success("Schedule saved.");
+      onSaved();
+      onClose();
+    } catch (caught) {
+      setError(
+        caught instanceof ApiError
+          ? (caught.fieldMessage("cron") ?? caught.message)
+          : "Something went wrong.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Schedule for “${automation.name}”`}
+      description={`Times are in ${automation.timezone}.`}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="schedule-form" variant="strong" loading={saving}>
+            Save schedule
+          </Button>
+        </>
+      }
+    >
+      <form id="schedule-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
+        <Field label="How often">
+          {(p) => (
+            <Select
+              {...p}
+              value={preset}
+              onChange={(e) => e.target.value !== "custom" && setCron(e.target.value)}
+            >
+              {PRESETS.map((p) => (
+                <option key={p.cron} value={p.cron}>
+                  {p.label}
+                </option>
+              ))}
+              <option value="custom">Custom…</option>
+            </Select>
+          )}
+        </Field>
+        <Field
+          label="Cron expression"
+          error={error}
+          help={cron ? `Runs: ${describeCron(cron)}` : "minute hour day-of-month month day-of-week"}
+        >
+          {(p) => (
+            <Input
+              {...p}
+              className="font-mono"
+              value={cron}
+              onChange={(e) => setCron(e.target.value)}
+              spellCheck={false}
+            />
+          )}
+        </Field>
+      </form>
+    </Dialog>
+  );
+}
+
+function HistoryDrawer({
+  automation,
+  onClose,
+}: {
+  automation: Automation | null;
+  onClose: () => void;
+}) {
+  const { data, isLoading } = useSWR<{ data: JobRun[] }>(
+    automation ? `/automations/${automation.key}/runs` : null,
+    fetcher,
+  );
+  return (
+    <Drawer
+      open={automation !== null}
+      onClose={onClose}
+      title={automation ? `History: ${automation.name}` : ""}
+      description="Most recent runs first. Kept for 90 days."
+    >
+      {isLoading && <TableSkeleton rows={4} label="Loading history" />}
+      {data?.data.length === 0 && <p className="text-muted">No runs yet.</p>}
+      <ol className="m-0 flex list-none flex-col gap-3 p-0">
+        {data?.data.map((run) => (
+          <li
+            key={run.id}
+            className="flex flex-col gap-1 rounded-lg border border-line px-3 py-2.5 text-[13px]"
+          >
+            <span className="flex flex-wrap items-center gap-2">
+              <StatusPill tone={RUN_STATUS[run.status].tone}>
+                {RUN_STATUS[run.status].label}
+              </StatusPill>
+              <span className="text-muted">
+                {when(run.startedAt)} · {TRIGGER[run.trigger]}
+              </span>
+            </span>
+            <span className="[overflow-wrap:anywhere]">{run.error ?? run.summary ?? "—"}</span>
+          </li>
+        ))}
+      </ol>
+    </Drawer>
+  );
+}

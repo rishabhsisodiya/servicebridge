@@ -106,6 +106,9 @@ export function toView(row: ConnectionRow): ConnectionView {
 
 @Injectable()
 export class ErpConnectionsService {
+  /** Set by ConnectionRecovery: called when a connection starts failing. */
+  onFailing?: (connectionId: string) => Promise<void>;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly crypto: CryptoService,
@@ -399,6 +402,7 @@ export class ErpConnectionsService {
     let status = row.status;
     if (result.ok && (row.status === 'FAILING' || row.status === 'KEY_ERROR')) status = 'ACTIVE';
     if (!result.ok && row.status === 'ACTIVE') status = 'FAILING';
+    const startedFailing = status === 'FAILING' && row.status !== 'FAILING';
 
     const updated = await this.prisma.erpConnection.update({
       where: { id },
@@ -420,6 +424,7 @@ export class ErpConnectionsService {
       ip: client.ip,
       requestId: client.requestId,
     });
+    if (startedFailing) await this.onFailing?.(id);
     return toView(updated);
   }
 

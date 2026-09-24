@@ -47,9 +47,9 @@ test.describe("navigation", () => {
   });
 
   test("planned screens explain when they arrive", async ({ page }) => {
-    await page.goto("/settings/automations");
-    await expect(page.getByRole("heading", { name: "Automations", level: 1 })).toBeVisible();
-    await expect(page.getByText(/build session 5/)).toBeVisible();
+    await page.goto("/settings/audit-log");
+    await expect(page.getByRole("heading", { name: "Audit log", level: 1 })).toBeVisible();
+    await expect(page.getByText(/build session 15/)).toBeVisible();
   });
 
   test("unknown addresses show the not-found page", async ({ page }) => {
