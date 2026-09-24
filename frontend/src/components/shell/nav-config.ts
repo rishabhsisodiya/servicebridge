@@ -21,15 +21,19 @@ import {
   Ticket,
   TrendingUp,
   Truck,
+  UserRound,
   Users,
   Warehouse,
   Workflow,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
+import type { Permission } from "@/lib/auth/session";
 
 export interface NavItem {
   href: string;
+  /** Shown only to users with this permission (or any of these). */
+  permission?: Permission | Permission[];
   label: string;
   icon: LucideIcon;
   /** Build session that delivers this screen; absent once the screen is real. */
@@ -45,7 +49,6 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-// Role-based filtering arrives with auth in session 3.
 export const NAV: NavGroup[] = [
   {
     label: "Workspace",
@@ -53,6 +56,7 @@ export const NAV: NavGroup[] = [
       { href: "/", label: "Home", icon: LayoutDashboard, summary: "Your overview for today." },
       {
         href: "/my-tickets",
+        permission: "tickets.work",
         label: "My tickets",
         icon: ClipboardList,
         plannedSession: 9,
@@ -65,12 +69,14 @@ export const NAV: NavGroup[] = [
     items: [
       {
         href: "/tickets",
+        permission: "tickets.view",
         label: "Tickets",
         icon: Ticket,
         summary: "Every service ticket, with filters and SLA status.",
       },
       {
         href: "/tickets/new",
+        permission: "tickets.create",
         label: "Log a ticket",
         icon: PlusCircle,
         plannedSession: 8,
@@ -78,6 +84,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/customers",
+        permission: "customers.view",
         label: "Customers",
         icon: Building2,
         plannedSession: 7,
@@ -85,6 +92,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/equipment",
+        permission: "equipment.view",
         label: "Equipment",
         icon: Wrench,
         plannedSession: 7,
@@ -92,6 +100,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/amc",
+        permission: "amc.view",
         label: "AMC contracts",
         icon: ShieldCheck,
         plannedSession: 12,
@@ -99,6 +108,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/items",
+        permission: "items.view",
         label: "Spares & items",
         icon: Boxes,
         plannedSession: 7,
@@ -111,6 +121,7 @@ export const NAV: NavGroup[] = [
     items: [
       {
         href: "/dashboards",
+        permission: "dashboards.viewAll",
         label: "Overview",
         icon: LayoutGrid,
         plannedSession: 13,
@@ -118,6 +129,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/dashboards/sales",
+        permission: ["dashboards.viewAll", "dashboards.viewGranted"],
         label: "Sales",
         icon: TrendingUp,
         plannedSession: 13,
@@ -125,6 +137,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/dashboards/finance",
+        permission: ["dashboards.viewAll", "dashboards.viewGranted"],
         label: "Finance",
         icon: IndianRupee,
         plannedSession: 13,
@@ -132,6 +145,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/dashboards/manufacturing",
+        permission: ["dashboards.viewAll", "dashboards.viewGranted"],
         label: "Manufacturing",
         icon: Factory,
         plannedSession: 13,
@@ -139,6 +153,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/dashboards/procurement",
+        permission: ["dashboards.viewAll", "dashboards.viewGranted"],
         label: "Procurement",
         icon: ShoppingCart,
         plannedSession: 13,
@@ -146,6 +161,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/dashboards/stores",
+        permission: ["dashboards.viewAll", "dashboards.viewGranted"],
         label: "Stores",
         icon: Warehouse,
         plannedSession: 13,
@@ -153,6 +169,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/dashboards/fulfillment",
+        permission: ["dashboards.viewAll", "dashboards.viewGranted"],
         label: "Fulfillment",
         icon: Archive,
         plannedSession: 13,
@@ -160,6 +177,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/dashboards/dispatch",
+        permission: ["dashboards.viewAll", "dashboards.viewGranted"],
         label: "Dispatch",
         icon: Truck,
         plannedSession: 13,
@@ -172,6 +190,7 @@ export const NAV: NavGroup[] = [
     items: [
       {
         href: "/reports",
+        permission: "reports.view",
         label: "Reports",
         icon: FileText,
         plannedSession: 14,
@@ -179,6 +198,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/reports/kpi",
+        permission: "reports.view",
         label: "KPI matrix",
         icon: Gauge,
         plannedSession: 14,
@@ -186,6 +206,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/reports/schedules",
+        permission: "reports.schedule",
         label: "Scheduled reports",
         icon: CalendarClock,
         plannedSession: 14,
@@ -198,26 +219,28 @@ export const NAV: NavGroup[] = [
     items: [
       {
         href: "/settings",
+        permission: ["settings.manage", "users.manage"],
         label: "Settings",
         icon: Cog,
         summary: "Configure users, ERP connections, service rules and more.",
       },
       {
         href: "/settings/users",
+        permission: "users.manage",
         label: "Users & roles",
         icon: Users,
-        plannedSession: 3,
         summary: "Invite people and set their role and region.",
       },
       {
         href: "/settings/erp",
+        permission: "erp.manage",
         label: "ERP connections",
         icon: Database,
-        plannedSession: 4,
         summary: "Connect ERPNext, test it, and choose what each connection is used for.",
       },
       {
         href: "/settings/automations",
+        permission: "automations.manage",
         label: "Automations",
         icon: Workflow,
         plannedSession: 5,
@@ -225,6 +248,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/settings/system",
+        permission: "system.monitor",
         label: "System monitor",
         icon: Activity,
         plannedSession: 5,
@@ -232,6 +256,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/settings/audit-log",
+        permission: "audit.view",
         label: "Audit log",
         icon: ScrollText,
         plannedSession: 15,
@@ -255,9 +280,8 @@ export const QUICK_LINKS: NavItem[] = [
   {
     href: "/account",
     label: "My account",
-    icon: Users,
-    plannedSession: 3,
-    summary: "Your profile and password.",
+    icon: UserRound,
+    summary: "Your name, password and signed-in devices.",
     hidden: true,
   },
 ];
@@ -309,4 +333,11 @@ export function buildCrumbs(pathname: string): Crumb[] {
   const last = crumbs[crumbs.length - 1];
   crumbs[crumbs.length - 1] = { label: last.label };
   return crumbs;
+}
+
+/** Whether a user with `can` may see this entry. */
+export function isVisible(item: NavItem, can: (permission: Permission) => boolean): boolean {
+  if (!item.permission) return true;
+  const required = Array.isArray(item.permission) ? item.permission : [item.permission];
+  return required.some(can);
 }

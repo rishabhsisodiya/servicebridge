@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import pino from 'pino';
-import { REDACT_PATHS, resolveRequestId } from './logging.config';
+import { maskUrl, REDACT_PATHS, resolveRequestId } from './logging.config';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 function capture() {
@@ -56,5 +56,14 @@ describe('resolveRequestId', () => {
     const { res } = fakeRes();
     const req = { headers: { 'x-request-id': '<script>' } } as unknown as IncomingMessage;
     expect(resolveRequestId(req, res)).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('maskUrl', () => {
+  it('hides one-time link tokens', () => {
+    expect(maskUrl('/api/v1/auth/links/abcDEF123_-xyz/accept')).toBe(
+      '/api/v1/auth/links/[token]/accept',
+    );
+    expect(maskUrl('/api/v1/erp/connections')).toBe('/api/v1/erp/connections');
   });
 });

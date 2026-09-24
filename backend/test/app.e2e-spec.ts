@@ -70,4 +70,51 @@ describe('ServiceBridge API (e2e)', () => {
     const blocked = await api().get('/api/v1/health/live').set('Origin', 'https://evil.example');
     expect(blocked.headers['access-control-allow-origin']).toBeUndefined();
   });
+
+  describe('auth boundaries', () => {
+    it('requires sign-in for everything that is not marked public', async () => {
+      const res = await api().get('/api/v1/users').expect(401);
+      expect(res.body.error.code).toBe('UNAUTHENTICATED');
+    });
+
+    it('rejects a forged access cookie', async () => {
+      const res = await api()
+        .get('/api/v1/auth/me')
+        .set('Cookie', 'sb_access=not-a-jwt')
+        .expect(401);
+      expect(res.body.error.code).toBe('UNAUTHENTICATED');
+    });
+
+    it('blocks state-changing requests from other sites', async () => {
+      const res = await api()
+        .post('/api/v1/auth/login')
+        .set('Origin', 'https://evil.example')
+        .send({ email: 'a@b.co', password: 'x' })
+        .expect(403);
+      expect(res.body.error.code).toBe('ORIGIN_NOT_ALLOWED');
+    });
+
+    it('validates the login form with field-level messages', async () => {
+      const res = await api()
+        .post('/api/v1/auth/login')
+        .set('Origin', 'http://localhost:3000')
+        .send({ email: 'not-an-email', password: '', extra: 'field' })
+        .expect(400);
+      expect(res.body.error.code).toBe('VALIDATION_FAILED');
+      const fields = (res.body.error.fields as { field: string }[]).map((f) => f.field);
+      expect(fields).toEqual(expect.arrayContaining(['email', 'password', 'extra']));
+    });
+
+    it('clears auth cookies when a refresh fails, so the sign-in page cannot loop', async () => {
+      const res = await api().post('/api/v1/auth/refresh').expect(401);
+      expect(res.body.error.code).toBe('SESSION_ENDED');
+      const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+      expect(cookies.some((c) => c.startsWith('sb_signed_in=;'))).toBe(true);
+      expect(cookies.some((c) => c.startsWith('sb_access=;'))).toBe(true);
+    });
+
+    it('keeps health checks public', async () => {
+      await api().get('/api/v1/health/live').expect(200);
+    });
+  });
 });

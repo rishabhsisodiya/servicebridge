@@ -44,7 +44,6 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
         label: "Users & roles",
         description: "Invite people, set role and region",
         href: "/settings/users",
-        session: 3,
       },
       {
         icon: ShieldCheck,
@@ -80,7 +79,6 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
         label: "ERP connections",
         description: "Connect ERPNext and test it",
         href: "/settings/erp",
-        session: 4,
       },
       {
         icon: Workflow,

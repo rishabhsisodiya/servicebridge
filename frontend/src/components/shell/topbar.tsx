@@ -6,11 +6,9 @@ import { usePathname } from "next/navigation";
 import { IconButton } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/misc";
 import { Popover } from "@/components/ui/popover";
+import { useSession } from "@/lib/auth/session";
 import { buildCrumbs } from "./nav-config";
 import { ThemeToggle } from "./theme-toggle";
-
-// Until auth lands in session 3 the shell shows a fixed demo user.
-const DEMO_USER = { name: "Demo Admin", role: "Administrator" };
 
 interface TopbarProps {
   navOpen: boolean;
@@ -21,6 +19,8 @@ interface TopbarProps {
 export function Topbar({ navOpen, onOpenNav, onOpenSearch }: TopbarProps) {
   const pathname = usePathname();
   const crumbs = buildCrumbs(pathname);
+  const { me, signOut } = useSession();
+  const name = me?.user.name ?? "";
 
   return (
     <header className="sticky top-[env(safe-area-inset-top)] z-20 flex min-h-14 items-center gap-2 border-b border-line bg-bg/90 px-4 backdrop-blur-md lg:px-7">
@@ -90,11 +90,15 @@ export function Topbar({ navOpen, onOpenNav, onOpenSearch }: TopbarProps) {
         trigger={(props) => (
           <button
             type="button"
-            aria-label={`Account menu for ${DEMO_USER.name}`}
+            aria-label={name ? `Account menu for ${name}` : "Account menu"}
             className="cursor-pointer rounded-full"
             {...props}
           >
-            <Avatar name={DEMO_USER.name} />
+            {name ? (
+              <Avatar name={name} />
+            ) : (
+              <span className="block size-8 rounded-full bg-surface-3" />
+            )}
           </button>
         )}
         className="w-60"
@@ -102,8 +106,12 @@ export function Topbar({ navOpen, onOpenNav, onOpenSearch }: TopbarProps) {
         {(close) => (
           <div className="py-1.5">
             <div className="border-b border-line px-4 pt-1.5 pb-3">
-              <p className="font-semibold">{DEMO_USER.name}</p>
-              <p className="text-xs text-muted">{DEMO_USER.role}</p>
+              <p className="font-semibold">{name}</p>
+              <p className="text-xs text-muted">
+                {me?.user.roleLabel}
+                {me?.user.region ? ` · ${me.user.region.name}` : ""}
+              </p>
+              <p className="truncate text-xs text-muted">{me?.user.email}</p>
             </div>
             <Link
               href="/account"
@@ -115,9 +123,11 @@ export function Topbar({ navOpen, onOpenNav, onOpenSearch }: TopbarProps) {
             </Link>
             <button
               type="button"
-              disabled
-              title="Sign-in arrives in build session 3"
-              className="flex w-full cursor-not-allowed items-center gap-2.5 px-4 py-2.5 text-left text-muted"
+              onClick={() => {
+                close();
+                void signOut();
+              }}
+              className="flex w-full cursor-pointer items-center gap-2.5 border-t border-line px-4 py-2.5 text-left text-text hover:bg-surface-2"
             >
               <LogOut className="size-4" aria-hidden />
               Sign out

@@ -34,6 +34,9 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 | One API test file | `cd backend && npx jest src/core/health` |
 | One web test file | `cd frontend && npx vitest run src/lib/api` |
 | Migrations | `cd backend && npm run prisma:migrate` (dev) / `npm run prisma:deploy` (prod). **Agents do not run or generate migrations; the developer does.** |
+| First administrator | `cd backend && npm run admin:create -- --email you@co.com --name "Your Name"` (asks for the password; `ADMIN_PASSWORD` for automation) |
+| Rotate the encryption key | put the new key first in `APP_ENCRYPTION_KEYS`, then `cd backend && npm run secrets:reencrypt` |
+| API integration tests | `cd backend && TEST_DATABASE_URL=… npm run test:int` (real, migrated test DB that gets EMPTIED; skipped when unset) |
 
 ## Structure
 
@@ -41,8 +44,21 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   `http/` (error envelope, validation pipe), `logging/` (pino + redaction), `prisma/`, `redis/`,
   `health/`
 - `backend/src/bootstrap.ts` — global HTTP setup shared by `main.ts` and e2e tests
+- `backend/src/auth/` — sign-in, sessions (rotating refresh tokens), invite/reset links, the
+  global `OriginGuard` + `AuthGuard`, and `permissions.ts` (role → permission map)
+- `backend/src/users/` — user management and regions
+- `backend/src/core/audit/`, `core/rate-limit/`, `core/security/` — audit log, Redis rate limits,
+  password hashing and token helpers
+- `backend/src/erp/` — ERP connections: `adapters/` (Frappe REST client, read-only MariaDB client,
+  SQL guard), `connection-tester.ts` (read-only checks), `connections/` (API + service),
+  `request-log.service.ts` (every ERP call, for the System monitor)
+- `backend/src/core/crypto/` — AES-256-GCM secret encryption with key versions
+- `backend/src/core/security/network-guard.ts` — SSRF protection for admin-entered addresses
+- `backend/src/cli/` — command-line tools (`create-admin.ts`, `reencrypt-secrets.ts`)
 - `backend/prisma/schema.prisma` — ServiceBridge's own schema (never an ERP schema)
-- `frontend/src/proxy.ts` — forwards `/api/*` to `API_INTERNAL_URL` at runtime
+- `frontend/src/proxy.ts` — forwards `/api/*` to `API_INTERNAL_URL` at runtime, and redirects
+  signed-out visitors to `/login` (cookie presence only; the API is the real check)
+- `frontend/src/lib/auth/` — `useSession()` (`me`, `can(permission)`, `signOut`), `safeNext`
 - `frontend/src/lib/api/` — typed API client (`apiFetch`, `ApiError`)
 - `frontend/src/app/globals.css` — design tokens (light + dark) mapped to Tailwind colours
   (`bg-surface`, `text-muted`, `text-bad`…). Use tokens, never raw hex, in components.
@@ -65,6 +81,20 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 - **Config**: inject `AppConfig`; never read `process.env` outside `core/config`. New env vars go
   in `env.schema.ts` and `backend/.env.example`.
 - **Validation**: DTO classes with `class-validator`; the global pipe rejects unknown fields.
+- **Auth (API)**: every route requires sign-in unless marked `@Public()`. Gate actions with
+  `@RequirePermissions('x.y')` (add new names to `auth/permissions.ts` AND the web copy in
+  `lib/auth/session.tsx`; a test fails if they drift). Sensitive actions add `@RequireRecentAuth()`
+  and the web app wraps the call in `useStepUp().run(...)`. Get the caller with `@CurrentUser()`
+  and request info with `@Client()`.
+- **Audit**: every change calls `AuditService.record(...)`, inside the same transaction (`tx`)
+  as the change. Summaries are plain English; secrets never go in.
+- **ERP access**: never call an ERP directly; use `FrappeRestClient` / `FrappeDbClient` so the
+  network guard, timeouts, retries (reads only) and request logging always apply. Database reads
+  go through `select()`, which refuses anything but one SELECT/WITH statement.
+- **Secrets**: store with `CryptoService.encrypt`; never return them from the API, log them or put
+  them in audit entries. Show only a hint (e.g. last 4 characters).
+- **Concurrency**: editable records carry a `version`; updates check it and return
+  `VERSION_CONFLICT` when stale.
 - **Logging**: secrets are redacted by key name (`REDACT_PATHS`); pass driver/HTTP error text
   through `stripUrlCredentials` before logging or storing it.
 - **Web data**: SWR hooks, not `useEffect` + `setState`. Call the API only through `apiFetch`
@@ -85,6 +115,14 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   column to the widest child (a table), breaking the page width. Always `grid grid-cols-1 md:…`.
 - **Scroll containers must be `relative`**: absolutely positioned children (e.g. `sr-only` text)
   escape a non-positioned `overflow-x-auto` box and widen the page. `Table` already does this.
+- **Overriding a UI control's width**: `Input`/`Select` set `w-full`; a plain `w-auto` passed in
+  may lose (Tailwind 4 resolves by stylesheet order). Use the important form, e.g. `sm:w-auto!`.
+- **Auth cookies are path-scoped**: `sb_access` is sent only to `/api`, `sb_refresh` only to
+  `/api/v1/auth`. Playwright's `request` fixture doesn't share browser cookies.
+- **IP-literal hosts skip DNS lookup**, so the guarded lookup alone doesn't cover them. Call
+  `assertHostAllowed()` before connecting (the ERP clients do).
+- **Playwright label matching**: required fields render a visual `*` inside the label, so
+  `getByLabel(..., { exact: true })` fails for them; match without `exact`.
 - **Keep-alive**: the API sets `keepAliveTimeout` to 65 s (`main.ts`) so the web proxy never
   reuses a socket the API just closed (ECONNRESET under load). Keep any stub API the same.
 

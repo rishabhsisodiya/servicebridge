@@ -73,6 +73,27 @@ export const envSchema = z.object({
       return z.NEVER;
     }
   }),
+  /** Public address of the web app. Used in invite links; https here makes cookies Secure. */
+  APP_URL: z
+    .string()
+    .url()
+    .default('http://localhost:3000')
+    .transform((url) => url.replace(/\/+$/, '')),
+  /** Signs access tokens (HS256). Generate with: openssl rand -base64 48 */
+  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
+  ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).default(900),
+  /** Idle sign-out: a session unused for this long ends. */
+  SESSION_IDLE_DAYS: z.coerce.number().int().min(1).max(90).default(14),
+  /** Hard limit: every session ends this long after sign-in. */
+  SESSION_MAX_DAYS: z.coerce.number().int().min(1).max(365).default(30),
+  /**
+   * ERP connections to private/loopback addresses are refused (SSRF protection).
+   * Set to true only when the ERP runs on your own network, e.g. a local Docker ERPNext.
+   */
+  ALLOW_PRIVATE_ERP_HOSTS: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;

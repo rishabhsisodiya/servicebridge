@@ -67,7 +67,7 @@ export interface ApiRequestInit extends Omit<RequestInit, "body"> {
   json?: unknown;
 }
 
-export async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+async function send<T>(path: string, init: ApiRequestInit): Promise<T> {
   const { json, headers, ...rest } = init;
   let response: Response;
   try {
@@ -99,4 +99,66 @@ export async function apiFetch<T>(path: string, init: ApiRequestInit = {}): Prom
     response.status >= 500 ? "SERVICE_UNAVAILABLE" : "BAD_RESPONSE",
     SERVER_MESSAGE,
   );
+}
+
+/** Codes meaning "you are not signed in any more"; the app sends the user to sign in. */
+export const SIGNED_OUT_CODES = new Set(["UNAUTHENTICATED", "SESSION_ENDED"]);
+
+let refreshing: Promise<boolean> | null = null;
+
+/**
+ * One refresh at a time: requests that expire together all wait for the same
+ * refresh instead of each rotating the refresh token.
+ */
+export function refreshSession(): Promise<boolean> {
+  refreshing ??= send<unknown>("/auth/refresh", { method: "POST" })
+    .then(() => true)
+    .catch(() => false)
+    .finally(() => {
+      refreshing = null;
+    });
+  return refreshing;
+}
+
+type SignedOutHandler = () => void;
+let onSignedOut: SignedOutHandler = () => {
+  if (typeof window === "undefined") return;
+  const next = `${window.location.pathname}${window.location.search}`;
+  // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full load clears every cached screen from the previous session
+  window.location.assign(`/login?next=${encodeURIComponent(next)}`);
+};
+
+/** Tests (and the session provider) can replace what happens when the session ends. */
+export function setSignedOutHandler(handler: SignedOutHandler): void {
+  onSignedOut = handler;
+}
+
+export interface ApiOptions extends ApiRequestInit {
+  /** Don't redirect to sign-in on 401 (used by the auth pages themselves). */
+  noAuthRedirect?: boolean;
+}
+
+export async function apiFetch<T>(path: string, init: ApiOptions = {}): Promise<T> {
+  const { noAuthRedirect, ...request } = init;
+  try {
+    return await send<T>(path, request);
+  } catch (error) {
+    if (!(error instanceof ApiError) || error.status !== 401 || noAuthRedirect) throw error;
+
+    const signedOut = error.code === "TOKEN_EXPIRED" || SIGNED_OUT_CODES.has(error.code);
+    if (!signedOut) throw error;
+
+    // The 15-minute access cookie is dropped by the browser when it expires, so a
+    // missing token (UNAUTHENTICATED) also gets one refresh attempt. A failed
+    // refresh clears every auth cookie server-side, so the redirect can't loop.
+    if (await refreshSession()) {
+      try {
+        return await send<T>(path, request);
+      } catch (retryError) {
+        if (!(retryError instanceof ApiError) || retryError.status !== 401) throw retryError;
+      }
+    }
+    onSignedOut();
+    throw error;
+  }
 }

@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const BUILT_PAGES = [
   "/",
@@ -7,6 +8,9 @@ const BUILT_PAGES = [
   "/tickets/SB-26-000415",
   "/settings",
   "/settings/design-system",
+  "/settings/users",
+  "/settings/erp",
+  "/account",
   "/customers",
 ];
 
@@ -43,9 +47,9 @@ test.describe("navigation", () => {
   });
 
   test("planned screens explain when they arrive", async ({ page }) => {
-    await page.goto("/settings/erp");
-    await expect(page.getByRole("heading", { name: "ERP connections", level: 1 })).toBeVisible();
-    await expect(page.getByText(/build session 4/)).toBeVisible();
+    await page.goto("/settings/automations");
+    await expect(page.getByRole("heading", { name: "Automations", level: 1 })).toBeVisible();
+    await expect(page.getByText(/build session 5/)).toBeVisible();
   });
 
   test("unknown addresses show the not-found page", async ({ page }) => {

@@ -17,3 +17,230 @@ model AppSetting {
   value     Json
   updatedAt DateTime @updatedAt
 }
+
+// ─── People & access ────────────────────────────────────────────────────────
+
+/// What a user may do comes from their role (see roles/permissions.ts).
+enum Role {
+  ADMIN
+  SERVICE_MANAGER
+  AREA_MANAGER
+  ENGINEER
+  CALL_CENTER
+  CS_SUPPORT
+  EXECUTIVE
+  DEPARTMENT_HEAD
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DEACTIVATED
+}
+
+/// Service region. Pincode/district rules are added in session 7.
+model Region {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model User {
+  id                String     @id @default(cuid())
+  /// Always stored lower-case.
+  email             String     @unique
+  name              String
+  role              Role
+  status            UserStatus @default(INVITED)
+  /// argon2id. Null until the invite is accepted.
+  passwordHash      String?
+  passwordChangedAt DateTime?
+  regionId          String?
+  region            Region?    @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  failedLoginCount  Int        @default(0)
+  lockedUntil       DateTime?
+  lastLoginAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  /// Optimistic locking: edits must send the version they read.
+  version           Int        @default(1)
+
+  sessions     Session[]
+  tokens       UserToken[] @relation("TokenOwner")
+  tokensIssued UserToken[] @relation("TokenIssuer")
+  auditEntries AuditLog[]
+
+  @@index([role])
+  @@index([status])
+  @@index([regionId])
+}
+
+/// One row per sign-in. The refresh token rotates in place; the previous hash
+/// is kept briefly so two tabs refreshing at once don't look like token theft.
+model Session {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// sha256 of the current refresh token (the token itself is never stored).
+  tokenHash         String    @unique
+  previousTokenHash String?   @unique
+  rotatedAt         DateTime?
+  /// Sliding expiry, pushed forward on each refresh up to absoluteExpiresAt.
+  expiresAt         DateTime
+  absoluteExpiresAt DateTime
+  /// Last time the user re-entered their password (for sensitive actions).
+  stepUpAt          DateTime?
+  revokedAt         DateTime?
+  revokedReason     String?
+  ip                String?
+  userAgent         String?
+  createdAt         DateTime  @default(now())
+  lastUsedAt        DateTime  @default(now())
+
+  @@index([userId, revokedAt])
+}
+
+enum UserTokenType {
+  INVITE
+  PASSWORD_RESET
+}
+
+/// Single-use links for accepting an invite or resetting a password.
+model UserToken {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation("TokenOwner", fields: [userId], references: [id], onDelete: Cascade)
+  type        UserTokenType
+  /// sha256 of the token in the link.
+  tokenHash   String        @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdById String?
+  createdBy   User?         @relation("TokenIssuer", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+
+  @@index([userId, type])
+}
+
+/// Append-only record of changes. Secrets are never written here.
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Null for changes made by the system itself.
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  /// Dotted verb, e.g. "user.invited", "auth.password_changed".
+  action     String
+  entityType String
+  entityId   String?
+  /// Plain-English line shown in the audit log screen.
+  summary    String
+  /// Field-level before/after for updates.
+  changes    Json?
+  ip         String?
+  requestId  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@index([actorId])
+}
+
+// ─── ERP connections ────────────────────────────────────────────────────────
+
+enum ErpKind {
+  FRAPPE
+}
+
+enum ErpConnectionStatus {
+  /// Saved but not tested since its URL or credentials last changed.
+  UNTESTED
+  ACTIVE
+  /// Recent calls are failing (e.g. credentials rotated on the ERP side).
+  FAILING
+  DISABLED
+  /// Stored secrets can't be decrypted with the current APP_ENCRYPTION_KEYS.
+  KEY_ERROR
+}
+
+/// What a connection is used for. Each purpose has at most one connection.
+enum ErpPurpose {
+  MASTER_SYNC
+  DASHBOARDS
+  WRITEBACK
+}
+
+/// An ERPNext site added by an administrator. Secrets are AES-256-GCM
+/// encrypted (core/crypto) and never returned by the API.
+model ErpConnection {
+  id                  String              @id @default(cuid())
+  name                String              @unique
+  kind                ErpKind             @default(FRAPPE)
+  /// Origin only, e.g. https://erp.example.com
+  baseUrl             String
+  apiKeyEnc           String
+  /// Last 4 characters of the API key, so admins can tell keys apart.
+  apiKeyHint          String
+  apiSecretEnc        String
+  /// Optional read-only MariaDB access for heavy dashboard queries.
+  dbHost              String?
+  dbPort              Int?
+  dbName              String?
+  dbUser              String?
+  dbPasswordEnc       String?
+  dbSsl               Boolean             @default(true)
+  /// Most queries run at once against the ERP database (connection pool size).
+  dbConnectionLimit   Int                 @default(3)
+  status              ErpConnectionStatus @default(UNTESTED)
+  /// When the URL, credentials or DB settings last changed; a test must be newer to enable.
+  detailsChangedAt    DateTime            @default(now())
+  erpVersion          String?
+  lastTestedAt        DateTime?
+  /// Outcome of the last test (no secrets, no business data).
+  lastTestResult      Json?
+  consecutiveFailures Int                 @default(0)
+  createdById         String?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  version             Int                 @default(1)
+
+  purposes ErpPurposeBinding[]
+  requests ErpRequestLog[]
+}
+
+model ErpPurposeBinding {
+  purpose      ErpPurpose    @id
+  connectionId String
+  connection   ErpConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+  updatedAt    DateTime      @updatedAt
+}
+
+enum ErpChannel {
+  REST
+  DB
+}
+
+/// Every call ServiceBridge makes to an ERP, for the System monitor.
+/// Request bodies, query parameters and credentials are never stored.
+model ErpRequestLog {
+  id           String         @id @default(cuid())
+  connectionId String?
+  connection   ErpConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  channel      ErpChannel
+  /// HTTP method, or "SQL".
+  method       String
+  /// Path without query string, or a short label for SQL ("SELECT tabCustomer").
+  target       String
+  doctype      String?
+  httpStatus   Int?
+  ok           Boolean
+  latencyMs    Int
+  error        String?
+  /// Queue job that caused the call, when there is one (session 5).
+  jobId        String?
+  createdAt    DateTime       @default(now())
+
+  @@index([connectionId, createdAt])
+  @@index([ok, createdAt])
+}

@@ -3,9 +3,10 @@
 import { CornerDownLeft, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
 import { searchCommands, type Command } from "./command-search";
-import { NAV, QUICK_LINKS } from "./nav-config";
+import { isVisible, NAV, QUICK_LINKS } from "./nav-config";
 
 const COMMANDS: Command[] = [
   ...NAV.flatMap((group) =>
@@ -40,7 +41,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const listId = useId();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const results = useMemo(() => searchCommands(COMMANDS, query), [query]);
+  const { can } = useSession();
+  const allowed = useMemo(() => COMMANDS.filter((command) => isVisible(command.item, can)), [can]);
+  const results = useMemo(() => searchCommands(allowed, query), [allowed, query]);
 
   useEffect(() => {
     const dialog = dialogRef.current;

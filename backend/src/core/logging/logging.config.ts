@@ -54,9 +54,36 @@ export function buildLoggerParams(env: Pick<Env, 'NODE_ENV' | 'LOG_LEVEL'>): Par
         err || res.statusCode >= 500 ? 'error' : res.statusCode >= 400 ? 'warn' : 'info',
       // Health probes run every few seconds; logging them adds noise, not signal.
       autoLogging: { ignore: (req) => req.url?.startsWith('/api/v1/health') ?? false },
+      // One compact line per request instead of every header.
+      serializers: {
+        req: (req: { id?: string; method?: string; url?: string }) => ({
+          id: req.id,
+          method: req.method,
+          url: maskUrl(req.url),
+        }),
+        res: (res: { statusCode?: number }) => ({ statusCode: res.statusCode }),
+      },
+      customSuccessMessage: (req, res, responseTime) =>
+        `${req.method} ${maskUrl(req.url)} ${res.statusCode} ${Math.round(responseTime)}ms`,
+      customErrorMessage: (req, res, error) =>
+        `${req.method} ${maskUrl(req.url)} ${res.statusCode} failed: ${error.message}`,
       transport: pretty
-        ? { target: 'pino-pretty', options: { singleLine: true, translateTime: 'SYS:HH:MM:ss' } }
+        ? {
+            target: 'pino-pretty',
+            options: {
+              singleLine: true,
+              translateTime: 'SYS:HH:MM:ss',
+              // The message already says method, URL, status and time.
+              ignore: 'pid,hostname,req,res,responseTime',
+            },
+          }
         : undefined,
     },
   };
+}
+
+/** Masks single-use tokens in paths (invite/reset links) so they never reach logs. */
+export function maskUrl(url: string | undefined): string {
+  if (!url) return '';
+  return url.replace(/(\/auth\/links\/)[^/?#]+/, '$1[token]');
 }

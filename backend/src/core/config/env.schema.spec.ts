@@ -6,6 +6,7 @@ const baseEnv = {
   DATABASE_URL: 'postgresql://sb:sb@localhost:5432/servicebridge',
   REDIS_URL: 'redis://localhost:6379',
   APP_ENCRYPTION_KEYS: `v1:${key(1)}`,
+  JWT_SECRET: 'x'.repeat(32),
 };
 
 describe('parseEncryptionKeys', () => {
@@ -31,6 +32,13 @@ describe('validateEnv', () => {
     expect(env.PORT).toBe(4000);
     expect(env.APP_ENV).toBe('development');
     expect(env.CORS_ORIGINS).toEqual([]);
+  });
+
+  it('requires a long JWT secret and trims APP_URL', () => {
+    expect(() => validateEnv({ ...baseEnv, JWT_SECRET: 'short' })).toThrow(/JWT_SECRET/);
+    expect(validateEnv({ ...baseEnv, APP_URL: 'https://app.example.com/' }).APP_URL).toBe(
+      'https://app.example.com',
+    );
   });
 
   it('splits CORS_ORIGINS', () => {

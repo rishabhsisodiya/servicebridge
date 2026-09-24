@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
-import { findActiveItem, NAV } from "./nav-config";
+import { findActiveItem, isVisible, NAV } from "./nav-config";
 
 export function BrandMark() {
   return (
@@ -27,6 +28,7 @@ export function BrandMark() {
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const active = findActiveItem(pathname);
+  const { can, loading } = useSession();
 
   return (
     <div className="flex h-full flex-col bg-rail text-rail-text">
@@ -36,8 +38,15 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </Link>
       </div>
       <nav aria-label="Main" className="flex flex-1 flex-col gap-4 overflow-y-auto px-2.5 pb-4">
+        {loading && (
+          <div role="status" aria-label="Loading menu" className="flex flex-col gap-2 px-2.5 pt-2">
+            {Array.from({ length: 6 }, (_, i) => (
+              <span key={i} className="h-7 rounded-md bg-rail-2" />
+            ))}
+          </div>
+        )}
         {NAV.map((group) => {
-          const items = group.items.filter((item) => !item.hidden);
+          const items = group.items.filter((item) => !item.hidden && isVisible(item, can));
           if (items.length === 0) return null;
           return (
             <div key={group.label}>
