@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { cn } from "@/lib/cn";
 import { CommandPalette } from "./command-palette";
 import { Sidebar } from "./sidebar";
+import { DemoBanner } from "./demo-banner";
 import { Topbar } from "./topbar";
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -89,6 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onOpenNav={() => setNavOpen(true)}
           onOpenSearch={() => setSearchOpen(true)}
         />
+        <DemoBanner />
         <main
           id="main"
           className="mx-auto flex w-full max-w-[1440px] flex-col gap-5 px-4 pt-5 pb-12 lg:px-7 lg:pt-6"

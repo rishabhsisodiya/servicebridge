@@ -35,6 +35,7 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 | One web test file | `cd frontend && npx vitest run src/lib/api` |
 | Migrations | `cd backend && npm run prisma:migrate` (dev) / `npm run prisma:deploy` (prod). **Agents do not run or generate migrations; the developer does.** |
 | First administrator | `cd backend && npm run admin:create -- --email you@co.com --name "Your Name"` (asks for the password; `ADMIN_PASSWORD` for automation) |
+| Load / reset demo data | `cd backend && npm run demo:seed` (prints demo logins + one shared password), or Settings → Company & demo data |
 | Rotate the encryption key | put the new key first in `APP_ENCRYPTION_KEYS`, then `cd backend && npm run secrets:reencrypt` |
 | API integration tests | `cd backend && TEST_DATABASE_URL=… npm run test:int` (real, migrated test DB that gets EMPTIED; skipped when unset) |
 
@@ -55,6 +56,9 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 - `backend/src/erp/sync/` — master data sync: `specs.ts` (doctype → table mapping, pure),
   `erp-sync.service.ts` (incremental by `modified`, 500 per page), `erp-webhooks.service.ts`
   (signed webhooks, setup in ERPNext, the two sync automations — both off by default)
+- `backend/src/demo/` — demo company (`demo-data.ts`, fictional and deterministic), load/clear, and
+  company settings (`app-settings.service.ts`). Demo rows: `source = DEMO` / `isDemo = true`; new
+  demo-seeded tables must use the same marker so "Clear demo data" removes them.
 - `backend/src/core/crypto/` — AES-256-GCM secret encryption with key versions
 - `backend/src/core/security/network-guard.ts` — SSRF protection for admin-entered addresses
 - `backend/src/core/queue/` — BullMQ queues (one per area) and workers; `QueueService.register()`

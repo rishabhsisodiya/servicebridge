@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAppSettings } from "@/lib/app-settings";
 import { useSession } from "@/lib/auth/session";
 import { cn } from "@/lib/cn";
 import { findActiveItem, isVisible, NAV } from "./nav-config";
@@ -29,6 +30,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const active = findActiveItem(pathname);
   const { can, loading } = useSession();
+  const { data: settings } = useAppSettings();
 
   return (
     <div className="flex h-full flex-col bg-rail text-rail-text">
@@ -97,8 +99,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
       <div className="flex flex-col gap-1 border-t border-white/10 px-4 py-3 text-xs text-rail-muted">
-        <span className="font-semibold text-rail-text">Apex Crushing Systems</span>
-        <span>Demo company · sample data</span>
+        <span className="font-semibold text-rail-text">{settings?.company.name ?? "\u00a0"}</span>
+        <span>{settings?.demo.active ? "Demo data loaded" : "Service & ERP operations"}</span>
       </div>
     </div>
   );

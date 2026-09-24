@@ -27,13 +27,11 @@ function build(enabled: boolean) {
   const events: Record<string, unknown>[] = [];
   const prisma = {
     erpConnection: {
-      findUnique: jest
-        .fn()
-        .mockResolvedValue({
-          id: 'c1',
-          name: 'Test ERP',
-          webhookSecretEnc: crypto.encrypt(SECRET),
-        }),
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'c1',
+        name: 'Test ERP',
+        webhookSecretEnc: crypto.encrypt(SECRET),
+      }),
     },
     automationSetting: { findUnique: jest.fn().mockResolvedValue({ enabled }) },
     erpWebhookEvent: {

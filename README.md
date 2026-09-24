@@ -26,6 +26,7 @@ cp .env.example .env
 npm install
 npm run prisma:migrate        # creates the database tables
 npm run admin:create -- --email you@company.com --name "Your Name"   # first administrator
+npm run demo:seed             # optional: fictional demo company, logins printed once
 npm run dev                   # http://localhost:4000/api/v1/health/ready
 
 # 3. Web app (new terminal)

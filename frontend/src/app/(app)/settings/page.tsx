@@ -1,5 +1,6 @@
 import {
   Activity,
+  Building2,
   Bell,
   Boxes,
   Clock,
@@ -39,6 +40,12 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
   {
     title: "People & access",
     entries: [
+      {
+        icon: Building2,
+        label: "Company & demo data",
+        description: "Company details; load or clear the demo company",
+        href: "/settings/company",
+      },
       {
         icon: Users,
         label: "Users & roles",

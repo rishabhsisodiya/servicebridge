@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module';
 import { AutomationsModule } from './automations/automations.module';
 import { AppConfigModule } from './core/config/config.module';
 import { CoreModule } from './core/core.module';
+import { DemoModule } from './demo/demo.module';
 import { ErpModule } from './erp/erp.module';
 import { SystemModule } from './system/system.module';
 import { AppConfig } from './core/config/app-config.service';
@@ -31,6 +32,7 @@ import { RedisModule } from './core/redis/redis.module';
     AutomationsModule,
     ErpModule,
     SystemModule,
+    DemoModule,
   ],
 })
 export class AppModule {}

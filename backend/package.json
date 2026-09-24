@@ -22,7 +22,8 @@
     "admin:create": "ts-node -P tsconfig.json src/cli/create-admin.ts",
     "admin:create:prod": "node dist/cli/create-admin.js",
     "test:int": "jest --config test/jest-int.json --runInBand",
-    "secrets:reencrypt": "ts-node -P tsconfig.json src/cli/reencrypt-secrets.ts"
+    "secrets:reencrypt": "ts-node -P tsconfig.json src/cli/reencrypt-secrets.ts",
+    "demo:seed": "ts-node -P tsconfig.json src/cli/demo-seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.22",

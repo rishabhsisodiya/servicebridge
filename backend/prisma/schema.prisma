@@ -42,6 +42,8 @@ enum UserStatus {
 model Region {
   id        String   @id @default(cuid())
   name      String   @unique
+  /// Created by the demo seed; removed by "Clear demo data".
+  isDemo    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   users     User[]
@@ -66,6 +68,8 @@ model User {
   updatedAt         DateTime   @updatedAt
   /// Optimistic locking: edits must send the version they read.
   version           Int        @default(1)
+  /// Created by the demo seed; removed by "Clear demo data".
+  isDemo            Boolean    @default(false)
 
   sessions     Session[]
   tokens       UserToken[] @relation("TokenOwner")

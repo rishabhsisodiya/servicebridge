@@ -261,6 +261,14 @@ export const NAV: NavGroup[] = [
         summary: "Every change, who made it and when.",
       },
       {
+        href: "/settings/company",
+        permission: "settings.manage",
+        label: "Company & demo data",
+        icon: Building2,
+        hidden: true,
+        summary: "Company name, time zone, currency and GST rate; load or clear demo data.",
+      },
+      {
         href: "/settings/design-system",
         label: "Design system",
         icon: Palette,

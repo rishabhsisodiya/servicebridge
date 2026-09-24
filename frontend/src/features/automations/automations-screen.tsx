@@ -290,7 +290,8 @@ function ScheduleForm({
   const [cron, setCron] = useState(automation.cron ?? "");
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState(false);
-  const preset = PRESETS.find((p) => p.cron === cron)?.cron ?? "custom";
+  // "custom" is its own choice: picking it keeps the current expression and lets you edit it.
+  const [mode, setMode] = useState(PRESETS.some((p) => p.cron === cron) ? cron : "custom");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -334,8 +335,12 @@ function ScheduleForm({
           {(p) => (
             <Select
               {...p}
-              value={preset}
-              onChange={(e) => e.target.value !== "custom" && setCron(e.target.value)}
+              value={mode}
+              onChange={(e) => {
+                setMode(e.target.value);
+                if (e.target.value !== "custom") setCron(e.target.value);
+                else requestAnimationFrame(() => document.getElementById("schedule-cron")?.focus());
+              }}
             >
               {PRESETS.map((p) => (
                 <option key={p.cron} value={p.cron}>
@@ -354,8 +359,10 @@ function ScheduleForm({
           {(p) => (
             <Input
               {...p}
+              id="schedule-cron"
               className="font-mono"
               value={cron}
+              readOnly={mode !== "custom"}
               onChange={(e) => setCron(e.target.value)}
               spellCheck={false}
             />
