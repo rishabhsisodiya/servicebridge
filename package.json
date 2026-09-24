@@ -1,0 +1,15 @@
+{
+  "name": "servicebridge",
+  "private": true,
+  "description": "Convenience scripts; each app keeps its own dependencies.",
+  "scripts": {
+    "infra:up": "docker compose up -d --wait",
+    "infra:down": "docker compose down",
+    "dev:api": "npm --prefix backend run dev",
+    "dev:web": "npm --prefix frontend run dev",
+    "check:api": "npm --prefix backend run typecheck && npm --prefix backend run lint && npm --prefix backend test && npm --prefix backend run test:e2e",
+    "check:web": "npm --prefix frontend run typecheck && npm --prefix frontend run lint && npm --prefix frontend test",
+    "check": "npm run check:api && npm run check:web",
+    "test:e2e:web": "npm --prefix frontend run test:e2e"
+  }
+}

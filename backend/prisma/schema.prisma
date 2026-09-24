@@ -1,0 +1,19 @@
+// ServiceBridge's own database. Unrelated to any ERP schema.
+// Models are added per build session. Create migrations with `npm run prisma:migrate`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// App-wide settings as key/value pairs (demo mode, company name, timezone,
+/// currency, GST rate, routing mode...). Values are validated in code per key.
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

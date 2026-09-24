@@ -1,0 +1,19 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+.DS_Store
+
+# Secrets: only the example files are committed.
+.env
+.env.*
+!.env.example
+
+# Test output
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Local uploads (file storage is local disk until S3 is added)
+storage/
