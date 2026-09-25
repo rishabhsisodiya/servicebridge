@@ -6,6 +6,7 @@ import { AppConfigModule } from './core/config/config.module';
 import { CoreModule } from './core/core.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { ServiceRulesModule } from './service-rules/service-rules.module';
+import { TicketsModule } from './tickets/tickets.module';
 import { DemoModule } from './demo/demo.module';
 import { ErpModule } from './erp/erp.module';
 import { SystemModule } from './system/system.module';
@@ -37,6 +38,7 @@ import { RedisModule } from './core/redis/redis.module';
     DemoModule,
     CatalogModule,
     ServiceRulesModule,
+    TicketsModule,
   ],
 })
 export class AppModule {}

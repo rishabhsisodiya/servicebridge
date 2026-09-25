@@ -38,6 +38,7 @@ const COUNT_LABELS: Record<string, string> = {
   prices: "prices",
   warehouses: "warehouses",
   stockLevels: "stock levels",
+  tickets: "tickets",
 };
 
 export function CompanyScreen() {

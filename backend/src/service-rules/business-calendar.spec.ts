@@ -1,4 +1,9 @@
-import { addBusinessMinutes, type CalendarRules, calendarProblems } from './business-calendar';
+import {
+  addBusinessMinutes,
+  businessMinutesBetween,
+  type CalendarRules,
+  calendarProblems,
+} from './business-calendar';
 import { matchPincode, normalisePrefixes } from './region-match';
 
 const TZ = 'Asia/Kolkata';
@@ -124,5 +129,25 @@ describe('matchPincode', () => {
       prefixes: ['400', '560'],
       invalid: ['5a', '1234567'],
     });
+  });
+});
+
+describe('businessMinutesBetween', () => {
+  it('counts only open time, across a closed Sunday', () => {
+    expect(
+      businessMinutesBetween(ist('2026-09-26T17:00:00'), ist('2026-09-28T10:00:00'), business, TZ),
+    ).toBe(120);
+  });
+
+  it('is the inverse of addBusinessMinutes', () => {
+    const start = ist('2026-09-25T11:17:00');
+    const due = addBusinessMinutes(start, 1000, business, TZ);
+    expect(businessMinutesBetween(start, due, business, TZ)).toBe(1000);
+  });
+
+  it('is zero when the end is not after the start', () => {
+    expect(
+      businessMinutesBetween(ist('2026-09-25T12:00:00'), ist('2026-09-25T11:00:00'), business, TZ),
+    ).toBe(0);
   });
 });

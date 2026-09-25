@@ -9,7 +9,7 @@ import { stripUrlCredentials } from '../core/logging/redact';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { type QueueName, QueueService } from '../core/queue/queue.service';
 
-export type AutomationCategory = 'Maintenance' | 'ERP';
+export type AutomationCategory = 'Service' | 'Maintenance' | 'ERP';
 
 export interface AutomationDefinition {
   key: string;

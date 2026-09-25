@@ -1,5 +1,11 @@
 import { HttpStatus, Injectable, Logger, type OnModuleInit } from '@nestjs/common';
-import { type BillingRate, Prisma, type TicketPriority, type TicketStage } from '@prisma/client';
+import {
+  type BillingRate,
+  type Coverage,
+  Prisma,
+  type TicketPriority,
+  type TicketStage,
+} from '@prisma/client';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { AuditService, diffFields } from '../core/audit/audit.service';
 import { AppException, validationFailed } from '../core/http/app.exception';
@@ -501,6 +507,49 @@ export class ServiceRulesService implements OnModuleInit {
       }
       return updated;
     });
+  }
+
+  /** A calendar's rules plus the company time zone: everything the SLA clock needs. */
+  async clock(
+    calendarId: string | null,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<{ rules: CalendarRules; timeZone: string }> {
+    const [calendar, company] = await Promise.all([
+      calendarId ? db.businessCalendar.findUnique({ where: { id: calendarId } }) : null,
+      this.settings.company(),
+    ]);
+    // A deleted calendar falls back to 24×7 rather than stopping the clock.
+    const rules = calendar
+      ? calendarRules(calendar)
+      : { alwaysOpen: true, hours: [], holidays: [] };
+    return { rules, timeZone: company.timezone };
+  }
+
+  /** Targets for a new ticket and its due times from `from`. */
+  async slaFor(
+    coverage: Coverage,
+    priority: TicketPriority,
+    from: Date,
+    db: Prisma.TransactionClient = this.prisma,
+  ) {
+    const policy = await db.slaPolicy.findUnique({
+      where: { coverage_priority: { coverage, priority } },
+    });
+    if (!policy) {
+      throw new AppException(
+        'SLA_POLICY_MISSING',
+        'No SLA policy exists for this coverage and priority. Restart the API to recreate the defaults.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    const { rules, timeZone } = await this.clock(policy.calendarId, db);
+    return {
+      responseMinutes: policy.responseMinutes,
+      resolutionMinutes: policy.resolutionMinutes,
+      slaCalendarId: policy.calendarId,
+      responseDueAt: addBusinessMinutes(from, policy.responseMinutes, rules, timeZone),
+      resolutionDueAt: addBusinessMinutes(from, policy.resolutionMinutes, rules, timeZone),
+    };
   }
 
   // ─── Billing ─────────────────────────────────────────────────────────────

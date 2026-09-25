@@ -15,5 +15,7 @@ playwright-report/
 blob-report/
 playwright/.cache/
 
-# Local uploads (file storage is local disk until S3 is added)
-storage/
+# Local uploads (file storage is local disk until S3 is added).
+# Anchored so src/core/storage (code) is not ignored.
+/storage/
+/backend/storage/

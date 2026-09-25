@@ -68,6 +68,13 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   `business-calendar.ts` (`addBusinessMinutes`, company time zone) is the SLA clock — use it for due
   times. `defaults.ts` rows are created on API start only where a table is empty; never overwrite.
   Priorities and stages are fixed enums (`TicketPriority`, `TicketStage`); only their labels change.
+- `backend/src/tickets/` — tickets. `workflow.ts` (pure: stages, who may do each action) and
+  `sla.ts` (pure: running clock, at-risk = last 25% of the target) are the rules; every stage change
+  goes through `POST /tickets/:id/actions`. `slaDueAt`/`slaRiskAt` are denormalised for the running
+  clock — recompute with `slaFields()` on every write and then call `SlaTimersService.sync()` (two
+  BullMQ delayed jobs per ticket, no polling). Visibility: `visibleTo(user)`; hidden tickets are 404.
+  Demo tickets plug into `DemoService.register()` (extension hook, avoids an import cycle).
+- `backend/src/core/storage/` — local-disk files under `STORAGE_DIR`; file type from magic bytes
 - `backend/src/core/crypto/` — AES-256-GCM secret encryption with key versions
 - `backend/src/core/security/network-guard.ts` — SSRF protection for admin-entered addresses
 - `backend/src/core/queue/` — BullMQ queues (one per area) and workers; `QueueService.register()`

@@ -100,6 +100,23 @@ export class RegionsService {
     return { pincode, matchedPrefix: match?.pincodePrefix ?? null, region: match?.target ?? null };
   }
 
+  /** The region (and its area manager) a site with this pincode is routed to. */
+  async forPincode(pincode: string | null | undefined, db: Prisma.TransactionClient = this.prisma) {
+    if (!pincode) return null;
+    const rules = await db.regionRule.findMany({
+      select: {
+        pincodePrefix: true,
+        region: { select: { id: true, name: true, areaManagerId: true } },
+      },
+    });
+    return (
+      matchPincode(
+        pincode,
+        rules.map((r) => ({ pincodePrefix: r.pincodePrefix, target: r.region })),
+      )?.target ?? null
+    );
+  }
+
   private async validate(dto: RegionDto, regionId: string | null, tx: Prisma.TransactionClient) {
     const { prefixes, invalid } = normalisePrefixes(dto.pincodePrefixes ?? []);
     const problems: { field: string; message: string }[] = [];

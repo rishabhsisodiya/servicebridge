@@ -24,7 +24,25 @@ export interface DemoActor {
   name: string;
 }
 
+/** Work to run after the transaction commits (e.g. BullMQ timers, file removal). */
+export type AfterCommit = () => Promise<void>;
+
+/**
+ * Lets a feature module add its own demo rows (e.g. tickets) without DemoModule
+ * importing it. Register from the module's onModuleInit.
+ */
+export interface DemoExtension {
+  /** Key in the counts shown on the company screen, e.g. "tickets". */
+  key: string;
+  count(): Promise<number>;
+  /** Inside the load transaction, after regions, users, customers and machines exist. */
+  load(tx: Prisma.TransactionClient, now: Date): Promise<AfterCommit | void>;
+  /** Inside every delete (clear, and before a reload). Runs before master data is removed. */
+  clear(tx: Prisma.TransactionClient): Promise<AfterCommit | void>;
+}
+
 export interface DemoCounts {
+  [key: string]: number;
   users: number;
   regions: number;
   customers: number;
@@ -64,11 +82,21 @@ export function demoPassword(): string {
  */
 @Injectable()
 export class DemoService {
+  private readonly extensions: DemoExtension[] = [];
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: AppSettingsService,
     private readonly audit: AuditService,
   ) {}
+
+  register(extension: DemoExtension): void {
+    this.extensions.push(extension);
+  }
+
+  private async runAfterCommit(tasks: (AfterCommit | void)[]): Promise<void> {
+    for (const task of tasks) if (task) await task();
+  }
 
   async counts(): Promise<DemoCounts> {
     const [
@@ -94,7 +122,11 @@ export class DemoService {
       this.prisma.warehouse.count({ where: DEMO }),
       this.prisma.stockLevel.count({ where: DEMO }),
     ]);
+    const extra = await Promise.all(
+      this.extensions.map(async (e) => [e.key, await e.count()] as const),
+    );
     return {
+      ...Object.fromEntries(extra),
       users,
       regions,
       customers,
@@ -113,7 +145,9 @@ export class DemoService {
     return { active: Object.values(counts).some((n) => n > 0), counts };
   }
 
-  private async deleteDemo(tx: Prisma.TransactionClient): Promise<void> {
+  private async deleteDemo(tx: Prisma.TransactionClient): Promise<(AfterCommit | void)[]> {
+    const after: (AfterCommit | void)[] = [];
+    for (const extension of this.extensions) after.push(await extension.clear(tx));
     await tx.stockLevel.deleteMany({ where: DEMO });
     await tx.itemPrice.deleteMany({ where: DEMO });
     await tx.item.deleteMany({ where: DEMO });
@@ -127,6 +161,7 @@ export class DemoService {
     await tx.regionRule.deleteMany({ where: { isDemo: true } });
     await tx.user.deleteMany({ where: { isDemo: true } });
     await tx.region.deleteMany({ where: { isDemo: true } });
+    return after;
   }
 
   private assertNotDemoActor = async (actor: DemoActor) => {
@@ -210,9 +245,9 @@ export class DemoService {
     const password = demoPassword();
     const passwordHash = await hashPassword(password);
 
-    await this.prisma.$transaction(
+    const after = await this.prisma.$transaction(
       async (tx) => {
-        await this.deleteDemo(tx);
+        const tasks = await this.deleteDemo(tx);
 
         // Reuse regions an admin already created with the same name.
         const regionIds = new Map<string, string>();
@@ -285,9 +320,12 @@ export class DemoService {
         if (!(await tx.appSetting.findUnique({ where: { key: 'company' } }))) {
           await this.settings.setCompany(DEMO_COMPANY, tx);
         }
+        for (const extension of this.extensions) tasks.push(await extension.load(tx, now));
+        return tasks;
       },
-      { timeout: 60_000 },
+      { timeout: 120_000 },
     );
+    await this.runAfterCommit(after);
 
     const counts = await this.counts();
     await this.audit.record({
@@ -315,7 +353,8 @@ export class DemoService {
     }
     await this.assertNotDemoActor(actor);
     const before = await this.counts();
-    await this.prisma.$transaction((tx) => this.deleteDemo(tx), { timeout: 60_000 });
+    const after = await this.prisma.$transaction((tx) => this.deleteDemo(tx), { timeout: 60_000 });
+    await this.runAfterCommit(after);
     await this.audit.record({
       actorId: actor.id,
       action: 'demo.cleared',

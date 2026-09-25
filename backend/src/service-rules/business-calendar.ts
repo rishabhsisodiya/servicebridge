@@ -176,3 +176,39 @@ export function addBusinessMinutes(
   }
   throw new Error('Calendar has no open time');
 }
+
+/** Open minutes between `from` and `to` (0 when `to` is not after `from`). Used when an SLA clock pauses. */
+export function businessMinutesBetween(
+  from: Date,
+  to: Date,
+  rules: CalendarRules,
+  timeZone: string,
+): number {
+  if (to <= from) return 0;
+  if (rules.alwaysOpen) return Math.floor((to.getTime() - from.getTime()) / 60_000);
+  const holidays = new Set(rules.holidays.map((h) => h.date));
+  const end = localParts(to, timeZone);
+  const endDate = isoDate(end);
+  let cursor = localParts(from, timeZone);
+  let fromMinute = cursor.minute;
+  let total = 0;
+
+  for (let i = 0; i < 732; i++) {
+    const date = isoDate(cursor);
+    const lastDay = date === endDate;
+    const toMinute = lastDay ? end.minute : 24 * 60;
+    if (!holidays.has(date)) {
+      for (const w of rules.hours.filter((h) => h.day === cursor.weekday)) {
+        total += Math.max(
+          0,
+          Math.min(toMinutes(w.close), toMinute) - Math.max(toMinutes(w.open), fromMinute),
+        );
+      }
+    }
+    if (lastDay) return total;
+    const next = new Date(Date.UTC(cursor.year, cursor.month - 1, cursor.day + 1, 12));
+    cursor = { ...localParts(next, 'UTC'), minute: 0 };
+    fromMinute = 0;
+  }
+  return total;
+}

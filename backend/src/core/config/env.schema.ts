@@ -99,6 +99,8 @@ export const envSchema = z.object({
     .url()
     .optional()
     .transform((url) => url?.replace(/\/+$/, '')),
+  /** Where uploaded files (ticket photos, PDFs) are kept on disk. Back this folder up. */
+  STORAGE_DIR: z.string().min(1).default('./storage'),
   ALLOW_PRIVATE_ERP_HOSTS: z
     .enum(['true', 'false'])
     .default('false')

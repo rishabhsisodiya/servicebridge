@@ -52,6 +52,7 @@ model Region {
   updatedAt     DateTime     @updatedAt
   users         User[]       @relation("UserRegion")
   rules         RegionRule[]
+  tickets       Ticket[]
 }
 
 /// A site whose pincode starts with `pincodePrefix` belongs to the region.
@@ -95,6 +96,12 @@ model User {
   auditEntries   AuditLog[]
   managedRegions Region[]    @relation("RegionAreaManager")
   skills         UserSkill[]
+
+  ticketsAssigned Ticket[]           @relation("TicketEngineer")
+  ticketsManaged  Ticket[]           @relation("TicketAreaManager")
+  ticketsLogged   Ticket[]           @relation("TicketCreatedBy")
+  ticketEvents    TicketEvent[]
+  ticketFiles     TicketAttachment[]
 
   @@index([role])
   @@index([status])
@@ -353,6 +360,8 @@ model Customer {
   sites           Site[]
   equipment       Equipment[]
 
+  tickets Ticket[]
+
   @@unique([erpConnectionId, erpName])
   @@index([name])
 }
@@ -376,6 +385,8 @@ model CustomerContact {
   syncedAt        DateTime?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+
+  tickets Ticket[]
 
   @@unique([erpConnectionId, erpName])
   @@index([customerId])
@@ -404,6 +415,8 @@ model Site {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
+  tickets Ticket[]
+
   @@unique([erpConnectionId, erpName])
   @@index([customerId])
   @@index([pincode])
@@ -429,6 +442,8 @@ model Equipment {
   syncedAt          DateTime?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
+
+  tickets Ticket[]
 
   @@unique([erpConnectionId, erpName])
   @@index([serialNo])
@@ -652,6 +667,7 @@ model ServiceType {
   version           Int            @default(1)
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  tickets           Ticket[]
 }
 
 /// Display name and meaning of each fixed priority.
@@ -685,4 +701,141 @@ model BillingRate {
   version     Int         @default(1)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+}
+
+// ─── Tickets (session 8) ────────────────────────────────────────────────────
+
+enum TicketChannel {
+  PHONE
+  EMAIL
+  WHATSAPP
+  PORTAL
+  AMC_VISIT
+  PARTNER
+}
+
+enum TicketEventType {
+  CREATED
+  ROUTED
+  ASSIGNED
+  STAGE_CHANGED
+  NOTE
+  PRIORITY_CHANGED
+  ATTACHMENT
+  SLA_AT_RISK
+  SLA_BREACHED
+  REOPENED
+}
+
+/// Yearly ticket number sequence: SB-26-000123.
+model TicketCounter {
+  year Int @id
+  last Int @default(0)
+}
+
+model Ticket {
+  id                 String             @id @default(cuid())
+  number             String             @unique
+  title              String
+  description        String?
+  customerId         String
+  customer           Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  siteId             String?
+  site               Site?              @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  equipmentId        String?
+  equipment          Equipment?         @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  contactId          String?
+  contact            CustomerContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  serviceTypeId      String
+  serviceType        ServiceType        @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  priority           TicketPriority
+  channel            TicketChannel
+  /// Worked out from the machine when the ticket was logged.
+  coverage           Coverage
+  coverageUntil      DateTime?          @db.Date
+  stage              TicketStage        @default(NEW)
+  /// Where ON_HOLD returns to.
+  stageBeforeHold    TicketStage?
+  holdReason         String?
+  regionId           String?
+  region             Region?            @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  areaManagerId      String?
+  areaManager        User?              @relation("TicketAreaManager", fields: [areaManagerId], references: [id], onDelete: SetNull)
+  engineerId         String?
+  engineer           User?              @relation("TicketEngineer", fields: [engineerId], references: [id], onDelete: SetNull)
+  createdById        String?
+  createdBy          User?              @relation("TicketCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  /// SLA targets copied from the policy when logged, so later policy edits don't move open tickets.
+  responseMinutes    Int
+  resolutionMinutes  Int
+  slaCalendarId      String?
+  responseDueAt      DateTime
+  resolutionDueAt    DateTime
+  respondedAt        DateTime?
+  resolvedAt         DateTime?
+  verifiedAt         DateTime?
+  closedAt           DateTime?
+  cancelledAt        DateTime?
+  /// Set while ON_HOLD: open minutes left on each clock when the hold began.
+  pausedAt           DateTime?
+  responseLeftMin    Int?
+  resolutionLeftMin  Int?
+  /// The running clock (response until accepted, then resolution). Null while paused or finished.
+  slaDueAt           DateTime?
+  /// When the running clock turns "at risk" (last 25% of its target).
+  slaRiskAt          DateTime?
+  responseBreached   Boolean            @default(false)
+  resolutionBreached Boolean            @default(false)
+  reopenCount        Int                @default(0)
+  duplicateOfId      String?
+  duplicateOf        Ticket?            @relation("TicketDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates         Ticket[]           @relation("TicketDuplicate")
+  isDemo             Boolean            @default(false)
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  events             TicketEvent[]
+  attachments        TicketAttachment[]
+
+  @@index([stage, priority])
+  @@index([engineerId, stage])
+  @@index([areaManagerId, stage])
+  @@index([regionId, stage])
+  @@index([equipmentId, stage])
+  @@index([customerId, createdAt])
+  @@index([createdAt])
+  @@index([slaRiskAt])
+}
+
+model TicketEvent {
+  id        String          @id @default(cuid())
+  ticketId  String
+  ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  type      TicketEventType
+  /// Null for ServiceBridge itself (routing, SLA timers).
+  actorId   String?
+  actor     User?           @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  fromStage TicketStage?
+  toStage   TicketStage?
+  note      String?
+  data      Json?
+  createdAt DateTime        @default(now())
+
+  @@index([ticketId, createdAt])
+}
+
+/// Files are on local disk under STORAGE_DIR; `storageKey` is the relative path.
+model TicketAttachment {
+  id           String   @id @default(cuid())
+  ticketId     String
+  ticket       Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String   @unique
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([ticketId])
 }
