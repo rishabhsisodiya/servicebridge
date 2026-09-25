@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { AppConfig } from '../core/config/app-config.service';
-import { RegionsController, UsersController } from '../users/users.controller';
+import { UsersController } from '../users/users.controller';
 import { UsersService } from '../users/users.service';
 import { AuthController } from './auth.controller';
 import { AuthGuard } from './auth.guard';
@@ -22,7 +22,7 @@ import { UserTokensService } from './user-tokens.service';
       }),
     }),
   ],
-  controllers: [AuthController, UsersController, RegionsController],
+  controllers: [AuthController, UsersController],
   providers: [
     AuthService,
     SessionsService,

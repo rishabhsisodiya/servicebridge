@@ -10,9 +10,11 @@ import {
   buildDemoData,
   DEMO_COMPANY,
   DEMO_REGIONS,
+  DEMO_SKILLS,
   DEMO_USERS,
   DEMO_WAREHOUSES,
   demoEmail,
+  demoPincodeRules,
 } from './demo-data';
 
 export const CLEAR_CONFIRMATION = 'DELETE DEMO DATA';
@@ -121,6 +123,8 @@ export class DemoService {
     await tx.customerContact.deleteMany({ where: DEMO });
     await tx.customer.deleteMany({ where: DEMO });
     // Sessions and links cascade; audit entries keep their text with actor unset.
+    await tx.skillTag.deleteMany({ where: { isDemo: true } });
+    await tx.regionRule.deleteMany({ where: { isDemo: true } });
     await tx.user.deleteMany({ where: { isDemo: true } });
     await tx.region.deleteMany({ where: { isDemo: true } });
   }
@@ -139,6 +143,58 @@ export class DemoService {
       );
     }
   };
+
+  /** Area managers, pincode routing and machine skills for the demo regions and engineers. */
+  private async seedServiceRules(
+    tx: Prisma.TransactionClient,
+    regionIds: Map<string, string>,
+  ): Promise<void> {
+    const users = await tx.user.findMany({
+      where: { email: { in: DEMO_USERS.map((u) => demoEmail(u.name)) }, isDemo: true },
+      select: { id: true, email: true },
+    });
+    const userId = new Map(users.map((u) => [u.email, u.id]));
+    for (const u of DEMO_USERS.filter((u) => u.role === 'AREA_MANAGER' && u.region)) {
+      const id = userId.get(demoEmail(u.name));
+      const regionId = regionIds.get(u.region as string);
+      // Never replace a manager an admin chose for a region they created.
+      if (id && regionId) {
+        await tx.region.updateMany({
+          where: { id: regionId, areaManagerId: null },
+          data: { areaManagerId: id },
+        });
+      }
+    }
+    await tx.regionRule.createMany({
+      data: demoPincodeRules()
+        .filter((r) => regionIds.has(r.region))
+        .map((r) => ({
+          pincodePrefix: r.pincodePrefix,
+          regionId: regionIds.get(r.region) as string,
+          isDemo: true,
+        })),
+      skipDuplicates: true,
+    });
+    for (const skill of DEMO_SKILLS) {
+      if (await tx.skillTag.findUnique({ where: { name: skill.name } })) continue;
+      await tx.skillTag.create({
+        data: {
+          name: skill.name,
+          description: skill.description,
+          equipmentModels: skill.models,
+          isDemo: true,
+          users: {
+            createMany: {
+              data: skill.engineers
+                .map((name) => userId.get(demoEmail(name)))
+                .filter((id): id is string => !!id)
+                .map((id) => ({ userId: id })),
+            },
+          },
+        },
+      });
+    }
+  }
 
   /** Replaces any existing demo data with a fresh copy. Returns the shared demo password (shown once). */
   async load(
@@ -186,6 +242,8 @@ export class DemoService {
             isDemo: true,
           })),
         });
+
+        await this.seedServiceRules(tx, regionIds);
 
         const now = new Date();
         for (const customer of data.customers) {

@@ -38,15 +38,33 @@ enum UserStatus {
   DEACTIVATED
 }
 
-/// Service region. Pincode/district rules are added in session 7.
+/// Service region. Sites are routed to a region by pincode prefix.
 model Region {
-  id        String   @id @default(cuid())
-  name      String   @unique
+  id            String       @id @default(cuid())
+  name          String       @unique
+  /// Receives new tickets for sites in this region.
+  areaManagerId String?
+  areaManager   User?        @relation("RegionAreaManager", fields: [areaManagerId], references: [id], onDelete: SetNull)
   /// Created by the demo seed; removed by "Clear demo data".
-  isDemo    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  users     User[]
+  isDemo        Boolean      @default(false)
+  version       Int          @default(1)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  users         User[]       @relation("UserRegion")
+  rules         RegionRule[]
+}
+
+/// A site whose pincode starts with `pincodePrefix` belongs to the region.
+/// The longest matching prefix wins, so "5601" overrides "560".
+model RegionRule {
+  id            String   @id @default(cuid())
+  regionId      String
+  region        Region   @relation(fields: [regionId], references: [id], onDelete: Cascade)
+  pincodePrefix String   @unique
+  isDemo        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([regionId])
 }
 
 model User {
@@ -60,7 +78,7 @@ model User {
   passwordHash      String?
   passwordChangedAt DateTime?
   regionId          String?
-  region            Region?    @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  region            Region?    @relation("UserRegion", fields: [regionId], references: [id], onDelete: SetNull)
   failedLoginCount  Int        @default(0)
   lockedUntil       DateTime?
   lastLoginAt       DateTime?
@@ -71,10 +89,12 @@ model User {
   /// Created by the demo seed; removed by "Clear demo data".
   isDemo            Boolean    @default(false)
 
-  sessions     Session[]
-  tokens       UserToken[] @relation("TokenOwner")
-  tokensIssued UserToken[] @relation("TokenIssuer")
-  auditEntries AuditLog[]
+  sessions       Session[]
+  tokens         UserToken[] @relation("TokenOwner")
+  tokensIssued   UserToken[] @relation("TokenIssuer")
+  auditEntries   AuditLog[]
+  managedRegions Region[]    @relation("RegionAreaManager")
+  skills         UserSkill[]
 
   @@index([role])
   @@index([status])
@@ -527,4 +547,142 @@ model ErpWebhookEvent {
 
   @@index([connectionId, receivedAt])
   @@index([status, receivedAt])
+}
+
+// ─── Service rules (session 7) ──────────────────────────────────────────────
+
+enum TicketStage {
+  NEW
+  TRIAGED
+  ASSIGNED
+  ACCEPTED
+  ON_SITE
+  IN_PROGRESS
+  ON_HOLD
+  RESOLVED
+  VERIFIED
+  CLOSED
+  CANCELLED
+}
+
+enum TicketPriority {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum Coverage {
+  AMC
+  WARRANTY
+  CHARGEABLE
+}
+
+enum BillingUnit {
+  PER_VISIT
+  PER_HOUR
+  PER_KM
+  FIXED
+}
+
+/// Machine skill used to suggest engineers. A machine needs the skill when its
+/// model (Equipment.itemCode) is listed in `equipmentModels`.
+model SkillTag {
+  id              String      @id @default(cuid())
+  name            String      @unique
+  description     String?
+  equipmentModels String[]
+  isDemo          Boolean     @default(false)
+  version         Int         @default(1)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  users           UserSkill[]
+}
+
+model UserSkill {
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skillTagId String
+  skillTag   SkillTag @relation(fields: [skillTagId], references: [id], onDelete: Cascade)
+
+  @@id([userId, skillTagId])
+  @@index([skillTagId])
+}
+
+/// When SLA clocks run. Times are in the company time zone.
+model BusinessCalendar {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  /// 24×7: `hours` and `holidays` are ignored.
+  alwaysOpen Boolean     @default(false)
+  /// [{ day: 0-6 (Sunday = 0), open: "09:00", close: "18:00" }]
+  hours      Json        @default("[]")
+  /// [{ date: "2026-10-02", name: "Gandhi Jayanti" }]
+  holidays   Json        @default("[]")
+  version    Int         @default(1)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  policies   SlaPolicy[]
+}
+
+/// Response and resolution targets for one coverage × priority pair (always 12 rows).
+model SlaPolicy {
+  id                String           @id @default(cuid())
+  coverage          Coverage
+  priority          TicketPriority
+  responseMinutes   Int
+  resolutionMinutes Int
+  calendarId        String
+  calendar          BusinessCalendar @relation(fields: [calendarId], references: [id], onDelete: Restrict)
+  version           Int              @default(1)
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([coverage, priority])
+}
+
+model ServiceType {
+  id                String         @id @default(cuid())
+  name              String         @unique
+  description       String?
+  defaultPriority   TicketPriority @default(MEDIUM)
+  /// Whether a ticket of this type must name a machine.
+  requiresEquipment Boolean        @default(true)
+  active            Boolean        @default(true)
+  sortOrder         Int            @default(0)
+  version           Int            @default(1)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+}
+
+/// Display name and meaning of each fixed priority.
+model PriorityLevel {
+  priority    TicketPriority @id
+  label       String
+  description String?
+  version     Int            @default(1)
+  updatedAt   DateTime       @updatedAt
+}
+
+/// Display name of each fixed ticket stage.
+model StageLabel {
+  stage       TicketStage @id
+  label       String
+  description String?
+  version     Int         @default(1)
+  updatedAt   DateTime    @updatedAt
+}
+
+/// Service charges billed on chargeable tickets (visit, labour, travel…).
+model BillingRate {
+  id          String      @id @default(cuid())
+  code        String      @unique
+  name        String
+  unit        BillingUnit
+  amount      Decimal     @db.Decimal(12, 2)
+  /// ERP item billed for this charge on the draft invoice (write-back, later).
+  erpItemCode String?
+  active      Boolean     @default(true)
+  version     Int         @default(1)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }

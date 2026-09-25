@@ -1,11 +1,8 @@
-import { Body, Controller, Get, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { Client, CurrentUser, RequirePermissions, RequireRecentAuth } from '../auth/decorators';
 import { ROLE_LABELS } from '../auth/permissions';
-import { AppException } from '../core/http/app.exception';
-import { PrismaService } from '../core/prisma/prisma.service';
-import { CreateRegionDto, InviteUserDto, ListUsersQuery, UpdateUserDto } from './dto';
+import { InviteUserDto, ListUsersQuery, UpdateUserDto } from './dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
@@ -75,40 +72,5 @@ export class UsersController {
   @RequireRecentAuth()
   resetLink(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Client() client: ClientInfo) {
     return this.users.issueResetLink(actor, id, client);
-  }
-}
-
-@Controller('regions')
-export class RegionsController {
-  constructor(private readonly prisma: PrismaService) {}
-
-  /** Any signed-in user may read regions (used in forms and filters). */
-  @Get()
-  list() {
-    return this.prisma.region.findMany({
-      orderBy: { name: 'asc' },
-      select: { id: true, name: true },
-    });
-  }
-
-  @Post()
-  @RequirePermissions('settings.manage')
-  async create(@Body() body: CreateRegionDto) {
-    try {
-      return await this.prisma.region.create({
-        data: { name: body.name.trim() },
-        select: { id: true, name: true },
-      });
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new AppException(
-          'REGION_EXISTS',
-          'A region with that name already exists.',
-          HttpStatus.CONFLICT,
-          [{ field: 'name', message: 'A region with that name already exists.' }],
-        );
-      }
-      throw error;
-    }
   }
 }

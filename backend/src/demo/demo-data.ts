@@ -200,6 +200,55 @@ const SPARES: { code: string; name: string; group: string; rate: number }[] = [
   { code: 'GN-CP-01', name: 'Jaw coupling', group: 'Drives', rate: 6700 },
 ];
 
+/** 3-digit pincode prefix → region, from the demo customers' sites (first customer wins). */
+export function demoPincodeRules(): { pincodePrefix: string; region: string }[] {
+  const rules = new Map<string, string>();
+  for (const c of CUSTOMERS) {
+    const prefix = c.pincode.slice(0, 3);
+    if (!rules.has(prefix)) rules.set(prefix, c.region);
+  }
+  return [...rules].map(([pincodePrefix, region]) => ({ pincodePrefix, region }));
+}
+
+/** Machine skills and the demo engineers who have them. */
+export const DEMO_SKILLS: {
+  name: string;
+  description: string;
+  models: string[];
+  engineers: string[];
+}[] = [
+  {
+    name: 'Jaw & cone crushers',
+    description: 'Liner changes, setting adjustment, bearing and toggle work.',
+    models: ['JX-1100', 'CX-400'],
+    engineers: ['Farhan Qureshi', 'Kiran Shetty', 'Vikas Rao'],
+  },
+  {
+    name: 'VSI & screening',
+    description: 'Rotor balancing, tip replacement, screen mesh and vibrator bearings.',
+    models: ['V-80', 'VS-3D'],
+    engineers: ['Arjun Menon', 'Neha Kulkarni', 'Deepa Raghavan'],
+  },
+  {
+    name: 'Mobile units & hydraulics',
+    description: 'Tracked plants, hydraulic circuits and undercarriage.',
+    models: ['MCU-250'],
+    engineers: ['Farhan Qureshi', 'Deepa Raghavan'],
+  },
+  {
+    name: 'Asphalt plants',
+    description: 'Burners, bag filters and plant controls.',
+    models: ['HMP-120'],
+    engineers: ['Vikas Rao', 'Neha Kulkarni'],
+  },
+  {
+    name: 'Conveyors',
+    description: 'Belt splicing, idlers, pulleys and alignment.',
+    models: ['BC-800'],
+    engineers: ['Arjun Menon', 'Kiran Shetty', 'Deepa Raghavan', 'Vikas Rao'],
+  },
+];
+
 export const DEMO_WAREHOUSES = ['Spares – Bengaluru', 'Spares – Hosur'];
 
 const pad = (n: number, width = 3) => String(n).padStart(width, '0');

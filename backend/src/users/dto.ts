@@ -84,10 +84,3 @@ export class UpdateUserDto {
   @IsInt()
   version: number;
 }
-
-export class CreateRegionDto {
-  @IsString()
-  @MinLength(2, { message: 'Enter a region name.' })
-  @MaxLength(60)
-  name: string;
-}
