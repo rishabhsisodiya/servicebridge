@@ -13,7 +13,6 @@ import { type ErpPurpose, PURPOSE_DOCTYPES, type TestResult } from "./api";
 
 const PURPOSE_NAMES: Record<ErpPurpose, string> = {
   MASTER_SYNC: "Master data sync",
-  DASHBOARDS: "Business dashboards",
   WRITEBACK: "Write-backs",
 };
 

@@ -151,10 +151,5 @@ export class SetPurposesDto {
   @IsOptional()
   @ValidateIf((_o, value) => value !== null)
   @IsString()
-  DASHBOARDS?: string | null;
-
-  @IsOptional()
-  @ValidateIf((_o, value) => value !== null)
-  @IsString()
   WRITEBACK?: string | null;
 }

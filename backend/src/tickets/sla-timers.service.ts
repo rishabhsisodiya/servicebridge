@@ -3,6 +3,7 @@ import type { Queue } from 'bullmq';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { QueueService } from '../core/queue/queue.service';
 import { AutomationsService } from '../automations/automations.service';
+import { TicketNotifier } from './ticket-notifier';
 
 export const SLA_TIMERS_KEY = 'sla-timers';
 
@@ -44,6 +45,7 @@ export class SlaTimersService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly queues: QueueService,
     private readonly automations: AutomationsService,
+    private readonly notifier: TicketNotifier,
   ) {}
 
   onModuleInit(): void {
@@ -141,7 +143,14 @@ export class SlaTimersService implements OnModuleInit {
   private async fire(data: TimerData): Promise<string> {
     const ticket = await this.prisma.ticket.findUnique({
       where: { id: data.ticketId },
-      select: { id: true, number: true, slaDueAt: true },
+      select: {
+        id: true,
+        number: true,
+        title: true,
+        slaDueAt: true,
+        engineerId: true,
+        areaManagerId: true,
+      },
     });
     if (!ticket) return 'Skipped: ticket no longer exists';
     if (ticket.slaDueAt?.toISOString() !== data.dueAt) {
@@ -156,6 +165,7 @@ export class SlaTimersService implements OnModuleInit {
           data: { clock: data.clock, dueAt: data.dueAt },
         },
       });
+      await this.notifier.sla('risk', data.clock, ticket);
       return `${ticket.number}: ${label.toLowerCase()} time at risk`;
     }
     await this.prisma.$transaction([
@@ -171,6 +181,7 @@ export class SlaTimersService implements OnModuleInit {
         },
       }),
     ]);
+    await this.notifier.sla('breach', data.clock, ticket);
     return `${ticket.number}: ${label.toLowerCase()} time breached`;
   }
 }

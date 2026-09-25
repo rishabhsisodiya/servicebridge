@@ -45,7 +45,9 @@ test.describe("ERP connections", () => {
     );
   });
 
-  test("save (with password check), test, enable, then use it for dashboards", async ({ page }) => {
+  test("save (with password check), test, enable, then use it for write-backs", async ({
+    page,
+  }) => {
     await page.goto("/settings/erp");
     const drawer = await addConnection(page, "goodkey123");
     await drawer.getByRole("button", { name: "Save connection" }).click();
@@ -61,9 +63,9 @@ test.describe("ERP connections", () => {
     await expect(card.getByText("Active", { exact: true })).toBeVisible();
 
     const purposes = page.getByRole("region", { name: "What each connection is used for" });
-    await purposes.getByLabel("Business dashboards").selectOption({ label: "Head office ERPNext" });
+    await purposes.getByLabel("Write-backs").selectOption({ label: "Head office ERPNext" });
     await purposes.getByRole("button", { name: "Save" }).click();
-    await expect(card.getByText("Business dashboards")).toBeVisible();
+    await expect(card.getByText("Write-backs", { exact: true })).toBeVisible();
   });
 
   test("a connection in use can't be deleted", async ({ page }) => {
@@ -75,9 +77,9 @@ test.describe("ERP connections", () => {
     await card.getByRole("button", { name: "Test" }).click();
     await card.getByRole("button", { name: "Enable" }).click();
     const purposes = page.getByRole("region", { name: "What each connection is used for" });
-    await purposes.getByLabel("Business dashboards").selectOption({ label: "Head office ERPNext" });
+    await purposes.getByLabel("Write-backs").selectOption({ label: "Head office ERPNext" });
     await purposes.getByRole("button", { name: "Save" }).click();
-    await expect(card.getByText("Business dashboards")).toBeVisible();
+    await expect(card.getByText("Write-backs", { exact: true })).toBeVisible();
 
     await card.getByRole("button", { name: "More actions for Head office ERPNext" }).click();
     await page.getByRole("button", { name: "Delete…" }).click();

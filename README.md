@@ -1,10 +1,10 @@
 # ServiceBridge
 
-Service desk and ERP operations in one app: tickets, field visits, AMC contracts and quotations
-for your service team, plus sales, finance and production dashboards read from ERPNext. ERP
-connections are added by an administrator in the app, not in config files.
+Service desk for equipment makers, connected to ERPNext: tickets, field visits, AMC contracts and
+quotations for your service team, with customers, machines, spares and stock read from ERPNext.
+ERP connections are added by an administrator in the app, not in config files.
 
-> Status: early build. Sign-in, users, roles and ERP connections are real; ticket screens still use sample data.
+> Status: early build. Sign-in, users, ERP connections, service rules and tickets are real; role home pages still use sample data.
 
 ## Requirements
 

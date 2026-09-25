@@ -29,7 +29,12 @@ enum Role {
   CALL_CENTER
   CS_SUPPORT
   EXECUTIVE
-  DEPARTMENT_HEAD
+}
+
+enum DutyStatus {
+  ON_DUTY
+  OFF_DUTY
+  ON_LEAVE
 }
 
 enum UserStatus {
@@ -89,6 +94,9 @@ model User {
   version           Int        @default(1)
   /// Created by the demo seed; removed by "Clear demo data".
   isDemo            Boolean    @default(false)
+  /// Set by engineers (and managers); "on visit" is derived from their tickets.
+  dutyStatus        DutyStatus @default(ON_DUTY)
+  dutyChangedAt     DateTime?
 
   sessions       Session[]
   tokens         UserToken[] @relation("TokenOwner")
@@ -102,6 +110,7 @@ model User {
   ticketsLogged   Ticket[]           @relation("TicketCreatedBy")
   ticketEvents    TicketEvent[]
   ticketFiles     TicketAttachment[]
+  notifications   Notification[]
 
   @@index([role])
   @@index([status])
@@ -198,7 +207,6 @@ enum ErpConnectionStatus {
 /// What a connection is used for. Each purpose has at most one connection.
 enum ErpPurpose {
   MASTER_SYNC
-  DASHBOARDS
   WRITEBACK
 }
 
@@ -796,6 +804,7 @@ model Ticket {
   updatedAt          DateTime           @updatedAt
   events             TicketEvent[]
   attachments        TicketAttachment[]
+  notifications      Notification[]
 
   @@index([stage, priority])
   @@index([engineerId, stage])
@@ -838,4 +847,35 @@ model TicketAttachment {
   createdAt    DateTime @default(now())
 
   @@index([ticketId])
+}
+
+// ─── Notifications (session 9) ──────────────────────────────────────────────
+
+enum NotificationType {
+  TICKET_NEW
+  TICKET_UNROUTED
+  TICKET_ASSIGNED
+  TICKET_UNASSIGNED
+  TICKET_DECLINED
+  TICKET_RESOLVED
+  TICKET_SENT_BACK
+  SLA_AT_RISK
+  SLA_BREACHED
+}
+
+/// In-app notification (the bell). Email and push reuse these events later.
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  ticketId  String?
+  ticket    Ticket?          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  title     String
+  body      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([createdAt])
 }

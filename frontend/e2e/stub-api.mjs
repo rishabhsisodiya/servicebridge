@@ -19,8 +19,6 @@ const ALL = [
   "amc.view",
   "amc.manage",
   "quotations.manage",
-  "dashboards.viewAll",
-  "dashboards.viewGranted",
   "reports.view",
   "reports.schedule",
   "users.manage",
@@ -76,7 +74,6 @@ const stepUpDone = new Set();
 
 const PURPOSE_LABELS = {
   MASTER_SYNC: "Master data sync",
-  DASHBOARDS: "Business dashboards",
   WRITEBACK: "Write-backs",
 };
 const erpStates = new Map();
@@ -84,7 +81,7 @@ function erpState(session) {
   if (!erpStates.has(session)) {
     erpStates.set(session, {
       connections: [],
-      purposes: { MASTER_SYNC: null, DASHBOARDS: null, WRITEBACK: null },
+      purposes: { MASTER_SYNC: null, WRITEBACK: null },
     });
   }
   return erpStates.get(session);
@@ -117,7 +114,7 @@ function testResult(ok) {
           versions: { frappe: "15.40.1", erpnext: "15.37.0" },
         },
         access: doctypes.map((doctype) => ({ doctype, canRead: doctype !== "Item Price" })),
-        readyFor: ["DASHBOARDS", "WRITEBACK"],
+        readyFor: ["WRITEBACK"],
         setup: { missingFields: [{ doctype: "Sales Invoice", fieldname: "custom_sb_ref" }] },
       }
     : {
@@ -609,7 +606,7 @@ const server = createServer(async (req, res) => {
           res,
           409,
           "CONNECTION_IN_USE",
-          "This connection is used for Business dashboards. Choose another connection for it first.",
+          "This connection is used for Write-backs. Choose another connection for it first.",
         );
       erp.connections.splice(erp.connections.indexOf(connection), 1);
       return send(res, 204);

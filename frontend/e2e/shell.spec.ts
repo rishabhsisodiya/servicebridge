@@ -69,10 +69,10 @@ test.describe("search", () => {
     await page.keyboard.press("ControlOrMeta+k");
     const box = page.getByRole("combobox", { name: "Search screens and actions" });
     await expect(box).toBeFocused();
-    await box.fill("receivables");
-    await expect(page.getByRole("option").first()).toContainText("Finance");
+    await box.fill("pincode");
+    await expect(page.getByRole("option").first()).toContainText("Regions");
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/dashboards\/finance$/);
+    await expect(page).toHaveURL(/\/settings\/regions$/);
   });
 
   test("Escape closes search", async ({ page }) => {

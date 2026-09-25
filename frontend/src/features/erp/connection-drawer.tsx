@@ -277,8 +277,8 @@ function ConnectionForm({ open, connection, onClose, onSave, onReveal }: Connect
             <span>
               Also read the ERPNext database directly
               <span className="block text-muted">
-                Makes large dashboards faster. Use a database user that can only read. Hosted
-                ERPNext sites usually don&apos;t allow this.
+                Optional: lets heavy reports read ERP data faster. Use a database user that can only
+                read. Hosted ERPNext sites usually don&apos;t allow this.
               </span>
             </span>
           </label>
@@ -348,7 +348,7 @@ function ConnectionForm({ open, connection, onClose, onSave, onReveal }: Connect
                 label="Connection limit"
                 required
                 error={errors["db.connectionLimit"]}
-                help="Most queries ServiceBridge runs at once against the ERP database (1–20). Keep it low so dashboards never slow ERPNext down."
+                help="Most queries ServiceBridge runs at once against the ERP database (1–20). Keep it low so ServiceBridge never slows ERPNext down."
                 className="sm:col-span-2"
               >
                 {(p) => (

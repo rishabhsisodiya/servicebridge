@@ -203,6 +203,12 @@ export class AutomationsService implements OnApplicationBootstrap {
     }
   }
 
+  /** Whether an automation is switched on (used to skip queueing event jobs that would only be skipped). */
+  async isEnabled(key: string): Promise<boolean> {
+    const setting = await this.prisma.automationSetting.findUnique({ where: { key } });
+    return setting?.enabled ?? this.entry(key).definition.defaultEnabled;
+  }
+
   async list() {
     const settings = new Map(
       (await this.prisma.automationSetting.findMany()).map((s) => [s.key, s]),

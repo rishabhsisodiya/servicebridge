@@ -15,7 +15,7 @@ export interface ErpDbCredentials {
   user: string;
   password: string;
   ssl: boolean;
-  /** Pool size for dashboard queries (default 3). */
+  /** Pool size for database reads (default 3). */
   connectionLimit?: number;
 }
 

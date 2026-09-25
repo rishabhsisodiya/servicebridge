@@ -21,7 +21,7 @@ const admin = { id: 'a1', name: 'Admin' } as AuthUser;
 
 const passingResult = {
   ok: true,
-  readyFor: ['DASHBOARDS'],
+  readyFor: ['WRITEBACK'],
   access: [{ doctype: 'Item Price', canRead: false }],
 };
 
@@ -172,10 +172,10 @@ describe('ErpConnectionsService', () => {
   });
 
   it('refuses to delete a connection that is in use', async () => {
-    const { service, connection } = build(row({ purposes: [{ purpose: 'DASHBOARDS' }] }));
+    const { service, connection } = build(row({ purposes: [{ purpose: 'WRITEBACK' }] }));
     await expect(service.remove(admin, 'c1', client)).rejects.toMatchObject({
       code: 'CONNECTION_IN_USE',
-      message: expect.stringContaining('Business dashboards'),
+      message: expect.stringContaining('Write-backs'),
     });
     expect(connection.delete).not.toHaveBeenCalled();
   });
@@ -183,7 +183,7 @@ describe('ErpConnectionsService', () => {
   it('assigns a purpose only to an active connection that can read what it needs', async () => {
     const inactive = build(row({ lastTestResult: passingResult }));
     await expect(
-      inactive.service.setPurposes(admin, { DASHBOARDS: 'c1' }, client),
+      inactive.service.setPurposes(admin, { WRITEBACK: 'c1' }, client),
     ).rejects.toMatchObject({
       code: 'CONNECTION_NOT_ACTIVE',
     });
@@ -197,9 +197,9 @@ describe('ErpConnectionsService', () => {
     });
 
     const ok = build(row({ status: 'ACTIVE', lastTestResult: passingResult }));
-    await ok.service.setPurposes(admin, { DASHBOARDS: 'c1' }, client);
+    await ok.service.setPurposes(admin, { WRITEBACK: 'c1' }, client);
     expect(ok.binding.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { purpose: 'DASHBOARDS' } }),
+      expect.objectContaining({ where: { purpose: 'WRITEBACK' } }),
     );
   });
 

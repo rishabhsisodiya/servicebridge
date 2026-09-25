@@ -232,7 +232,7 @@ export function DesignSystemShowcase() {
             )}
             {tab === "error" && (
               <ErrorState
-                title="Couldn't load the sales dashboard"
+                title="Couldn't load the report"
                 description="The ERP didn't respond within 30 seconds. Your filters are kept."
                 onRetry={() => toast.success("Retrying…")}
               />

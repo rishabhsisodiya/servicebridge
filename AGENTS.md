@@ -1,8 +1,9 @@
 # ServiceBridge
 
 Field service and ERP operations platform for equipment manufacturers: a service desk (tickets,
-field visits, customers, equipment, AMC contracts, quotations, SLAs), business dashboards read
-from ERPNext, and an admin area where ERP connections are configured in the UI. One company per
+field visits, customers, equipment, AMC contracts, quotations, SLAs) that reads master data from
+ERPNext, and an admin area where ERP connections are configured in the UI. Business dashboards
+are out of scope (removed 2026-09-25). One company per
 install. Runs on seeded demo data until an ERP is connected.
 
 ## Stack
@@ -33,7 +34,7 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 | Web e2e | `npm run test:e2e:web` (builds the app; uses a stub API, no infra needed) |
 | One API test file | `cd backend && npx jest src/core/health` |
 | One web test file | `cd frontend && npx vitest run src/lib/api` |
-| Migrations | `cd backend && npm run migrate` (dev) / `npm run prisma:deploy` (prod). **Agents do not run or generate migrations; the developer does.** |
+| Migrations | `npm run migrate` (dev: applies pending migrations and, if the schema changed, creates one named `schema_update` without prompting) / `npm run prisma:deploy` (prod). **Agents do not run or generate migrations; the developer does.** |
 | First administrator | `cd backend && npm run admin:create -- --email you@co.com --name "Your Name"` (asks for the password; `ADMIN_PASSWORD` for automation) |
 | Load / reset demo data | `cd backend && npm run demo:seed` (prints demo logins + one shared password), or Settings → Company & demo data |
 | Rotate the encryption key | put the new key first in `APP_ENCRYPTION_KEYS`, then `cd backend && npm run secrets:reencrypt` |
@@ -74,6 +75,11 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   clock — recompute with `slaFields()` on every write and then call `SlaTimersService.sync()` (two
   BullMQ delayed jobs per ticket, no polling). Visibility: `visibleTo(user)`; hidden tickets are 404.
   Demo tickets plug into `DemoService.register()` (extension hook, avoids an import cycle).
+- `backend/src/tickets/assignment.ts` — pure engineer ranking (on duty → skill → region → load)
+  shared by suggestions and auto-assign (`auto-assign.service.ts`, an automation, off by default).
+  `ticket-notifier.ts` holds who-gets-notified rules; call it after a ticket change commits.
+- `backend/src/notifications/` — in-app notifications (bell). `notify()` never throws and skips
+  the actor; users only ever see their own rows.
 - `backend/src/core/storage/` — local-disk files under `STORAGE_DIR`; file type from magic bytes
 - `backend/src/core/crypto/` — AES-256-GCM secret encryption with key versions
 - `backend/src/core/security/network-guard.ts` — SSRF protection for admin-entered addresses

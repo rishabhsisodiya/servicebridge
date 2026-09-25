@@ -13,7 +13,6 @@ import {
   Map,
   Palette,
   ScrollText,
-  ShieldCheck,
   Tags,
   Users,
   Workflow,
@@ -51,12 +50,6 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
         label: "Users & roles",
         description: "Invite people, set role and region",
         href: "/settings/users",
-      },
-      {
-        icon: ShieldCheck,
-        label: "Dashboard access",
-        description: "Who can see each business dashboard",
-        session: 13,
       },
       {
         icon: Map,

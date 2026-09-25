@@ -15,10 +15,10 @@ export const QUEUES = {
   'erp-sync': 'ERP data sync',
   'erp-writeback': 'ERP write-backs',
   sla: 'SLA timers',
+  assignment: 'Automatic assignment',
   notifications: 'Notifications',
   amc: 'AMC scheduling',
   reports: 'Scheduled reports',
-  dashboards: 'Dashboard refresh',
 } as const;
 
 export type QueueName = keyof typeof QUEUES;

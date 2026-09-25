@@ -23,19 +23,15 @@ import type {
   QuickFilter,
   UpdateTicketDto,
 } from './dto';
+import { rankEngineers } from './assignment';
+import { AutoAssignService } from './auto-assign.service';
+import { EngineersService } from './engineers.service';
 import { SlaTimersService } from './sla-timers.service';
+import { TicketNotifier } from './ticket-notifier';
 import { slaFields, slaStatus } from './sla';
 import { ACTIONS, availableActions, blockedReason, FINAL_STAGES, nextStage } from './workflow';
 
 const NUMBER_PREFIX = 'SB';
-/** Stages where an engineer is busy with the ticket (counts towards their load). */
-const WORKLOAD_STAGES: TicketStage[] = [
-  'ASSIGNED',
-  'ACCEPTED',
-  'ON_SITE',
-  'IN_PROGRESS',
-  'ON_HOLD',
-];
 
 const ticketNotFound = () =>
   new AppException(
@@ -99,6 +95,9 @@ export class TicketsService {
     private readonly regions: RegionsService,
     private readonly settings: AppSettingsService,
     private readonly timers: SlaTimersService,
+    private readonly engineers: EngineersService,
+    private readonly notifier: TicketNotifier,
+    private readonly autoAssign: AutoAssignService,
   ) {}
 
   /** Labels and choices every ticket screen needs (any user who can see tickets). */
@@ -377,7 +376,7 @@ export class TicketsService {
 
   async create(user: AuthUser, dto: CreateTicketDto) {
     const now = new Date();
-    const ticket = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findUnique({
         where: { id: dto.customerId },
         include: { sites: { where: { active: true }, select: { id: true } } },
@@ -489,9 +488,12 @@ export class TicketsService {
           },
         },
       });
-      return created;
+      return { created, regionName: region?.name ?? null };
     });
+    const { created: ticket, regionName } = result;
     await this.timers.sync(ticket);
+    await this.notifier.created(ticket, user, regionName);
+    await this.autoAssign.queue(ticket.id);
     return { id: ticket.id, number: ticket.number };
   }
 
@@ -500,7 +502,7 @@ export class TicketsService {
   async act(user: AuthUser, idOrNumber: string, dto: ActionDto) {
     const now = new Date();
     const note = dto.note?.trim() || null;
-    const updated = await this.prisma.$transaction(async (tx) => {
+    const outcome = await this.prisma.$transaction(async (tx) => {
       const t = await this.findVisible(user, idOrNumber, tx);
       assertVersion(t.version, dto.version, 'ticket');
       const blocked = blockedReason(dto.action, t, user, now);
@@ -636,9 +638,11 @@ export class TicketsService {
           data: eventData,
         },
       });
-      return row;
+      return { before: t, row };
     });
+    const { before, row: updated } = outcome;
     await this.timers.sync(updated);
+    await this.notifier.action(dto.action, before, updated, user, note);
     return this.detail(user, updated.id);
   }
 
@@ -714,7 +718,7 @@ export class TicketsService {
     return this.detail(user, t.id);
   }
 
-  /** Engineers ranked by skill match, then same region, then fewest open jobs. Suggest-only. */
+  /** Engineers ranked for this ticket (see assignment.ts). The manager decides. */
   async suggestions(user: AuthUser, idOrNumber: string) {
     const t = await this.findVisible(user, idOrNumber);
     const equipment = t.equipmentId
@@ -723,48 +727,11 @@ export class TicketsService {
           select: { itemCode: true },
         })
       : null;
-    const [engineers, loads] = await Promise.all([
-      this.prisma.user.findMany({
-        where: { role: 'ENGINEER', status: 'ACTIVE' },
-        select: {
-          id: true,
-          name: true,
-          regionId: true,
-          region: { select: { name: true } },
-          skills: { select: { skillTag: { select: { name: true, equipmentModels: true } } } },
-        },
-      }),
-      this.prisma.ticket.groupBy({
-        by: ['engineerId'],
-        where: { engineerId: { not: null }, stage: { in: WORKLOAD_STAGES } },
-        _count: { _all: true },
-      }),
-    ]);
-    const load = new Map(loads.map((l) => [l.engineerId, l._count._all]));
-    return engineers
-      .map((e) => {
-        const matched = equipment?.itemCode
-          ? e.skills
-              .filter((s) => s.skillTag.equipmentModels.includes(equipment.itemCode!))
-              .map((s) => s.skillTag.name)
-          : [];
-        return {
-          id: e.id,
-          name: e.name,
-          region: e.region?.name ?? null,
-          sameRegion: !!t.regionId && e.regionId === t.regionId,
-          skills: matched,
-          openTickets: load.get(e.id) ?? 0,
-          current: e.id === t.engineerId,
-        };
-      })
-      .sort(
-        (a, b) =>
-          Number(b.skills.length > 0) - Number(a.skills.length > 0) ||
-          Number(b.sameRegion) - Number(a.sameRegion) ||
-          a.openTickets - b.openTickets ||
-          a.name.localeCompare(b.name),
-      );
+    return rankEngineers(await this.engineers.candidates(), {
+      regionId: t.regionId,
+      itemCode: equipment?.itemCode ?? null,
+      engineerId: t.engineerId,
+    });
   }
 
   /** Used by attachments and timers: the ticket id if the user can see it. */

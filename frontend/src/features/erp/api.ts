@@ -1,6 +1,6 @@
 import { apiFetch } from "@/lib/api/client";
 
-export type ErpPurpose = "MASTER_SYNC" | "DASHBOARDS" | "WRITEBACK";
+export type ErpPurpose = "MASTER_SYNC" | "WRITEBACK";
 export type ConnectionStatus = "UNTESTED" | "ACTIVE" | "FAILING" | "DISABLED" | "KEY_ERROR";
 
 export interface CheckError {
@@ -98,20 +98,11 @@ export const PURPOSE_DOCTYPES: Record<ErpPurpose, string[]> = {
     "Warehouse",
     "Bin",
   ],
-  DASHBOARDS: [
-    "Sales Order",
-    "Sales Invoice",
-    "Purchase Order",
-    "Work Order",
-    "Delivery Note",
-    "Bin",
-  ],
   WRITEBACK: ["Stock Entry", "Sales Invoice"],
 };
 
 export const PURPOSE_HELP: Record<ErpPurpose, string> = {
   MASTER_SYNC: "Customers, machines (serial numbers), items, prices and stock.",
-  DASHBOARDS: "Sales, finance, production, purchasing, stores and dispatch figures.",
   WRITEBACK:
     "Stock issues from field visits and draft invoices on closure (switched on separately).",
 };

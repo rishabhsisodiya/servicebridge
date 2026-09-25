@@ -6,7 +6,7 @@
     "infra:up": "docker compose up -d --wait",
     "infra:down": "docker compose down",
     "dev:api": "npm --prefix backend run dev",
-    "migrate": "npm --prefix backend run migrate",
+    "migrate": "npm --prefix backend run migrate --",
     "dev:web": "npm --prefix frontend run dev",
     "check:api": "npm --prefix backend run typecheck && npm --prefix backend run lint && npm --prefix backend test && npm --prefix backend run test:e2e",
     "check:web": "npm --prefix frontend run typecheck && npm --prefix frontend run lint && npm --prefix frontend test",

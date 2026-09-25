@@ -62,7 +62,7 @@ describe('testConnection', () => {
     expect(result.access.find((a) => a.doctype === 'Item Price')?.canRead).toBe(false);
     expect(result.access.find((a) => a.doctype === 'Customer')?.canRead).toBe(true);
     // Item Price blocks master sync; the other purposes are ready.
-    expect(result.readyFor).toEqual(['DASHBOARDS', 'WRITEBACK']);
+    expect(result.readyFor).toEqual(['WRITEBACK']);
     expect(result.setup.missingFields).toEqual([
       { doctype: 'Sales Invoice', fieldname: 'custom_sb_ref' },
     ]);

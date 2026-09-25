@@ -17,8 +17,6 @@ export const PERMISSIONS = [
   'amc.view',
   'amc.manage',
   'quotations.manage',
-  'dashboards.viewAll',
-  'dashboards.viewGranted', // only dashboards an admin granted
   'reports.view',
   'reports.schedule',
   'users.manage',
@@ -56,8 +54,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ENGINEER: ['tickets.view', 'tickets.work', 'equipment.view', 'items.view'],
   CALL_CENTER: [...SERVICE_DESK, 'tickets.viewAll', 'tickets.create'],
   CS_SUPPORT: [...SERVICE_DESK, 'tickets.viewAll', 'amc.view', 'amc.manage', 'quotations.manage'],
-  EXECUTIVE: ['tickets.view', 'tickets.viewAll', 'dashboards.viewAll', 'reports.view'],
-  DEPARTMENT_HEAD: ['dashboards.viewGranted', 'reports.view'],
+  EXECUTIVE: ['tickets.view', 'tickets.viewAll', 'reports.view'],
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -68,7 +65,6 @@ export const ROLE_LABELS: Record<Role, string> = {
   CALL_CENTER: 'Call center',
   CS_SUPPORT: 'Customer support',
   EXECUTIVE: 'Executive',
-  DEPARTMENT_HEAD: 'Department head',
 };
 
 export function permissionsFor(role: Role): Permission[] {

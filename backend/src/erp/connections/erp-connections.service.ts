@@ -21,7 +21,6 @@ import type {
 
 export const PURPOSE_LABELS: Record<ErpPurpose, string> = {
   MASTER_SYNC: 'Master data sync',
-  DASHBOARDS: 'Business dashboards',
   WRITEBACK: 'Write-backs',
 };
 
@@ -499,10 +498,7 @@ export class ErpConnectionsService {
 
   async purposes(): Promise<Record<ErpPurpose, string | null>> {
     const bindings = await this.prisma.erpPurposeBinding.findMany();
-    const result = { MASTER_SYNC: null, DASHBOARDS: null, WRITEBACK: null } as Record<
-      ErpPurpose,
-      string | null
-    >;
+    const result = { MASTER_SYNC: null, WRITEBACK: null } as Record<ErpPurpose, string | null>;
     for (const binding of bindings) result[binding.purpose] = binding.connectionId;
     return result;
   }

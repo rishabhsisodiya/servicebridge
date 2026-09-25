@@ -9,7 +9,7 @@ describe("findActiveItem", () => {
     ["/tickets/new", "/tickets/new"],
     ["/settings/erp", "/settings/erp"],
     ["/settings/erp/abc", "/settings/erp"],
-    ["/dashboards/sales", "/dashboards/sales"],
+    ["/reports/kpi", "/reports/kpi"],
   ])("%s → %s", (path, expected) => {
     expect(findActiveItem(path)?.href).toBe(expected);
   });

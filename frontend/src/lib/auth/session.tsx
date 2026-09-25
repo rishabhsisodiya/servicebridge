@@ -21,8 +21,6 @@ export type Permission =
   | "amc.view"
   | "amc.manage"
   | "quotations.manage"
-  | "dashboards.viewAll"
-  | "dashboards.viewGranted"
   | "reports.view"
   | "reports.schedule"
   | "users.manage"
@@ -39,8 +37,7 @@ export type Role =
   | "ENGINEER"
   | "CALL_CENTER"
   | "CS_SUPPORT"
-  | "EXECUTIVE"
-  | "DEPARTMENT_HEAD";
+  | "EXECUTIVE";
 
 export interface Me {
   user: {

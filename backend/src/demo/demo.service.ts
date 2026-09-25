@@ -271,6 +271,7 @@ export class DemoService {
             email: demoEmail(u.name),
             role: u.role,
             regionId: u.region ? regionIds.get(u.region) : null,
+            dutyStatus: u.duty ?? 'ON_DUTY',
             status: 'ACTIVE' as const,
             passwordHash,
             passwordChangedAt: new Date(),

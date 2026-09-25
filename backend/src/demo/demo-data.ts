@@ -1,4 +1,4 @@
-import { Prisma, type Role } from '@prisma/client';
+import { type DutyStatus, Prisma, type Role } from '@prisma/client';
 
 /**
  * Fictional demo company. Every name, email, phone number and GSTIN here is
@@ -16,20 +16,19 @@ export const DEMO_COMPANY = {
 export const DEMO_EMAIL_DOMAIN = 'apex-demo.example';
 export const DEMO_REGIONS = ['North', 'South', 'East', 'West', 'Central'];
 
-export const DEMO_USERS: { name: string; role: Role; region?: string }[] = [
+export const DEMO_USERS: { name: string; role: Role; region?: string; duty?: DutyStatus }[] = [
   { name: 'Meera Iyer', role: 'SERVICE_MANAGER' },
   { name: 'Rohan Deshpande', role: 'AREA_MANAGER', region: 'South' },
   { name: 'Anita Verghese', role: 'AREA_MANAGER', region: 'Central' },
   { name: 'Farhan Qureshi', role: 'ENGINEER', region: 'South' },
   { name: 'Arjun Menon', role: 'ENGINEER', region: 'South' },
   { name: 'Kiran Shetty', role: 'ENGINEER', region: 'Central' },
-  { name: 'Deepa Raghavan', role: 'ENGINEER', region: 'West' },
+  { name: 'Deepa Raghavan', role: 'ENGINEER', region: 'West', duty: 'ON_LEAVE' },
   { name: 'Neha Kulkarni', role: 'ENGINEER', region: 'Central' },
-  { name: 'Vikas Rao', role: 'ENGINEER', region: 'East' },
+  { name: 'Vikas Rao', role: 'ENGINEER', region: 'East', duty: 'OFF_DUTY' },
   { name: 'Ravi Prakash', role: 'CALL_CENTER' },
   { name: 'Sunita Pillai', role: 'CS_SUPPORT' },
   { name: 'Aditya Malhotra', role: 'EXECUTIVE' },
-  { name: 'Leela Krishnan', role: 'DEPARTMENT_HEAD' },
 ];
 
 export function demoEmail(name: string): string {

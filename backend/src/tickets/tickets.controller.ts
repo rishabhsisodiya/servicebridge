@@ -31,6 +31,7 @@ import {
   TicketAttachmentsService,
   type UploadedFileLike,
 } from './ticket-attachments.service';
+import { TicketStatsService } from './ticket-stats.service';
 import { TicketsService } from './tickets.service';
 
 @Controller('tickets')
@@ -39,6 +40,7 @@ export class TicketsController {
   constructor(
     private readonly tickets: TicketsService,
     private readonly attachments: TicketAttachmentsService,
+    private readonly stats: TicketStatsService,
   ) {}
 
   @Get()
@@ -49,6 +51,12 @@ export class TicketsController {
   @Get('lookups')
   lookups() {
     return this.tickets.lookups();
+  }
+
+  /** Figures for the role home pages. */
+  @Get('summary')
+  summary(@CurrentUser() user: AuthUser) {
+    return this.stats.summary(user);
   }
 
   @Get('duplicates')

@@ -21,14 +21,6 @@ export const PURPOSE_DOCTYPES: Record<ErpPurpose, string[]> = {
     'Warehouse',
     'Bin',
   ],
-  DASHBOARDS: [
-    'Sales Order',
-    'Sales Invoice',
-    'Purchase Order',
-    'Work Order',
-    'Delivery Note',
-    'Bin',
-  ],
   WRITEBACK: ['Stock Entry', 'Sales Invoice'],
 };
 

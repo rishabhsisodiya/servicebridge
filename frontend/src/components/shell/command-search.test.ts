@@ -25,11 +25,11 @@ describe("searchCommands", () => {
   });
 
   it("finds pages by what they do", () => {
-    expect(labels("receivables")).toContain("Finance");
+    expect(labels("pincode")).toContain("Regions");
   });
 
   it("returns nothing when a word matches nowhere", () => {
-    expect(labels("finance zebra")).toEqual([]);
+    expect(labels("regions zebra")).toEqual([]);
   });
 
   it("returns the first entries for an empty query", () => {
