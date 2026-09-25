@@ -29,10 +29,28 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // After a client-side navigation, move focus to the new page's heading so
   // screen readers announce it. Skipped on first load (the browser handles that).
+  // Pages that load their data first render the heading a moment later, so wait for it.
   useEffect(() => {
     if (previousPath.current === pathname) return;
     previousPath.current = pathname;
-    document.getElementById("page-title")?.focus({ preventScroll: true });
+    const focusTitle = () => {
+      const title = document.getElementById("page-title");
+      title?.focus({ preventScroll: true });
+      return !!title;
+    };
+    if (focusTitle()) return;
+    const observer = new MutationObserver(() => {
+      if (focusTitle()) observer.disconnect();
+    });
+    observer.observe(document.getElementById("main") ?? document.body, {
+      childList: true,
+      subtree: true,
+    });
+    const timer = setTimeout(() => observer.disconnect(), 3000);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
   }, [pathname]);
 
   // The page behind is inert while the mobile drawer is open, so focus must move into it.

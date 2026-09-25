@@ -65,10 +65,12 @@ async function readBody(response: Response): Promise<unknown> {
 export interface ApiRequestInit extends Omit<RequestInit, "body"> {
   /** Serialised as JSON. */
   json?: unknown;
+  /** Sent as multipart/form-data (file uploads); the browser sets the boundary header. */
+  form?: FormData;
 }
 
 async function send<T>(path: string, init: ApiRequestInit): Promise<T> {
-  const { json, headers, ...rest } = init;
+  const { json, form, headers, ...rest } = init;
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
@@ -79,7 +81,7 @@ async function send<T>(path: string, init: ApiRequestInit): Promise<T> {
         ...(json !== undefined ? { "Content-Type": "application/json" } : {}),
         ...headers,
       },
-      body: json !== undefined ? JSON.stringify(json) : undefined,
+      body: json !== undefined ? JSON.stringify(json) : form,
     });
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === "AbortError") throw cause;

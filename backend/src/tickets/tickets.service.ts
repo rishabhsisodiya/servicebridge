@@ -329,6 +329,7 @@ export class TicketsService {
       duplicateOf: rest.duplicateOf,
       coverageUntil: rest.coverageUntil,
       holdReason: rest.holdReason,
+      stageBeforeHold: rest.stageBeforeHold,
       reopenCount: rest.reopenCount,
       targets: { responseMinutes: rest.responseMinutes, resolutionMinutes: rest.resolutionMinutes },
       dates: {

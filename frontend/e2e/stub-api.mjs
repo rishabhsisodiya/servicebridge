@@ -177,6 +177,154 @@ const signOutCookies = [
   "stub_role=; Path=/; Max-Age=0",
 ];
 
+// ── tickets (fictional fixture, per test session) ──
+const TICKET_NUMBER = "SB-26-000415";
+const ticketStates = new Map();
+const minutesFromNow = (m) => new Date(Date.now() + m * 60_000).toISOString();
+const STAGE_ACTIONS = {
+  IN_PROGRESS: ["assign", "hold", "resolve"],
+  ON_HOLD: ["resume"],
+  RESOLVED: ["verify", "reject"],
+};
+const ACTION_STAGE = {
+  hold: "ON_HOLD",
+  resume: "IN_PROGRESS",
+  resolve: "RESOLVED",
+  verify: "VERIFIED",
+  reject: "IN_PROGRESS",
+};
+const LOOKUPS = {
+  serviceTypes: [
+    {
+      id: "st-1",
+      name: "Breakdown",
+      description: "The machine has stopped or is faulty.",
+      defaultPriority: "HIGH",
+      requiresEquipment: true,
+    },
+  ],
+  priorities: ["CRITICAL", "HIGH", "MEDIUM", "LOW"].map((p) => ({
+    priority: p,
+    label: p[0] + p.slice(1).toLowerCase(),
+    description: null,
+  })),
+  stages: [],
+  actions: {
+    assign: { label: "Assign engineer", note: "optional" },
+    hold: { label: "Put on hold", note: "required" },
+    resume: { label: "Resume", note: "optional" },
+    resolve: { label: "Mark resolved", note: "required" },
+    verify: { label: "Verify fix", note: "optional" },
+    reject: { label: "Send back", note: "required" },
+  },
+};
+
+function ticketFor(session) {
+  if (!ticketStates.has(session)) {
+    ticketStates.set(session, { stage: "IN_PROGRESS", version: 3, events: [] });
+  }
+  const state = ticketStates.get(session);
+  const created = minutesFromNow(-240);
+  const running = state.stage === "IN_PROGRESS";
+  const row = {
+    id: "t-415",
+    number: TICKET_NUMBER,
+    title: "Heavy vibration, output size drifting",
+    stage: state.stage,
+    priority: "HIGH",
+    coverage: "AMC",
+    channel: "PHONE",
+    isDemo: true,
+    createdAt: created,
+    customer: { id: "c-1", name: "Northfield Infra" },
+    site: { id: "s-1", title: "Nelamangala plant", city: "Nelamangala", pincode: "562123" },
+    equipment: {
+      id: "m-1",
+      serialNo: "CX400-2311-052",
+      itemCode: "CX-400",
+      itemName: "Cone Crusher CX-400",
+    },
+    engineer: { id: users[0].id, name: users[0].name },
+    region: { id: "r-central", name: "Central" },
+    sla: running
+      ? { clock: "resolution", state: "risk", dueAt: minutesFromNow(125), metAt: null }
+      : state.stage === "ON_HOLD"
+        ? { clock: "resolution", state: "paused", dueAt: null, metAt: null }
+        : {
+            clock: "resolution",
+            state: "met",
+            dueAt: minutesFromNow(125),
+            metAt: minutesFromNow(0),
+          },
+    version: state.version,
+  };
+  return {
+    row,
+    detail: {
+      ...row,
+      customer: { ...row.customer, mobile: "+91 90000 20097", email: null, territory: "Central" },
+      site: { ...row.site, line1: "Plot 12, Industrial Area", state: "Karnataka" },
+      equipment: { ...row.equipment, warrantyExpiresOn: null, amcExpiresOn: "2027-03-31" },
+      description:
+        "Heavy vibration since the morning shift; product size drifting from 20 mm to 28 mm.",
+      contact: {
+        id: "p-1",
+        fullName: "Sanjay Gowda",
+        mobile: "+91 90000 20108",
+        phone: null,
+        email: null,
+      },
+      serviceType: { id: "st-1", name: "Breakdown" },
+      areaManager: { id: "u-am", name: "Anita Verghese" },
+      createdBy: { id: "u-cc", name: "Ravi Prakash" },
+      duplicateOf: null,
+      coverageUntil: "2027-03-31",
+      holdReason: state.stage === "ON_HOLD" ? (state.events.at(-1)?.note ?? null) : null,
+      stageBeforeHold: state.stage === "ON_HOLD" ? "IN_PROGRESS" : null,
+      reopenCount: 0,
+      targets: { responseMinutes: 240, resolutionMinutes: 1440 },
+      dates: {
+        responseDueAt: minutesFromNow(0),
+        resolutionDueAt: minutesFromNow(125),
+        respondedAt: minutesFromNow(-220),
+        resolvedAt: state.stage === "RESOLVED" ? minutesFromNow(0) : null,
+        verifiedAt: null,
+        closedAt: null,
+        cancelledAt: null,
+        pausedAt: state.stage === "ON_HOLD" ? minutesFromNow(0) : null,
+      },
+      breached: { response: false, resolution: false },
+      openForCustomer: 1,
+      openForMachine: 0,
+      events: [
+        {
+          id: "e1",
+          type: "CREATED",
+          actor: { id: "u-cc", name: "Ravi Prakash" },
+          fromStage: null,
+          toStage: "NEW",
+          note: null,
+          data: { channel: "PHONE" },
+          createdAt: created,
+        },
+        {
+          id: "e2",
+          type: "ROUTED",
+          actor: null,
+          fromStage: null,
+          toStage: null,
+          note: null,
+          data: { regionName: "Central" },
+          createdAt: created,
+        },
+        ...state.events,
+      ],
+      attachments: [],
+      actions: STAGE_ACTIONS[state.stage] ?? [],
+    },
+  };
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://stub");
   const path = url.pathname;
@@ -220,11 +368,12 @@ const server = createServer(async (req, res) => {
     return send(res, 204, undefined, signOutCookies);
   if (path === "/api/v1/auth/me") {
     // Like the real API: no access cookie (expired and dropped by the browser) → UNAUTHENTICATED.
-    if (!cookies.sb_access) return fail(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
+    // An access token that is present but expired (checked first, so the test covers that path).
     if (cookies.stub_expire_once === "1") {
       res.setHeader("set-cookie", ["stub_expire_once=; Path=/; Max-Age=0"]);
       return fail(res, 401, "TOKEN_EXPIRED", "Your session needs refreshing.");
     }
+    if (!cookies.sb_access) return fail(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
     return send(res, 200, me(role));
   }
   if (path === "/api/v1/auth/confirm-password" && req.method === "POST") {
@@ -263,6 +412,85 @@ const server = createServer(async (req, res) => {
 
   // ── everything below needs a sign-in ──
   if (!cookies.sb_signed_in) return fail(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
+
+  // ── tickets ──
+  if (path === "/api/v1/tickets/lookups") return send(res, 200, LOOKUPS);
+  if (path === "/api/v1/tickets" && req.method === "GET") {
+    const { row } = ticketFor(session);
+    const open = !["CLOSED", "CANCELLED"].includes(row.stage);
+    const quick = url.searchParams.get("quick") ?? "open";
+    const show =
+      quick === "closed" ? !open : quick === "open" || quick === "sla-risk" ? open : false;
+    return send(res, 200, {
+      data: show ? [row] : [],
+      meta: { page: 1, pageSize: 25, total: show ? 1 : 0 },
+      counts: {
+        open: open ? 1 : 0,
+        mine: 1,
+        "sla-risk": 1,
+        unassigned: 0,
+        "awaiting-verification": 0,
+        chargeable: 0,
+        closed: 0,
+      },
+    });
+  }
+  const ticketMatch = path.match(/^\/api\/v1\/tickets\/([^/]+)(\/[a-z]+)?$/);
+  if (ticketMatch && [TICKET_NUMBER, "t-415"].includes(decodeURIComponent(ticketMatch[1]))) {
+    const sub = ticketMatch[2];
+    if (!sub && req.method === "GET") return send(res, 200, ticketFor(session).detail);
+    if (sub === "/scheduled")
+      return send(res, 200, {
+        available: true,
+        timers: [
+          { kind: "breach", clock: "resolution", runAt: minutesFromNow(125), state: "delayed" },
+        ],
+      });
+    if (sub === "/engineers") return send(res, 200, []);
+    if ((sub === "/actions" || sub === "/notes") && req.method === "POST") {
+      const input = await body(req);
+      const state = ticketStates.get(session) ?? (ticketFor(session), ticketStates.get(session));
+      const at = new Date().toISOString();
+      if (sub === "/notes") {
+        state.events.push({
+          id: `n${state.events.length}`,
+          type: "NOTE",
+          actor: { id: users[0].id, name: users[0].name },
+          fromStage: null,
+          toStage: null,
+          note: input.note,
+          data: null,
+          createdAt: at,
+        });
+      } else {
+        if (input.version !== state.version)
+          return fail(
+            res,
+            409,
+            "VERSION_CONFLICT",
+            "Someone else changed this ticket. Reload to see their changes.",
+          );
+        const to = ACTION_STAGE[input.action];
+        if (!to || !(STAGE_ACTIONS[state.stage] ?? []).includes(input.action))
+          return fail(res, 409, "ACTION_NOT_ALLOWED", "That step is not possible at this stage.");
+        state.events.push({
+          id: `a${state.events.length}`,
+          type: "STAGE_CHANGED",
+          actor: { id: users[0].id, name: users[0].name },
+          fromStage: state.stage,
+          toStage: to,
+          note: input.note ?? null,
+          data: { action: input.action },
+          createdAt: at,
+        });
+        state.stage = to;
+        state.version += 1;
+      }
+      return send(res, 201, ticketFor(session).detail);
+    }
+  }
+  if (ticketMatch && req.method === "GET")
+    return fail(res, 404, "TICKET_NOT_FOUND", "That ticket doesn't exist, or you can't see it.");
 
   if (path === "/api/v1/regions") return send(res, 200, regions);
   if (path === "/api/v1/users/roles") return send(res, 200, ROLE_OPTIONS);

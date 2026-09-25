@@ -1,37 +1,15 @@
-import { Download, Plus } from "lucide-react";
 import type { Metadata } from "next";
-import { Button, ButtonLink } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui/misc";
+import { isQuickFilter } from "@/features/tickets/quick-filters";
 import { TicketsBrowser } from "@/features/tickets/tickets-browser";
 
 export const metadata: Metadata = { title: "Tickets" };
 
-export default function TicketsPage() {
+export default async function TicketsPage(props: PageProps<"/tickets">) {
+  const { quick, search } = await props.searchParams;
   return (
-    <>
-      <PageHeader
-        title="Tickets"
-        description="38 open · 3 at SLA risk"
-        actions={
-          <>
-            <Button
-              icon={<Download className="size-4" aria-hidden />}
-              disabled
-              title="Export arrives with reports in session 14"
-            >
-              Export
-            </Button>
-            <ButtonLink
-              href="/tickets/new"
-              variant="primary"
-              icon={<Plus className="size-4" aria-hidden />}
-            >
-              Log a ticket
-            </ButtonLink>
-          </>
-        }
-      />
-      <TicketsBrowser />
-    </>
+    <TicketsBrowser
+      initialQuick={isQuickFilter(quick) ? quick : "open"}
+      initialSearch={typeof search === "string" ? search : ""}
+    />
   );
 }

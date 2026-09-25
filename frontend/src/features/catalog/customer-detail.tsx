@@ -106,7 +106,7 @@ export function CustomerDetailScreen({ id }: { id: string }) {
         }
         actions={
           <ButtonLink
-            href="/tickets/new"
+            href={`/tickets/new?customerId=${data.id}`}
             variant="primary"
             icon={<Plus className="size-4" aria-hidden />}
           >

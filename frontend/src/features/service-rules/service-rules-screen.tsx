@@ -14,21 +14,7 @@ import { CalendarsTab } from "./calendars-tab";
 import { LabelsTab } from "./labels-tab";
 import { ServiceTypesTab } from "./service-types-tab";
 import { SlaTab } from "./sla-tab";
-
-export const RULE_TABS = [
-  { key: "sla", label: "SLA policies" },
-  { key: "calendars", label: "Calendars" },
-  { key: "service-types", label: "Service types" },
-  { key: "priorities", label: "Priorities" },
-  { key: "stages", label: "Stage labels" },
-  { key: "billing", label: "Billing" },
-] as const;
-
-export type RuleTab = (typeof RULE_TABS)[number]["key"];
-
-export function isRuleTab(value: unknown): value is RuleTab {
-  return RULE_TABS.some((t) => t.key === value);
-}
+import { RULE_TABS, type RuleTab } from "./tabs";
 
 export function ServiceRulesScreen({ initialTab }: { initialTab: RuleTab }) {
   const { can, me } = useSession();

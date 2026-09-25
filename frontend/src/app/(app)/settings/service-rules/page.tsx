@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { isRuleTab, ServiceRulesScreen } from "@/features/service-rules/service-rules-screen";
+import { ServiceRulesScreen } from "@/features/service-rules/service-rules-screen";
+import { isRuleTab } from "@/features/service-rules/tabs";
 
 export const metadata: Metadata = { title: "Service rules" };
 

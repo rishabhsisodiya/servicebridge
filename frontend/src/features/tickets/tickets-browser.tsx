@@ -1,116 +1,196 @@
 "use client";
 
-import { ArrowUpDown, Search, TicketX } from "lucide-react";
-import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Download, Lock, Plus, TicketX } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { useCallback, useRef, useState } from "react";
+import useSWR from "swr";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { FilterChip } from "@/components/ui/misc";
-import { EmptyState } from "@/components/ui/states";
-import type { SortDirection } from "@/components/ui/table";
-import { MOCK_TICKETS } from "@/mocks/tickets";
-import { countQuick, filterTickets, type QuickFilter } from "./filter";
+import { Select } from "@/components/ui/field";
+import { Pager, SearchInput } from "@/components/ui/list-controls";
+import { FilterChip, PageHeader } from "@/components/ui/misc";
+import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
+import { useSession } from "@/lib/auth/session";
+import { fetcher, type QuickFilter, type TicketPage } from "./api";
+import { QUICK_FILTERS } from "./quick-filters";
 import { TicketTable } from "./ticket-table";
 
-const QUICK_FILTERS: { key: QuickFilter; label: string }[] = [
-  { key: "open", label: "Open" },
-  { key: "sla-risk", label: "SLA at risk" },
-  { key: "unassigned", label: "Unassigned" },
-  { key: "awaiting-verification", label: "Awaiting verification" },
-  { key: "chargeable", label: "Chargeable" },
-  { key: "closed", label: "Closed" },
-];
+const SORTS = [
+  { value: "newest", label: "Newest first" },
+  { value: "due", label: "SLA due soonest" },
+  { value: "priority", label: "Highest priority first" },
+  { value: "oldest", label: "Oldest first" },
+] as const;
+type Sort = (typeof SORTS)[number]["value"];
 
-export function TicketsBrowser() {
-  const [text, setText] = useState("");
-  const [quick, setQuick] = useState<QuickFilter>("open");
-  const [sortByPriority, setSortByPriority] = useState<SortDirection | undefined>();
-  const tickets = useMemo(
-    () => filterTickets(MOCK_TICKETS, { text, quick, sortByPriority }),
-    [text, quick, sortByPriority],
+export function TicketsBrowser({
+  initialQuick,
+  initialSearch,
+}: {
+  initialQuick: QuickFilter;
+  initialSearch: string;
+}) {
+  const { can, me } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const [quick, setQuick] = useState<QuickFilter>(initialQuick);
+  const [search, setSearch] = useState(initialSearch);
+  const [sort, setSort] = useState<Sort>("newest");
+  const [page, setPage] = useState(1);
+  const [searchKey, setSearchKey] = useState(0);
+  // The debounced search box calls back on every settle; refs let it compare without re-subscribing.
+  const current = useRef({ quick: initialQuick, search: initialSearch });
+
+  /** Filters live in the address so a view can be shared or reloaded. */
+  const apply = useCallback(
+    (next: { quick: QuickFilter; search: string }) => {
+      current.current = next;
+      setQuick(next.quick);
+      setSearch(next.search);
+      setPage(1);
+      const params = new URLSearchParams();
+      if (next.quick !== "open") params.set("quick", next.quick);
+      if (next.search) params.set("search", next.search);
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [pathname, router],
+  );
+  const onSearch = useCallback(
+    (value: string) => {
+      if (value !== current.current.search) apply({ ...current.current, search: value });
+    },
+    [apply],
   );
 
+  const allowed = can("tickets.view");
+  const params = new URLSearchParams({ quick, sort, page: String(page), pageSize: "25" });
+  if (search) params.set("search", search);
+  const { data, error, isLoading, mutate } = useSWR<TicketPage>(
+    allowed ? `/tickets?${params}` : null,
+    fetcher,
+    { keepPreviousData: true },
+  );
+
+  if (me && !allowed) {
+    return (
+      <>
+        <PageHeader title="Tickets" />
+        <Card>
+          <EmptyState icon={<Lock className="size-6" />} title="You don't have access to this" />
+        </Card>
+      </>
+    );
+  }
+
+  const filtered = !!search || quick !== "open";
   const clear = () => {
-    setText("");
-    setQuick("open");
+    setSearchKey((k) => k + 1); // remounts the search box empty
+    apply({ quick: "open", search: "" });
   };
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-3">
-        <div className="relative min-w-56 flex-1">
-          <Search
-            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted"
-            aria-hidden
-          />
-          <label htmlFor="ticket-search" className="sr-only">
-            Search tickets
-          </label>
-          <input
-            id="ticket-search"
-            type="search"
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder="Ticket no., customer, serial or engineer"
-            className="min-h-9 w-full rounded-lg border border-line-strong bg-surface pr-3 pl-8 placeholder:text-faint focus:border-accent focus:outline-2 focus:outline-offset-0 focus:outline-accent/50 max-sm:text-base"
-          />
-        </div>
-        <Button
-          size="sm"
-          aria-pressed={sortByPriority !== undefined}
-          icon={<ArrowUpDown className="size-3.5" aria-hidden />}
-          onClick={() =>
-            setSortByPriority((d) =>
-              d === "ascending" ? "descending" : d === "descending" ? undefined : "ascending",
-            )
-          }
-        >
-          {sortByPriority === "ascending"
-            ? "Highest priority first"
-            : sortByPriority === "descending"
-              ? "Lowest priority first"
-              : "Sort by priority"}
-        </Button>
-      </div>
-
-      <div
-        role="group"
-        aria-label="Quick filters"
-        className="flex flex-wrap gap-1.5 border-b border-line px-3.5 py-2.5"
-      >
-        {QUICK_FILTERS.map((filter) => (
-          <FilterChip
-            key={filter.key}
-            pressed={quick === filter.key}
-            onClick={() => setQuick(filter.key)}
-            count={countQuick(MOCK_TICKETS, filter.key)}
-          >
-            {filter.label}
-          </FilterChip>
-        ))}
-      </div>
-
-      <p className="sr-only" aria-live="polite">
-        {tickets.length} {tickets.length === 1 ? "ticket" : "tickets"} shown
-      </p>
-
-      {tickets.length > 0 ? (
-        <TicketTable tickets={tickets} caption="Tickets" />
-      ) : (
-        <EmptyState
-          icon={<TicketX className="size-6" />}
-          title="No tickets match"
-          description="Try fewer words, or switch the quick filter back to Open."
-          action={
-            <Button size="sm" onClick={clear}>
-              Clear search and filters
+    <>
+      <PageHeader
+        title="Tickets"
+        description={
+          data
+            ? `${data.counts.open} open · ${data.counts["sla-risk"]} at SLA risk`
+            : "Every service ticket, with SLA status."
+        }
+        actions={
+          <>
+            <Button
+              icon={<Download className="size-4" aria-hidden />}
+              disabled
+              title="Export arrives with reports in session 14"
+            >
+              Export
             </Button>
-          }
-        />
-      )}
+            {can("tickets.create") && (
+              <ButtonLink
+                href="/tickets/new"
+                variant="primary"
+                icon={<Plus className="size-4" aria-hidden />}
+              >
+                Log a ticket
+              </ButtonLink>
+            )}
+          </>
+        }
+      />
+      <Card>
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3.5 py-3">
+          <SearchInput
+            key={searchKey}
+            label="Search tickets"
+            placeholder="Ticket no., customer, serial, engineer or problem"
+            onChange={onSearch}
+            initial={searchKey === 0 ? initialSearch : ""}
+          />
+          <Select
+            aria-label="Sort"
+            value={sort}
+            onChange={(e) => {
+              setSort(e.target.value as Sort);
+              setPage(1);
+            }}
+            className="min-h-9 sm:w-auto!"
+          >
+            {SORTS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </Select>
+        </div>
 
-      <div className="flex items-center gap-2 border-t border-line px-3.5 py-2.5 text-[12.5px] text-muted">
-        Showing {tickets.length} of {MOCK_TICKETS.length} sample tickets
-      </div>
-    </Card>
+        <div
+          role="group"
+          aria-label="Quick filters"
+          className="flex flex-wrap gap-1.5 border-b border-line px-3.5 py-2.5"
+        >
+          {QUICK_FILTERS.map((filter) => (
+            <FilterChip
+              key={filter.key}
+              pressed={quick === filter.key}
+              onClick={() => apply({ quick: filter.key, search })}
+              count={data?.counts[filter.key]}
+            >
+              {filter.label}
+            </FilterChip>
+          ))}
+        </div>
+
+        <p className="sr-only" aria-live="polite">
+          {data ? `${data.meta.total} ${data.meta.total === 1 ? "ticket" : "tickets"} found` : ""}
+        </p>
+
+        {isLoading && !data && <TableSkeleton label="Loading tickets" />}
+        {error && !data && (
+          <ErrorState title="Couldn't load tickets" onRetry={() => void mutate()} />
+        )}
+        {data && data.data.length === 0 && (
+          <EmptyState
+            icon={<TicketX className="size-6" />}
+            title={filtered ? "No tickets match" : "No open tickets"}
+            description={
+              filtered
+                ? "Try fewer words, or switch the quick filter back to Open."
+                : "New tickets appear here as soon as they're logged."
+            }
+            action={
+              filtered ? (
+                <Button size="sm" onClick={clear}>
+                  Clear search and filters
+                </Button>
+              ) : undefined
+            }
+          />
+        )}
+        {data && data.data.length > 0 && <TicketTable tickets={data.data} caption="Tickets" />}
+        {data && data.meta.total > 0 && <Pager {...data.meta} noun="tickets" onPage={setPage} />}
+      </Card>
+    </>
   );
 }

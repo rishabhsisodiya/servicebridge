@@ -19,6 +19,17 @@ import {
   StagePill,
   type TicketStage,
 } from "@/features/tickets/display";
+import type { SlaStatus } from "@/features/tickets/api";
+
+/** Fixed time so the SLA examples read the same on every visit. */
+const SAMPLE_NOW = new Date("2026-01-01T12:00:00Z");
+const sample = (state: SlaStatus["state"], minutesLeft: number): SlaStatus => ({
+  clock: "resolution",
+  state,
+  dueAt:
+    state === "paused" ? null : new Date(SAMPLE_NOW.getTime() + minutesLeft * 60_000).toISOString(),
+  metAt: null,
+});
 
 const TOKENS: [string, string][] = [
   ["--primary", "Primary (slate)"],
@@ -124,10 +135,10 @@ export function DesignSystemShowcase() {
               <PriorityMark priority="LOW" />
             </div>
             <div className="flex flex-wrap gap-4">
-              <SlaMark kind="Resolution" state="ok" text="3h 10m left" />
-              <SlaMark kind="Resolution" state="risk" text="42m left" />
-              <SlaMark kind="Resolution" state="breach" text="Breached 1h 05m" />
-              <SlaMark kind="Resolution" state="paused" text="Paused" />
+              <SlaMark sla={sample("ok", 190)} now={SAMPLE_NOW} />
+              <SlaMark sla={sample("risk", 42)} now={SAMPLE_NOW} />
+              <SlaMark sla={sample("breach", -65)} now={SAMPLE_NOW} />
+              <SlaMark sla={sample("paused", 0)} now={SAMPLE_NOW} />
             </div>
           </CardBody>
         </Card>

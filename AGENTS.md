@@ -33,7 +33,7 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 | Web e2e | `npm run test:e2e:web` (builds the app; uses a stub API, no infra needed) |
 | One API test file | `cd backend && npx jest src/core/health` |
 | One web test file | `cd frontend && npx vitest run src/lib/api` |
-| Migrations | `cd backend && npm run prisma:migrate` (dev) / `npm run prisma:deploy` (prod). **Agents do not run or generate migrations; the developer does.** |
+| Migrations | `cd backend && npm run migrate` (dev) / `npm run prisma:deploy` (prod). **Agents do not run or generate migrations; the developer does.** |
 | First administrator | `cd backend && npm run admin:create -- --email you@co.com --name "Your Name"` (asks for the password; `ADMIN_PASSWORD` for automation) |
 | Load / reset demo data | `cd backend && npm run demo:seed` (prints demo logins + one shared password), or Settings → Company & demo data |
 | Rotate the encryption key | put the new key first in `APP_ENCRYPTION_KEYS`, then `cd backend && npm run secrets:reencrypt` |
@@ -100,6 +100,8 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   paginated lists; `features/catalog/shared.tsx` — `CoveragePill`, `SourceTag`, `money`, `formatDate`
 - `frontend/src/features/service-rules/` — `/settings/service-rules?tab=…` (one tab per rule type),
   `/settings/regions`, `/settings/skills`
+- `frontend/src/features/tickets/` — list, log-a-ticket, detail. Labels come from `useTicketLabels()`
+  (admin wording); actions shown are exactly `ticket.actions` from the API.
 - `frontend/src/mocks/` — TEMPORARY sample data; delete each file when its API arrives
 - `frontend/src/app/(app)/settings/design-system` — live reference of tokens, components, states
 - `frontend/e2e/` — Playwright tests (incl. axe WCAG scans in both themes) and the stub API
@@ -164,6 +166,11 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   `getByLabel(..., { exact: true })` fails for them; match without `exact`.
 - **Keep-alive**: the API sets `keepAliveTimeout` to 65 s (`main.ts`) so the web proxy never
   reuses a socket the API just closed (ECONNRESET under load). Keep any stub API the same.
+
+- A server `page.tsx` can't call a function exported from a `"use client"` module (it crashes at
+  runtime, typecheck passes). Keep helpers pages call (`isQuickFilter`, `isRuleTab`) in plain modules.
+- Add every new route to `BUILT_PAGES` in `e2e/shell.spec.ts`; that's what catches the above.
+- e2e before handing over a session: `cd frontend && npx playwright test` (builds, uses the stub API).
 
 ## Product rules (do not break)
 

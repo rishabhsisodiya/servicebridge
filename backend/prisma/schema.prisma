@@ -1,5 +1,5 @@
 // ServiceBridge's own database. Unrelated to any ERP schema.
-// Models are added per build session. Create migrations with `npm run prisma:migrate`.
+// Models are added per build session. Create migrations with `npm run migrate`.
 
 generator client {
   provider = "prisma-client-js"

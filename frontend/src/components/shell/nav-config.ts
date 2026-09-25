@@ -82,7 +82,6 @@ export const NAV: NavGroup[] = [
         permission: "tickets.create",
         label: "Log a ticket",
         icon: PlusCircle,
-        plannedSession: 8,
         summary: "Record a breakdown or service request with duplicate checks and routing.",
       },
       {

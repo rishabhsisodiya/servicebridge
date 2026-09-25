@@ -6,18 +6,14 @@ import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { KpiCard } from "@/components/ui/kpi";
 import { Avatar, PageHeader } from "@/components/ui/misc";
-import { TicketTable } from "@/features/tickets/ticket-table";
-import { MOCK_ENGINEERS, MOCK_TICKETS } from "@/mocks/tickets";
+import { NeedsAttention } from "@/features/tickets/needs-attention";
+import { MOCK_ENGINEERS } from "@/mocks/engineers";
 
 export const metadata: Metadata = { title: "Home" };
 
 const ENGINEER_TONE = { Available: "ok", "On visit": "prog", "Off duty": "done" } as const;
 
 export default function HomePage() {
-  const needsAttention = MOCK_TICKETS.filter(
-    (t) => t.sla.state === "risk" || t.sla.state === "breach",
-  );
-
   return (
     <>
       <PageHeader
@@ -96,23 +92,7 @@ export default function HomePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
-        <Card aria-labelledby="attention-title">
-          <CardHeader
-            titleId="attention-title"
-            title="Needs attention"
-            meta={`${needsAttention.length} tickets`}
-            actions={
-              <ButtonLink href="/tickets" variant="ghost" size="sm">
-                View all
-              </ButtonLink>
-            }
-          />
-          <TicketTable
-            tickets={needsAttention}
-            caption="Tickets at risk of missing their SLA"
-            compact
-          />
-        </Card>
+        <NeedsAttention />
 
         <Card aria-labelledby="engineers-title">
           <CardHeader titleId="engineers-title" title="Engineers" meta="3 on visit · 2 available" />

@@ -24,7 +24,7 @@ cp .env.example .env
 #    APP_ENCRYPTION_KEYS=v1:$(openssl rand -base64 32)
 #    JWT_SECRET=$(openssl rand -base64 48)
 npm install
-npm run prisma:migrate        # creates the database tables
+npm run migrate               # creates the database tables
 npm run admin:create -- --email you@company.com --name "Your Name"   # first administrator
 npm run demo:seed             # optional: fictional demo company, logins printed once
 npm run dev                   # http://localhost:4000/api/v1/health/ready

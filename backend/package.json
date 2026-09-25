@@ -17,7 +17,7 @@
     "test": "jest",
     "test:e2e": "jest --config test/jest-e2e.json",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
+    "migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "admin:create": "ts-node -P tsconfig.json src/cli/create-admin.ts",
     "admin:create:prod": "node dist/cli/create-admin.js",

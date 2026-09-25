@@ -6,12 +6,14 @@ const BUILT_PAGES = [
   "/",
   "/tickets",
   "/tickets/SB-26-000415",
+  "/tickets/new",
   "/settings",
   "/settings/design-system",
   "/settings/users",
   "/settings/erp",
   "/account",
   "/customers",
+  "/settings/service-rules",
 ];
 
 async function expectNoA11yViolations(page: Page) {
@@ -62,6 +64,8 @@ test.describe("navigation", () => {
 test.describe("search", () => {
   test("Ctrl+K opens search and Enter goes to the highlighted result", async ({ page }) => {
     await page.goto("/");
+    // Rendered only after hydration, so the shortcut listener is attached by now.
+    await expect(page.getByRole("heading", { name: "Needs attention" })).toBeVisible();
     await page.keyboard.press("ControlOrMeta+k");
     const box = page.getByRole("combobox", { name: "Search screens and actions" });
     await expect(box).toBeFocused();

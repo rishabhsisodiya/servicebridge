@@ -68,15 +68,17 @@ plain.describe("stale sessions", () => {
       await context.addCookies([
         { name: "stub_refresh_fails", value: "1", domain: new URL(baseURL!).hostname, path: "/" },
       ]);
-      let navigations = 0;
-      page.on("framenavigated", (frame) => {
-        if (frame === page.mainFrame()) navigations += 1;
+      // Full document loads only: Next's same-page history updates are not redirects.
+      let loads = 0;
+      page.on("load", () => {
+        loads += 1;
       });
       await page.goto("/tickets");
       await expect(page).toHaveURL(/\/login\?next=%2Ftickets$/);
       await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
       await page.waitForTimeout(1500);
-      expect(navigations).toBeLessThanOrEqual(3);
+      // The page itself, then the sign-in page. A loop would keep adding loads.
+      expect(loads).toBeLessThanOrEqual(2);
       await expect(page).toHaveURL(/\/login/);
     },
   );
