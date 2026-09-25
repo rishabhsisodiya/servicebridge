@@ -59,6 +59,9 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 - `backend/src/demo/` — demo company (`demo-data.ts`, fictional and deterministic), load/clear, and
   company settings (`app-settings.service.ts`). Demo rows: `source = DEMO` / `isDemo = true`; new
   demo-seeded tables must use the same marker so "Clear demo data" removes them.
+- `backend/src/catalog/` — read APIs for customers, equipment and items. `coverage.ts` holds the
+  coverage rule (active AMC → warranty → chargeable, dates inclusive, AMC "ending soon" = 60 days)
+  both as a pure function and as a Prisma `where`. Use it; never re-derive coverage elsewhere.
 - `backend/src/core/crypto/` — AES-256-GCM secret encryption with key versions
 - `backend/src/core/security/network-guard.ts` — SSRF protection for admin-entered addresses
 - `backend/src/core/queue/` — BullMQ queues (one per area) and workers; `QueueService.register()`
@@ -80,6 +83,8 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 - `frontend/src/app/(app)/[...slug]` — placeholder for menu entries not built yet; a real route
   takes precedence automatically
 - `frontend/src/features/<area>/` — feature code (e.g. `tickets/display.tsx` stages, priority, SLA)
+- `frontend/src/components/ui/list-controls.tsx` — `SearchInput` (debounced) + `Pager` for
+  paginated lists; `features/catalog/shared.tsx` — `CoveragePill`, `SourceTag`, `money`, `formatDate`
 - `frontend/src/mocks/` — TEMPORARY sample data; delete each file when its API arrives
 - `frontend/src/app/(app)/settings/design-system` — live reference of tokens, components, states
 - `frontend/e2e/` — Playwright tests (incl. axe WCAG scans in both themes) and the stub API

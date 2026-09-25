@@ -87,7 +87,6 @@ export const NAV: NavGroup[] = [
         permission: "customers.view",
         label: "Customers",
         icon: Building2,
-        plannedSession: 7,
         summary: "Customers, sites and contacts, synced from your ERP.",
       },
       {
@@ -95,7 +94,6 @@ export const NAV: NavGroup[] = [
         permission: "equipment.view",
         label: "Equipment",
         icon: Wrench,
-        plannedSession: 7,
         summary: "Machines installed at customer sites, with coverage and history.",
       },
       {
@@ -111,7 +109,6 @@ export const NAV: NavGroup[] = [
         permission: "items.view",
         label: "Spares & items",
         icon: Boxes,
-        plannedSession: 7,
         summary: "Spare parts, prices and stock from your ERP.",
       },
     ],
