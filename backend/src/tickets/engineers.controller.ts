@@ -21,6 +21,12 @@ export class EngineersController {
     return this.engineers.list(user);
   }
 
+  @Get('me')
+  @RequirePermissions('tickets.work')
+  me(@CurrentUser() user: AuthUser) {
+    return this.engineers.me(user.id);
+  }
+
   /** An engineer sets their own status. */
   @Patch('me/duty')
   @RequirePermissions('tickets.work')

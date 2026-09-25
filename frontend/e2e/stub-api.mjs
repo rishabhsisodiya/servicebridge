@@ -322,6 +322,84 @@ function ticketFor(session) {
   };
 }
 
+// ── home, engineers, notifications (per test session) ──
+const SUMMARY = {
+  counts: {
+    open: 1,
+    atRisk: 1,
+    breached: 0,
+    unassigned: 0,
+    awaitingVerification: 0,
+    onHold: 0,
+    mine: 1,
+    loggedToday: 1,
+    closedToday: 0,
+  },
+  byStage: [{ stage: "IN_PROGRESS", count: 1 }],
+  channels: [{ channel: "PHONE", count: 1 }],
+  flow: Array.from({ length: 7 }, (_, i) => ({
+    day: new Date(Date.now() - (6 - i) * 86_400_000).toISOString().slice(0, 10),
+    logged: i === 6 ? 1 : 0,
+    closed: 0,
+  })),
+  last30: { resolved: 4, avgResolutionMinutes: 410, slaMetPercent: 75 },
+};
+const engineerStates = new Map();
+function engineersFor(session) {
+  if (!engineerStates.has(session)) {
+    engineerStates.set(session, [
+      {
+        id: "u-eng",
+        name: "Neha Kulkarni",
+        region: "Central",
+        dutyStatus: "ON_DUTY",
+        onVisit: true,
+        openTickets: 2,
+        skills: ["Crushers"],
+        canChange: true,
+      },
+      {
+        id: "u-eng2",
+        name: "Vikas Rao",
+        region: "East",
+        dutyStatus: "OFF_DUTY",
+        onVisit: false,
+        openTickets: 0,
+        skills: [],
+        canChange: true,
+      },
+    ]);
+  }
+  return engineerStates.get(session);
+}
+const notificationStates = new Map();
+function notificationsFor(session) {
+  if (!notificationStates.has(session)) {
+    notificationStates.set(session, [
+      {
+        id: "n1",
+        type: "SLA_AT_RISK",
+        title: "SB-26-000415: resolution time at risk",
+        body: "Heavy vibration, output size drifting",
+        readAt: null,
+        createdAt: new Date().toISOString(),
+        ticket: { id: "t-415", number: "SB-26-000415" },
+      },
+      {
+        id: "n2",
+        type: "TICKET_ASSIGNED",
+        title: "Assigned to you: SB-26-000415",
+        body: null,
+        readAt: new Date().toISOString(),
+        createdAt: new Date(Date.now() - 3_600_000).toISOString(),
+        ticket: { id: "t-415", number: "SB-26-000415" },
+      },
+    ]);
+  }
+  return notificationStates.get(session);
+}
+const myDuty = new Map();
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://stub");
   const path = url.pathname;
@@ -409,6 +487,40 @@ const server = createServer(async (req, res) => {
 
   // ── everything below needs a sign-in ──
   if (!cookies.sb_signed_in) return fail(res, 401, "UNAUTHENTICATED", "Sign in to continue.");
+
+  // ── home, engineers, notifications ──
+  if (path === "/api/v1/tickets/summary") return send(res, 200, SUMMARY);
+  if (path === "/api/v1/engineers" && req.method === "GET")
+    return send(res, 200, engineersFor(session));
+  if (path === "/api/v1/engineers/me" && req.method === "GET")
+    return send(res, 200, {
+      dutyStatus: myDuty.get(session) ?? "ON_DUTY",
+      dutyChangedAt: null,
+      openTickets: 1,
+      onVisit: false,
+    });
+  const dutyMatch = path.match(/^\/api\/v1\/engineers\/([^/]+)\/duty$/);
+  if (dutyMatch && req.method === "PATCH") {
+    const { dutyStatus } = await body(req);
+    if (dutyMatch[1] === "me") myDuty.set(session, dutyStatus);
+    else {
+      const engineer = engineersFor(session).find((e) => e.id === dutyMatch[1]);
+      if (engineer) engineer.dutyStatus = dutyStatus;
+    }
+    return send(res, 200, { id: dutyMatch[1], dutyStatus });
+  }
+  if (path === "/api/v1/notifications") {
+    const items = notificationsFor(session);
+    return send(res, 200, { items, unread: items.filter((n) => !n.readAt).length });
+  }
+  if (path === "/api/v1/notifications/unread-count")
+    return send(res, 200, { unread: notificationsFor(session).filter((n) => !n.readAt).length });
+  if (path === "/api/v1/notifications/read" && req.method === "POST") {
+    const { ids } = await body(req);
+    const items = notificationsFor(session);
+    for (const n of items) if (!ids || ids.includes(n.id)) n.readAt ??= new Date().toISOString();
+    return send(res, 200, { marked: 1, unread: items.filter((n) => !n.readAt).length });
+  }
 
   // ── tickets ──
   if (path === "/api/v1/tickets/lookups") return send(res, 200, LOOKUPS);

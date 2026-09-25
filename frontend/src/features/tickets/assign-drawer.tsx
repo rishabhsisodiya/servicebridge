@@ -10,6 +10,7 @@ import { Field, Textarea } from "@/components/ui/field";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch, ApiError } from "@/lib/api/client";
+import { AvailabilityPill } from "@/features/engineers/engineers";
 import { type EngineerSuggestion, fetcher, type TicketDetail } from "./api";
 
 interface AssignDrawerProps {
@@ -126,6 +127,7 @@ function AssignForm({ ticket, open, onClose, onChanged }: AssignDrawerProps) {
                     <span className="flex flex-wrap items-center gap-2 font-semibold">
                       {e.name}
                       {e.current && <Tag>Current</Tag>}
+                      <AvailabilityPill duty={e.dutyStatus} onVisit={e.onVisit} />
                     </span>
                     <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted">
                       <span className="inline-flex items-center gap-1">

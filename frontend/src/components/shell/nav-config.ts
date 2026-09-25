@@ -54,7 +54,6 @@ export const NAV: NavGroup[] = [
         permission: "tickets.work",
         label: "My tickets",
         icon: ClipboardList,
-        plannedSession: 9,
         summary: "An engineer's own tickets, availability and self-assign.",
       },
     ],

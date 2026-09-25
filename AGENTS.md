@@ -108,7 +108,9 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   `/settings/regions`, `/settings/skills`
 - `frontend/src/features/tickets/` — list, log-a-ticket, detail. Labels come from `useTicketLabels()`
   (admin wording); actions shown are exactly `ticket.actions` from the API.
-- `frontend/src/mocks/` — TEMPORARY sample data; delete each file when its API arrives
+- `frontend/src/features/home/` — home page chosen by **permission**, not role name (assign → manager,
+  work → engineer, create → desk, view → overview), so custom roles get a sensible home.
+- No mock data remains; new screens read the real API (and `e2e/stub-api.mjs` in tests).
 - `frontend/src/app/(app)/settings/design-system` — live reference of tokens, components, states
 - `frontend/e2e/` — Playwright tests (incl. axe WCAG scans in both themes) and the stub API
 

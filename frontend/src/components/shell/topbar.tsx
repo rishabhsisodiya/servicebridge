@@ -1,12 +1,13 @@
 "use client";
 
-import { Bell, ChevronRight, LogOut, Menu, Search, UserRound } from "lucide-react";
+import { ChevronRight, LogOut, Menu, Search, UserRound } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconButton } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/misc";
 import { Popover } from "@/components/ui/popover";
 import { useSession } from "@/lib/auth/session";
+import { NotificationBell } from "@/features/notifications/notification-bell";
 import { buildCrumbs } from "./nav-config";
 import { ThemeToggle } from "./theme-toggle";
 
@@ -69,22 +70,7 @@ export function Topbar({ navOpen, onOpenNav, onOpenSearch }: TopbarProps) {
 
       <ThemeToggle />
 
-      <Popover
-        trigger={(props) => (
-          <IconButton label="Notifications" {...props}>
-            <Bell className="size-[18px]" aria-hidden />
-          </IconButton>
-        )}
-      >
-        {() => (
-          <div>
-            <div className="border-b border-line px-4 py-3 font-semibold">Notifications</div>
-            <p className="px-4 py-6 text-center text-muted">
-              You&apos;re all caught up. SLA alerts and assignments will show here.
-            </p>
-          </div>
-        )}
-      </Popover>
+      <NotificationBell />
 
       <Popover
         trigger={(props) => (

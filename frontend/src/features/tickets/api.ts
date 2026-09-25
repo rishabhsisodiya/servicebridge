@@ -190,6 +190,8 @@ export interface EngineerSuggestion {
   id: string;
   name: string;
   region: string | null;
+  dutyStatus: "ON_DUTY" | "OFF_DUTY" | "ON_LEAVE";
+  onVisit: boolean;
   sameRegion: boolean;
   skills: string[];
   openTickets: number;

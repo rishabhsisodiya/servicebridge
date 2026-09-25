@@ -7,6 +7,7 @@ const BUILT_PAGES = [
   "/tickets",
   "/tickets/SB-26-000415",
   "/tickets/new",
+  "/my-tickets",
   "/settings",
   "/settings/design-system",
   "/settings/users",
@@ -70,7 +71,7 @@ test.describe("search", () => {
     const box = page.getByRole("combobox", { name: "Search screens and actions" });
     await expect(box).toBeFocused();
     await box.fill("pincode");
-    await expect(page.getByRole("option").first()).toContainText("Regions");
+    await expect(page.getByRole("listbox").getByRole("option").first()).toContainText("Regions");
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/settings\/regions$/);
   });
@@ -78,9 +79,10 @@ test.describe("search", () => {
   test("Escape closes search", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("button", { name: /^Search/ }).click();
-    await expect(page.getByRole("combobox")).toBeVisible();
+    const box = page.getByRole("combobox", { name: "Search screens and actions" });
+    await expect(box).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("combobox")).toBeHidden();
+    await expect(box).toBeHidden();
   });
 });
 

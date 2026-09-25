@@ -26,9 +26,12 @@ type Sort = (typeof SORTS)[number]["value"];
 export function TicketsBrowser({
   initialQuick,
   initialSearch,
+  title = "Tickets",
 }: {
   initialQuick: QuickFilter;
   initialSearch: string;
+  /** "My tickets" reuses this screen, starting on the Mine filter. */
+  title?: string;
 }) {
   const { can, me } = useSession();
   const router = useRouter();
@@ -75,7 +78,7 @@ export function TicketsBrowser({
   if (me && !allowed) {
     return (
       <>
-        <PageHeader title="Tickets" />
+        <PageHeader title={title} />
         <Card>
           <EmptyState icon={<Lock className="size-6" />} title="You don't have access to this" />
         </Card>
@@ -92,7 +95,7 @@ export function TicketsBrowser({
   return (
     <>
       <PageHeader
-        title="Tickets"
+        title={title}
         description={
           data
             ? `${data.counts.open} open · ${data.counts["sla-risk"]} at SLA risk`

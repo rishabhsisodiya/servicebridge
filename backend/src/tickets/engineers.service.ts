@@ -72,6 +72,19 @@ export class EngineersService {
     }));
   }
 
+  /** The signed-in engineer's own availability, for their home screen. */
+  async me(userId: string) {
+    const [user, open, visiting] = await Promise.all([
+      this.prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+        select: { dutyStatus: true, dutyChangedAt: true },
+      }),
+      this.prisma.ticket.count({ where: { engineerId: userId, stage: { in: WORKLOAD_STAGES } } }),
+      this.prisma.ticket.count({ where: { engineerId: userId, stage: { in: VISIT_STAGES } } }),
+    ]);
+    return { ...user, openTickets: open, onVisit: visiting > 0 };
+  }
+
   /** For managers' home screens: area managers see their own region's engineers first. */
   async list(user: AuthUser) {
     const candidates = await this.candidates();
