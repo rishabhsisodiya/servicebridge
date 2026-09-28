@@ -6,6 +6,9 @@ ERPNext, and an admin area where ERP connections are configured in the UI. Busin
 are out of scope (removed 2026-09-25). One company per
 install. Runs on seeded demo data until an ERP is connected.
 
+**New to this project? Read [`docs/HANDOFF.md`](docs/HANDOFF.md) first:** how to work with the
+developer, what is built, and the plan for everything left.
+
 ## Stack
 
 | Layer | What | Version |
