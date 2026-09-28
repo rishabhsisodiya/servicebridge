@@ -3,7 +3,12 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Set by the API at sign-in. Not a credential: only says a sign-in exists. */
 export const SIGNED_IN_COOKIE = "sb_signed_in";
 
-const PUBLIC_PAGES = [/^\/login$/, /^\/welcome\/[^/]+$/, /^\/reset-password\/[^/]+$/];
+const PUBLIC_PAGES = [
+  /^\/login$/,
+  /^\/welcome\/[^/]+$/,
+  /^\/reset-password\/[^/]+$/,
+  /^\/feedback\/[^/]+$/,
+];
 
 export function isPublicPage(pathname: string): boolean {
   return PUBLIC_PAGES.some((pattern) => pattern.test(pathname));

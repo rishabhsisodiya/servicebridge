@@ -23,6 +23,8 @@ export interface Page<T> {
 export interface IssuedLink {
   url: string;
   expiresAt: string;
+  /** True when the link was also emailed to the user (session 12). */
+  emailed?: boolean;
 }
 
 export interface Option {

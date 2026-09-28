@@ -29,9 +29,10 @@ describe("proxy page protection", () => {
     ).toBe("1");
   });
 
-  it("keeps invite and reset links public", () => {
+  it("keeps invite, reset and feedback links public", () => {
     expect(isPublicPage("/welcome/abc")).toBe(true);
     expect(isPublicPage("/reset-password/abc")).toBe(true);
+    expect(isPublicPage("/feedback/some-token")).toBe(true);
     expect(isPublicPage("/welcome")).toBe(false);
     expect(isPublicPage("/settings")).toBe(false);
   });

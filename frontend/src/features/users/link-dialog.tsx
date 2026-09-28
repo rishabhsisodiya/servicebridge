@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ShieldAlert } from "lucide-react";
+import { Copy, MailCheck, MailX, ShieldAlert } from "lucide-react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
@@ -16,8 +16,8 @@ const formatExpiry = (iso: string) =>
   new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 
 /**
- * Shows a one-time invite or reset link. Email delivery arrives in session 12;
- * until then the admin copies the link and sends it themselves.
+ * Shows a one-time invite or reset link. When email is configured the link is
+ * emailed to the user; otherwise the admin copies it and sends it themselves.
  */
 export function LinkDialog({ link, onClose }: LinkDialogProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -50,7 +50,9 @@ export function LinkDialog({ link, onClose }: LinkDialogProps) {
       }
       description={
         link
-          ? `Send this to ${link.name}. It works once and expires ${formatExpiry(link.expiresAt)}.`
+          ? link.emailed
+            ? `This link was emailed to ${link.name}. It works once and expires ${formatExpiry(link.expiresAt)}.`
+            : `Email isn't configured, so ${link.name} never got this link. It works once and expires ${formatExpiry(link.expiresAt)}.`
           : undefined
       }
       footer={
@@ -61,6 +63,21 @@ export function LinkDialog({ link, onClose }: LinkDialogProps) {
     >
       {link && (
         <>
+          <p
+            role="status"
+            className={`flex items-center gap-2 rounded-lg px-3 py-2.5 text-[13px] font-semibold ${
+              link.emailed ? "bg-ok-bg text-ok" : "bg-surface-2 text-muted"
+            }`}
+          >
+            {link.emailed ? (
+              <MailCheck className="size-4 shrink-0" aria-hidden />
+            ) : (
+              <MailX className="size-4 shrink-0" aria-hidden />
+            )}
+            {link.emailed
+              ? `Invite emailed to ${link.name}.`
+              : "Email not configured — copy this link and send it yourself."}
+          </p>
           <Field label="Link">
             {(props) => (
               <div className="flex gap-2">
