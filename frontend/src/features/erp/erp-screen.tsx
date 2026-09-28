@@ -27,6 +27,7 @@ import {
 import { ConnectionDrawer } from "./connection-drawer";
 import { TestResultView } from "./test-result-view";
 import { WebhooksDialog } from "./webhooks-dialog";
+import { WritebacksSection } from "./writebacks";
 
 const STATUS: Record<ConnectionStatus, { label: string; tone: Tone; help: string }> = {
   UNTESTED: {
@@ -136,6 +137,7 @@ export function ErpScreen() {
   }
 
   const list = connections.data ?? [];
+  const showWritebacks = can("writebacks.read");
 
   return (
     <>
@@ -335,6 +337,8 @@ export function ErpScreen() {
           onError={fail}
         />
       )}
+
+      {showWritebacks && <WritebacksSection />}
 
       <ConnectionDrawer
         open={editing !== null}
