@@ -200,8 +200,8 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
 
 ## Custom roles
 
-Roles live in the `Role` table; admins create them and pick permissions (ERPNext-style). The API
-is built; the Roles screen is next (the users screen already picks roles from `/users/roles`).
+Roles live in the `Role` table; admins create them and pick permissions (ERPNext-style) on the
+Roles screen (`/settings/roles`, `features/roles/`; grid rules in the plain module `grid.ts`).
 - Permissions: a grid of `<record>.<read|create|edit|delete>` plus workflow actions
   (`tickets.assign`, `tickets.work`, `tickets.verify`, `tickets.escalations`, `demo.manage`).
   Any permission on a record implies its `.read` (`normalizePermissions`). Each role also has a
@@ -218,6 +218,9 @@ is built; the Roles screen is next (the users screen already picks roles from `/
   role has more access than theirs (`role-access.ts`).
 - Role writes need a password re-check, are audited with permissions added/removed, and apply on
   each user's next request (the session lookup joins the role).
+- Web app: screens load when the viewer has `.read`; buttons that change things show only with
+  the matching `.edit`/`.create`/`.delete` (drawers open read-only with a Close button, via a
+  `<fieldset disabled>`). The API enforces the same checks regardless.
 - A new permission needs: the name in `PERMISSIONS`, a grid row op or `ACTION_TYPES` entry (spec
   checks), the web copy in `lib/auth/session.tsx`, and a migration that grants it to the built-in
   roles that should have it.

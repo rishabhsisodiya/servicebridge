@@ -55,6 +55,7 @@ export function ErpScreen() {
   const toast = useToast();
   const stepUp = useStepUp();
   const allowed = can("erp.read");
+  const canEdit = can("erp.edit");
   const connections = useSWR<Connection[]>(allowed ? "/erp/connections" : null, fetcher);
   const purposes = useSWR<PurposesResponse>(allowed ? "/erp/purposes" : null, fetcher);
   const [editing, setEditing] = useState<Connection | "new" | null>(null);
@@ -142,13 +143,15 @@ export function ErpScreen() {
         title="ERP connections"
         description="Connect ERPNext so ServiceBridge can read customers, machines, stock and business figures."
         actions={
-          <Button
-            variant="primary"
-            icon={<Plus className="size-4" aria-hidden />}
-            onClick={() => setEditing("new")}
-          >
-            Add connection
-          </Button>
+          canEdit && (
+            <Button
+              variant="primary"
+              icon={<Plus className="size-4" aria-hidden />}
+              onClick={() => setEditing("new")}
+            >
+              Add connection
+            </Button>
+          )
         }
       />
 
@@ -169,9 +172,11 @@ export function ErpScreen() {
             title="No ERP connected yet"
             description="Until you add one, ServiceBridge runs on its own sample data. You'll need an ERPNext address and an API key and secret."
             action={
-              <Button variant="primary" size="sm" onClick={() => setEditing("new")}>
-                Add connection
-              </Button>
+              canEdit && (
+                <Button variant="primary" size="sm" onClick={() => setEditing("new")}>
+                  Add connection
+                </Button>
+              )
             }
           />
         </Card>
@@ -216,83 +221,89 @@ export function ErpScreen() {
                 </p>
                 <p className="text-xs text-muted">{status.help}</p>
               </div>
-              <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
-                <Button
-                  size="sm"
-                  variant={
-                    connection.status === "UNTESTED" || connection.status === "FAILING"
-                      ? "strong"
-                      : "secondary"
-                  }
-                  icon={<FlaskConical className="size-3.5" aria-hidden />}
-                  loading={busy === `test:${connection.id}`}
-                  disabled={connection.status === "KEY_ERROR"}
-                  onClick={() => void test(connection)}
-                >
-                  Test
-                </Button>
-                {connection.canEnable && (
+              {canEdit && (
+                <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
                   <Button
                     size="sm"
-                    variant="primary"
-                    icon={<Power className="size-3.5" aria-hidden />}
-                    loading={busy === `enable:${connection.id}`}
-                    onClick={() =>
-                      void act(
-                        `enable:${connection.id}`,
-                        () => erpApi.enable(connection.id),
-                        `“${connection.name}” is enabled.`,
-                      )
+                    variant={
+                      connection.status === "UNTESTED" || connection.status === "FAILING"
+                        ? "strong"
+                        : "secondary"
                     }
+                    icon={<FlaskConical className="size-3.5" aria-hidden />}
+                    loading={busy === `test:${connection.id}`}
+                    disabled={connection.status === "KEY_ERROR"}
+                    onClick={() => void test(connection)}
                   >
-                    Enable
+                    Test
                   </Button>
-                )}
-                <Button size="sm" variant="ghost" onClick={() => setEditing(connection)}>
-                  Edit
-                </Button>
-                {connection.status === "ACTIVE" && (
-                  <Button size="sm" variant="ghost" onClick={() => setWebhooksFor(connection)}>
-                    Webhooks
-                  </Button>
-                )}
-                <Popover
-                  className="w-56"
-                  trigger={(props) => (
-                    <IconButton label={`More actions for ${connection.name}`} size="sm" {...props}>
-                      <MoreHorizontal className="size-4" aria-hidden />
-                    </IconButton>
+                  {connection.canEnable && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      icon={<Power className="size-3.5" aria-hidden />}
+                      loading={busy === `enable:${connection.id}`}
+                      onClick={() =>
+                        void act(
+                          `enable:${connection.id}`,
+                          () => erpApi.enable(connection.id),
+                          `“${connection.name}” is enabled.`,
+                        )
+                      }
+                    >
+                      Enable
+                    </Button>
                   )}
-                >
-                  {(close) => (
-                    <div className="flex flex-col py-1.5">
-                      {connection.status !== "DISABLED" && (
+                  <Button size="sm" variant="ghost" onClick={() => setEditing(connection)}>
+                    Edit
+                  </Button>
+                  {connection.status === "ACTIVE" && (
+                    <Button size="sm" variant="ghost" onClick={() => setWebhooksFor(connection)}>
+                      Webhooks
+                    </Button>
+                  )}
+                  <Popover
+                    className="w-56"
+                    trigger={(props) => (
+                      <IconButton
+                        label={`More actions for ${connection.name}`}
+                        size="sm"
+                        {...props}
+                      >
+                        <MoreHorizontal className="size-4" aria-hidden />
+                      </IconButton>
+                    )}
+                  >
+                    {(close) => (
+                      <div className="flex flex-col py-1.5">
+                        {connection.status !== "DISABLED" && (
+                          <MenuItem
+                            onClick={() => {
+                              close();
+                              void act(
+                                `disable:${connection.id}`,
+                                () => erpApi.disable(connection.id),
+                                `“${connection.name}” is disabled.`,
+                              );
+                            }}
+                          >
+                            <PowerOff className="size-4" aria-hidden /> Disable
+                          </MenuItem>
+                        )}
                         <MenuItem
+                          danger
                           onClick={() => {
                             close();
-                            void act(
-                              `disable:${connection.id}`,
-                              () => erpApi.disable(connection.id),
-                              `“${connection.name}” is disabled.`,
-                            );
+                            setDeleting(connection);
                           }}
                         >
-                          <PowerOff className="size-4" aria-hidden /> Disable
+                          Delete…
                         </MenuItem>
-                      )}
-                      <MenuItem
-                        danger
-                        onClick={() => {
-                          close();
-                          setDeleting(connection);
-                        }}
-                      >
-                        Delete…
-                      </MenuItem>
-                    </div>
-                  )}
-                </Popover>
-              </div>
+                      </div>
+                    )}
+                  </Popover>
+                </div>
+              )}
             </div>
             {connection.lastTestResult && (
               <div className="border-t border-line px-4 py-3">
@@ -316,7 +327,13 @@ export function ErpScreen() {
       })}
 
       {list.length > 0 && purposes.data && (
-        <PurposesCard connections={list} data={purposes.data} onSaved={refresh} onError={fail} />
+        <PurposesCard
+          connections={list}
+          data={purposes.data}
+          readOnly={!canEdit}
+          onSaved={refresh}
+          onError={fail}
+        />
       )}
 
       <ConnectionDrawer
@@ -372,9 +389,11 @@ function PurposesCard({
   data,
   onSaved,
   onError,
+  readOnly,
 }: {
   connections: Connection[];
   data: PurposesResponse;
+  readOnly: boolean;
   onSaved: () => Promise<unknown>;
   onError: (error: unknown) => void;
 }) {
@@ -418,6 +437,7 @@ function PurposesCard({
               <Select
                 {...p}
                 value={draft[purpose] ?? ""}
+                disabled={readOnly}
                 onChange={(e) => setDraft((d) => ({ ...d, [purpose]: e.target.value || null }))}
                 className="sm:max-w-md"
               >
@@ -436,11 +456,18 @@ function PurposesCard({
         {active.length === 0 && (
           <p className="text-[13px] text-muted">Test and enable a connection to choose it here.</p>
         )}
-        <div>
-          <Button variant="strong" loading={saving} disabled={!changed} onClick={() => void save()}>
-            Save
-          </Button>
-        </div>
+        {!readOnly && (
+          <div>
+            <Button
+              variant="strong"
+              loading={saving}
+              disabled={!changed}
+              onClick={() => void save()}
+            >
+              Save
+            </Button>
+          </div>
+        )}
       </CardBody>
     </Card>
   );

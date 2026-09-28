@@ -64,21 +64,25 @@ export function CompanyScreen() {
         description="Your company details, and the fictional demo company used for trying ServiceBridge."
       />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <CompanyCard />
-        <DemoCard />
+        <CompanyCard readOnly={!can("company.edit")} />
+        {can("demo.manage") && <DemoCard />}
       </div>
     </>
   );
 }
 
-function CompanyCard() {
+function CompanyCard({ readOnly }: { readOnly: boolean }) {
   const { data } = useAppSettings();
   return (
     <Card aria-labelledby="company-title">
       <CardHeader titleId="company-title" title="Company" />
       <CardBody>
         {data ? (
-          <CompanyForm key={JSON.stringify(data.company)} company={data.company} />
+          <CompanyForm
+            key={JSON.stringify(data.company)}
+            company={data.company}
+            readOnly={readOnly}
+          />
         ) : (
           <Skeleton className="h-40" />
         )}
@@ -87,7 +91,7 @@ function CompanyCard() {
   );
 }
 
-function CompanyForm({ company }: { company: CompanySettings }) {
+function CompanyForm({ company, readOnly }: { company: CompanySettings; readOnly: boolean }) {
   const toast = useToast();
   const [values, setValues] = useState({
     ...company,
@@ -123,55 +127,63 @@ function CompanyForm({ company }: { company: CompanySettings }) {
   };
 
   return (
-    <form onSubmit={submit} noValidate className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <Field
-        label="Company name"
-        required
-        error={errors.name}
-        className="sm:col-span-2"
-        help="Shown in the menu and on documents."
-      >
-        {(p) => (
-          <Input {...p} value={values.name} onChange={set("name")} autoComplete="organization" />
+    <form onSubmit={submit} noValidate>
+      <fieldset disabled={readOnly} className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+        <Field
+          label="Company name"
+          required
+          error={errors.name}
+          className="sm:col-span-2"
+          help="Shown in the menu and on documents."
+        >
+          {(p) => (
+            <Input {...p} value={values.name} onChange={set("name")} autoComplete="organization" />
+          )}
+        </Field>
+        <Field
+          label="Time zone"
+          error={errors.timezone}
+          help="Used for schedules, SLAs and reports."
+        >
+          {(p) => (
+            <Input
+              {...p}
+              value={values.timezone}
+              onChange={set("timezone")}
+              placeholder="Asia/Kolkata"
+            />
+          )}
+        </Field>
+        <Field label="Currency" error={errors.currency}>
+          {(p) => (
+            <Input
+              {...p}
+              value={values.currency}
+              onChange={set("currency")}
+              maxLength={3}
+              className="uppercase sm:max-w-24"
+            />
+          )}
+        </Field>
+        <Field label="GST rate (%)" error={errors.gstRatePercent} help="Default tax on quotations.">
+          {(p) => (
+            <Input
+              {...p}
+              inputMode="decimal"
+              value={values.gstRatePercent}
+              onChange={set("gstRatePercent")}
+              className="sm:max-w-24"
+            />
+          )}
+        </Field>
+        {!readOnly && (
+          <div className="sm:col-span-2">
+            <Button type="submit" variant="strong" loading={saving}>
+              Save
+            </Button>
+          </div>
         )}
-      </Field>
-      <Field label="Time zone" error={errors.timezone} help="Used for schedules, SLAs and reports.">
-        {(p) => (
-          <Input
-            {...p}
-            value={values.timezone}
-            onChange={set("timezone")}
-            placeholder="Asia/Kolkata"
-          />
-        )}
-      </Field>
-      <Field label="Currency" error={errors.currency}>
-        {(p) => (
-          <Input
-            {...p}
-            value={values.currency}
-            onChange={set("currency")}
-            maxLength={3}
-            className="uppercase sm:max-w-24"
-          />
-        )}
-      </Field>
-      <Field label="GST rate (%)" error={errors.gstRatePercent} help="Default tax on quotations.">
-        {(p) => (
-          <Input
-            {...p}
-            inputMode="decimal"
-            value={values.gstRatePercent}
-            onChange={set("gstRatePercent")}
-            className="sm:max-w-24"
-          />
-        )}
-      </Field>
-      <div className="sm:col-span-2">
-        <Button type="submit" variant="strong" loading={saving}>
-          Save
-        </Button>
-      </div>
+      </fieldset>
     </form>
   );
 }

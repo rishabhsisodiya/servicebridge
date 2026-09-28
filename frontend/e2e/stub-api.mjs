@@ -50,6 +50,13 @@ const ROLES = {
     ticketScope: "OWN",
     permissions: ["tickets.read", "tickets.work", "equipment.read", "items.read"],
   },
+  // A custom role that may look at users and roles but not change them.
+  VIEWER: {
+    id: "role_auditor",
+    label: "Auditor",
+    ticketScope: "ALL",
+    permissions: ["tickets.read", "users.read", "roles.read"],
+  },
 };
 const ROLE_OPTIONS = [
   { value: "role_admin", label: "Administrator" },
@@ -100,6 +107,90 @@ function erpState(session) {
   }
   return erpStates.get(session);
 }
+// ── roles (in memory, per test session) ──
+const ROLE_CATALOG = {
+  records: [
+    {
+      key: "tickets",
+      label: "Tickets",
+      ops: ["read", "create", "edit"],
+      hint: "Tickets are cancelled, never deleted.",
+    },
+    { key: "customers", label: "Customers", ops: ["read"] },
+    { key: "equipment", label: "Equipment", ops: ["read"] },
+    { key: "items", label: "Spares & items", ops: ["read"] },
+    { key: "rules", label: "Service rules", ops: ["read", "edit"] },
+    { key: "users", label: "Users", ops: ["read", "create", "edit", "delete"] },
+    { key: "roles", label: "Roles", ops: ["read", "create", "edit", "delete"] },
+    { key: "company", label: "Company settings", ops: ["read", "edit"] },
+    { key: "erp", label: "ERP connections", ops: ["read", "edit"] },
+    { key: "automations", label: "Automations", ops: ["read", "edit"] },
+    { key: "system", label: "System monitor", ops: ["read", "edit"] },
+    { key: "audit", label: "Audit log", ops: ["read"] },
+  ],
+  actions: [
+    {
+      key: "tickets.assign",
+      label: "Assign tickets",
+      hint: "Assign engineers and change priority.",
+    },
+    {
+      key: "tickets.work",
+      label: "Work on tickets",
+      hint: "Makes people with this role engineers.",
+    },
+    {
+      key: "tickets.verify",
+      label: "Verify & close",
+      hint: "Check resolved tickets and close them.",
+    },
+    {
+      key: "tickets.escalations",
+      label: "Receive escalations",
+      hint: "Alerts for unrouted tickets and SLA breaches.",
+    },
+    { key: "demo.manage", label: "Manage demo data", hint: "Load and clear demo data." },
+  ],
+  scopes: [
+    { value: "ALL", label: "All tickets", hint: "Every ticket in every region." },
+    { value: "REGION", label: "Their region", hint: "Tickets in their region, plus their own." },
+    { value: "OWN", label: "Their own", hint: "Tickets assigned to them or raised by them." },
+  ],
+};
+const roleStates = new Map();
+function rolesState(session) {
+  if (!roleStates.has(session)) {
+    const row = (id, name, patch) => ({
+      id,
+      name,
+      description: null,
+      isLocked: false,
+      isBuiltIn: true,
+      ticketScope: "ALL",
+      permissions: [],
+      userCount: 0,
+      version: 1,
+      updatedAt: "2026-09-28T09:00:00.000Z",
+      ...patch,
+    });
+    roleStates.set(session, [
+      row("role_admin", "Administrator", { isLocked: true, permissions: ALL, userCount: 1 }),
+      row("role_engineer", "Service engineer", {
+        ticketScope: "OWN",
+        permissions: ROLES.ENGINEER.permissions,
+        userCount: 1,
+      }),
+      row("role_night_desk", "Night desk", {
+        isBuiltIn: false,
+        description: "Logs breakdowns after hours",
+        permissions: ["tickets.read", "tickets.create", "customers.read"],
+        userCount: 2,
+      }),
+    ]);
+  }
+  return roleStates.get(session);
+}
+
 function testResult(ok) {
   const doctypes = [
     "Customer",
@@ -670,6 +761,57 @@ const server = createServer(async (req, res) => {
       url: "http://127.0.0.1:3100/reset-password/valid-token",
       expiresAt: "2026-09-24T11:00:00.000Z",
     });
+  }
+
+  // ── roles ──
+  if (path.startsWith("/api/v1/roles")) {
+    const roles = rolesState(session);
+    const id = path.split("/")[4];
+    const needsStepUp = req.method !== "GET" && !stepUpDone.has(session);
+    if (needsStepUp)
+      return fail(res, 403, "STEP_UP_REQUIRED", "Confirm your password to continue.");
+    if (path === "/api/v1/roles/catalog") return send(res, 200, ROLE_CATALOG);
+    if (!id && req.method === "GET") return send(res, 200, roles);
+    if (!id && req.method === "POST") {
+      const input = await body(req);
+      if (roles.some((r) => r.name.toLowerCase() === String(input.name).toLowerCase())) {
+        return fail(res, 409, "ROLE_NAME_TAKEN", "Another role already has that name.", [
+          { field: "name", message: "Another role already has that name." },
+        ]);
+      }
+      const role = {
+        id: `role_${roles.length + 1}`,
+        name: input.name,
+        description: input.description,
+        isLocked: false,
+        isBuiltIn: false,
+        ticketScope: input.ticketScope,
+        permissions: input.permissions,
+        userCount: 0,
+        version: 1,
+        updatedAt: new Date().toISOString(),
+      };
+      roles.push(role);
+      return send(res, 201, role);
+    }
+    const role = roles.find((r) => r.id === id);
+    if (!role) return fail(res, 404, "ROLE_NOT_FOUND", "That role no longer exists.");
+    if (req.method === "GET") return send(res, 200, { ...role, users: [] });
+    if (req.method === "PATCH") {
+      const input = await body(req);
+      Object.assign(role, {
+        name: input.name,
+        description: input.description,
+        ticketScope: input.ticketScope,
+        permissions: input.permissions,
+        version: role.version + 1,
+      });
+      return send(res, 200, { ...role, openTicketsLeftAssigned: 0 });
+    }
+    if (req.method === "DELETE") {
+      roles.splice(roles.indexOf(role), 1);
+      return send(res, 204);
+    }
   }
 
   // ── ERP connections (in memory, per test session) ──

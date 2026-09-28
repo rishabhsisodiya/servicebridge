@@ -11,6 +11,7 @@ const BUILT_PAGES = [
   "/settings",
   "/settings/design-system",
   "/settings/users",
+  "/settings/roles",
   "/settings/erp",
   "/account",
   "/customers",

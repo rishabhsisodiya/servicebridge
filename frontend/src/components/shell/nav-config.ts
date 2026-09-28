@@ -8,6 +8,7 @@ import {
   Database,
   FileText,
   Gauge,
+  KeyRound,
   LayoutDashboard,
   MapPin,
   Palette,
@@ -143,6 +144,7 @@ export const NAV: NavGroup[] = [
         permission: [
           "rules.read",
           "users.read",
+          "roles.read",
           "erp.read",
           "automations.read",
           "system.read",
@@ -158,6 +160,13 @@ export const NAV: NavGroup[] = [
         label: "Users & roles",
         icon: Users,
         summary: "Invite people and set their role and region.",
+      },
+      {
+        href: "/settings/roles",
+        permission: "roles.read",
+        label: "Roles",
+        icon: KeyRound,
+        summary: "Create roles and choose what each one can see and do.",
       },
       {
         href: "/settings/erp",

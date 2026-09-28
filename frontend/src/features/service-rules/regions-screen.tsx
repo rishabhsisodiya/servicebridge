@@ -40,6 +40,7 @@ const parsePrefixes = (text: string) => text.split(/[\s,;]+/).filter(Boolean);
 
 export function RegionsScreen() {
   const { can, me } = useSession();
+  const canEdit = can("rules.edit");
   const allowed = can("rules.read");
   const regions = useSWR<RegionsData>(allowed ? KEY : null, (k: string) =>
     apiFetch<RegionsData>(k),
@@ -80,13 +81,15 @@ export function RegionsScreen() {
         title="Regions"
         description="A site's pincode decides its region, and the region's area manager receives its new tickets."
         actions={
-          <Button
-            variant="primary"
-            icon={<Plus className="size-4" aria-hidden />}
-            onClick={() => setEditing("new")}
-          >
-            Add region
-          </Button>
+          canEdit && (
+            <Button
+              variant="primary"
+              icon={<Plus className="size-4" aria-hidden />}
+              onClick={() => setEditing("new")}
+            >
+              Add region
+            </Button>
+          )
         }
       />
       <div className="flex flex-col gap-4">
@@ -163,16 +166,18 @@ export function RegionsScreen() {
                     <Td align="right">{r.siteCount}</Td>
                     <Td align="right">{r.userCount}</Td>
                     <Td align="right">
-                      <IconButton
-                        label={`Delete ${r.name}`}
-                        size="sm"
-                        onClick={() => {
-                          setDeleteError(undefined);
-                          setDeleting(r);
-                        }}
-                      >
-                        <Trash2 className="size-4" aria-hidden />
-                      </IconButton>
+                      {canEdit && (
+                        <IconButton
+                          label={`Delete ${r.name}`}
+                          size="sm"
+                          onClick={() => {
+                            setDeleteError(undefined);
+                            setDeleting(r);
+                          }}
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                        </IconButton>
+                      )}
                     </Td>
                   </Tr>
                 ))}
@@ -184,6 +189,7 @@ export function RegionsScreen() {
       <RegionDrawer
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         region={editing}
+        readOnly={!canEdit}
         onClose={() => setEditing(null)}
         onSaved={async (message) => {
           toast.success(message);
@@ -291,10 +297,12 @@ function RegionDrawer({
   region,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   region: RegionRow | "new" | null;
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const existing = region && region !== "new" ? region : null;
   const managers = useSWR<Manager[]>(region ? "/regions/managers" : null, (k: string) =>
@@ -342,67 +350,72 @@ function RegionDrawer({
       title={existing ? `Edit ${existing.name}` : "Add a region"}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="region-form" variant="primary" loading={saving}>
-            {existing ? "Save" : "Add region"}
-          </Button>
+          <Button onClick={onClose}>{readOnly ? "Close" : "Cancel"}</Button>
+          {!readOnly && (
+            <Button type="submit" form="region-form" variant="primary" loading={saving}>
+              {existing ? "Save" : "Add region"}
+            </Button>
+          )}
         </>
       }
     >
-      <form id="region-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <FormAlert message={errors.form} />
-        <Field label="Name" required error={errors.name}>
-          {(p) => (
-            <Input {...p} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+      <form id="region-form" onSubmit={submit} noValidate>
+        <fieldset disabled={readOnly} className="min-w-0 flex flex-col gap-4">
+          <FormAlert message={errors.form} />
+          <Field label="Name" required error={errors.name}>
+            {(p) => (
+              <Input {...p} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+            )}
+          </Field>
+          <Field
+            label="Area manager"
+            error={errors.areaManagerId}
+            help="Receives new tickets for sites in this region."
+          >
+            {(p) => (
+              <Select
+                {...p}
+                value={areaManagerId}
+                onChange={(e) => setAreaManagerId(e.target.value)}
+                disabled={managers.isLoading}
+              >
+                <option value="">{managers.isLoading ? "Loading…" : "Not set"}</option>
+                {managers.data?.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <Field
+            label="Pincodes starting with"
+            error={errors.pincodePrefixes}
+            help={
+              <>
+                Separate with commas or spaces, e.g.{" "}
+                <span className="font-mono">560, 562, 5631</span>. A longer prefix wins over a
+                shorter one in another region.
+              </>
+            }
+          >
+            {(p) => (
+              <Textarea
+                {...p}
+                rows={4}
+                className="font-mono"
+                value={prefixes}
+                onChange={(e) => setPrefixes(e.target.value)}
+              />
+            )}
+          </Field>
+          {existing && existing.userCount > 0 && (
+            <Sub>
+              {existing.userCount} {existing.userCount === 1 ? "person is" : "people are"} in this
+              region. Change people&apos;s region under Users &amp; roles.
+            </Sub>
           )}
-        </Field>
-        <Field
-          label="Area manager"
-          error={errors.areaManagerId}
-          help="Receives new tickets for sites in this region."
-        >
-          {(p) => (
-            <Select
-              {...p}
-              value={areaManagerId}
-              onChange={(e) => setAreaManagerId(e.target.value)}
-              disabled={managers.isLoading}
-            >
-              <option value="">{managers.isLoading ? "Loading…" : "Not set"}</option>
-              {managers.data?.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        <Field
-          label="Pincodes starting with"
-          error={errors.pincodePrefixes}
-          help={
-            <>
-              Separate with commas or spaces, e.g. <span className="font-mono">560, 562, 5631</span>
-              . A longer prefix wins over a shorter one in another region.
-            </>
-          }
-        >
-          {(p) => (
-            <Textarea
-              {...p}
-              rows={4}
-              className="font-mono"
-              value={prefixes}
-              onChange={(e) => setPrefixes(e.target.value)}
-            />
-          )}
-        </Field>
-        {existing && existing.userCount > 0 && (
-          <Sub>
-            {existing.userCount} {existing.userCount === 1 ? "person is" : "people are"} in this
-            region. Change people&apos;s region under Users &amp; roles.
-          </Sub>
-        )}
+        </fieldset>
       </form>
     </Drawer>
   );

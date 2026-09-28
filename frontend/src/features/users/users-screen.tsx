@@ -1,10 +1,10 @@
 "use client";
 
-import { Lock, MoreHorizontal, Search, UserPlus, Users } from "lucide-react";
+import { Lock, MoreHorizontal, Search, ShieldCheck, UserPlus, Users } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import useSWR from "swr";
 import { StatusPill, Tag, type Tone } from "@/components/ui/badge";
-import { Button, IconButton } from "@/components/ui/button";
+import { Button, ButtonLink, IconButton } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Select } from "@/components/ui/field";
@@ -154,13 +154,25 @@ export function UsersScreen() {
             : "Invite people and choose what they can do."
         }
         actions={
-          <Button
-            variant="primary"
-            icon={<UserPlus className="size-4" aria-hidden />}
-            onClick={() => setEditing("new")}
-          >
-            Invite user
-          </Button>
+          <>
+            {can("roles.read") && (
+              <ButtonLink
+                href="/settings/roles"
+                icon={<ShieldCheck className="size-4" aria-hidden />}
+              >
+                Roles
+              </ButtonLink>
+            )}
+            {can("users.create") && (
+              <Button
+                variant="primary"
+                icon={<UserPlus className="size-4" aria-hidden />}
+                onClick={() => setEditing("new")}
+              >
+                Invite user
+              </Button>
+            )}
+          </>
         }
       />
 
@@ -249,6 +261,13 @@ export function UsersScreen() {
             <tbody>
               {data.data.map((user) => {
                 const self = user.id === me?.user.id;
+                // Only offer what the viewer's role allows; the API checks again.
+                const menu = {
+                  invite: user.status === "INVITED" && can("users.create"),
+                  reset: user.status === "ACTIVE" && can("users.edit"),
+                  reactivate: user.status === "DEACTIVATED" && can("users.edit"),
+                  deactivate: user.status !== "DEACTIVATED" && !self && can("users.delete"),
+                };
                 return (
                   <Tr key={user.id}>
                     <Td className="min-w-56">
@@ -282,54 +301,57 @@ export function UsersScreen() {
                     <Td className="whitespace-nowrap text-muted">{formatDate(user.lastLoginAt)}</Td>
                     <Td align="right">
                       <span className="flex items-center justify-end gap-1">
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(user)}>
-                          Edit
-                        </Button>
-                        <Popover
-                          className="w-64"
-                          trigger={(props) => (
-                            <IconButton
-                              label={`More actions for ${user.name}`}
-                              size="sm"
-                              {...props}
-                            >
-                              <MoreHorizontal className="size-4" aria-hidden />
-                            </IconButton>
-                          )}
-                        >
-                          {(close) => (
-                            <div className="flex flex-col py-1.5 text-left">
-                              {user.status === "INVITED" && (
-                                <MenuItem
-                                  onClick={() => {
-                                    close();
-                                    void issueLink(user, "invite");
-                                  }}
-                                >
-                                  New invite link
-                                </MenuItem>
-                              )}
-                              {user.status === "ACTIVE" && (
-                                <MenuItem
-                                  onClick={() => {
-                                    close();
-                                    void issueLink(user, "reset");
-                                  }}
-                                >
-                                  Password reset link
-                                </MenuItem>
-                              )}
-                              {user.status === "DEACTIVATED" ? (
-                                <MenuItem
-                                  onClick={() => {
-                                    close();
-                                    void setActive(user, true);
-                                  }}
-                                >
-                                  Reactivate
-                                </MenuItem>
-                              ) : (
-                                !self && (
+                        {can("users.edit") && (
+                          <Button size="sm" variant="ghost" onClick={() => setEditing(user)}>
+                            Edit
+                          </Button>
+                        )}
+                        {Object.values(menu).some(Boolean) && (
+                          <Popover
+                            className="w-64"
+                            trigger={(props) => (
+                              <IconButton
+                                label={`More actions for ${user.name}`}
+                                size="sm"
+                                {...props}
+                              >
+                                <MoreHorizontal className="size-4" aria-hidden />
+                              </IconButton>
+                            )}
+                          >
+                            {(close) => (
+                              <div className="flex flex-col py-1.5 text-left">
+                                {menu.invite && (
+                                  <MenuItem
+                                    onClick={() => {
+                                      close();
+                                      void issueLink(user, "invite");
+                                    }}
+                                  >
+                                    New invite link
+                                  </MenuItem>
+                                )}
+                                {menu.reset && (
+                                  <MenuItem
+                                    onClick={() => {
+                                      close();
+                                      void issueLink(user, "reset");
+                                    }}
+                                  >
+                                    Password reset link
+                                  </MenuItem>
+                                )}
+                                {menu.reactivate && (
+                                  <MenuItem
+                                    onClick={() => {
+                                      close();
+                                      void setActive(user, true);
+                                    }}
+                                  >
+                                    Reactivate
+                                  </MenuItem>
+                                )}
+                                {menu.deactivate && (
                                   <MenuItem
                                     danger
                                     onClick={() => {
@@ -339,11 +361,11 @@ export function UsersScreen() {
                                   >
                                     Deactivate…
                                   </MenuItem>
-                                )
-                              )}
-                            </div>
-                          )}
-                        </Popover>
+                                )}
+                              </div>
+                            )}
+                          </Popover>
+                        )}
                       </span>
                     </Td>
                   </Tr>

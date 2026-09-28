@@ -10,6 +10,7 @@ import { Field, Select } from "@/components/ui/field";
 import { ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Table, Td, Th } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { useSession } from "@/lib/auth/session";
 import { apiFetch } from "@/lib/api/client";
 import {
   COVERAGE_LABEL,
@@ -34,6 +35,7 @@ const fetcher = <T,>(key: string) => apiFetch<T>(key);
 
 /** SLA targets as a priority × coverage grid; each cell opens an editor. */
 export function SlaTab() {
+  const canEdit = useSession().can("rules.edit");
   const sla = useSWR<SlaData>("/service-rules/sla", fetcher);
   const priorities = useSWR<PriorityRow[]>("/service-rules/priorities", fetcher);
   const [editing, setEditing] = useState<SlaPolicyRow | null>(null);
@@ -111,6 +113,7 @@ export function SlaTab() {
         title={
           editing ? `${priorityLabel(editing.priority)} · ${COVERAGE_LABEL[editing.coverage]}` : ""
         }
+        readOnly={!canEdit}
         onClose={() => setEditing(null)}
         onSaved={async () => {
           setEditing(null);
@@ -127,12 +130,14 @@ function SlaDrawer({
   title,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   policy: SlaPolicyRow | null;
   data: SlaData;
   title: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
+  readOnly?: boolean;
 }) {
   const toast = useToast();
   const [response, setResponse] = useState(splitMinutes(policy?.responseMinutes ?? 60));
@@ -176,54 +181,58 @@ function SlaDrawer({
       description="Applies to tickets logged after you save. Open tickets keep their due times."
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="sla-form" variant="primary" loading={saving}>
-            Save
-          </Button>
+          <Button onClick={onClose}>{readOnly ? "Close" : "Cancel"}</Button>
+          {!readOnly && (
+            <Button type="submit" form="sla-form" variant="primary" loading={saving}>
+              Save
+            </Button>
+          )}
         </>
       }
     >
-      <form id="sla-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <FormAlert message={errors.form} />
-        <Field
-          label="Respond within"
-          required
-          error={errors.responseMinutes}
-          help="Time until the engineer accepts."
-        >
-          {(p) => <DurationInput control={p} {...response} onChange={setResponse} />}
-        </Field>
-        <Field
-          label="Resolve within"
-          required
-          error={errors.resolutionMinutes}
-          help="Time until the ticket is resolved."
-        >
-          {(p) => <DurationInput control={p} {...resolution} onChange={setResolution} />}
-        </Field>
-        <Field
-          label="Count time on"
-          error={errors.calendarId}
-          help="The clock only runs while this calendar is open. Manage calendars in the Calendars tab."
-        >
-          {(p) => (
-            <Select {...p} value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
-              {data.calendars.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
+      <form id="sla-form" onSubmit={submit} noValidate>
+        <fieldset disabled={readOnly} className="min-w-0 flex flex-col gap-4">
+          <FormAlert message={errors.form} />
+          <Field
+            label="Respond within"
+            required
+            error={errors.responseMinutes}
+            help="Time until the engineer accepts."
+          >
+            {(p) => <DurationInput control={p} {...response} onChange={setResponse} />}
+          </Field>
+          <Field
+            label="Resolve within"
+            required
+            error={errors.resolutionMinutes}
+            help="Time until the ticket is resolved."
+          >
+            {(p) => <DurationInput control={p} {...resolution} onChange={setResolution} />}
+          </Field>
+          <Field
+            label="Count time on"
+            error={errors.calendarId}
+            help="The clock only runs while this calendar is open. Manage calendars in the Calendars tab."
+          >
+            {(p) => (
+              <Select {...p} value={calendarId} onChange={(e) => setCalendarId(e.target.value)}>
+                {data.calendars.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          {policy && (
+            <p className="rounded-lg bg-surface-2 px-3.5 py-2.5 text-[13px] text-muted">
+              With the saved target, a ticket logged now must be answered by{" "}
+              <b className="text-text">{formatDue(policy.responseDueAt, data.timezone)}</b> and
+              resolved by{" "}
+              <b className="text-text">{formatDue(policy.resolutionDueAt, data.timezone)}</b>.
+            </p>
           )}
-        </Field>
-        {policy && (
-          <p className="rounded-lg bg-surface-2 px-3.5 py-2.5 text-[13px] text-muted">
-            With the saved target, a ticket logged now must be answered by{" "}
-            <b className="text-text">{formatDue(policy.responseDueAt, data.timezone)}</b> and
-            resolved by{" "}
-            <b className="text-text">{formatDue(policy.resolutionDueAt, data.timezone)}</b>.
-          </p>
-        )}
+        </fieldset>
       </form>
     </Drawer>
   );

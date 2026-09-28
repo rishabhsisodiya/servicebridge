@@ -9,6 +9,7 @@ import { Field, Input, Textarea } from "@/components/ui/field";
 import { ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { useSession } from "@/lib/auth/session";
 import { apiFetch } from "@/lib/api/client";
 import type { LabelRow } from "./api";
 import { errorsFrom, FormAlert, type FormErrors } from "./shared";
@@ -33,6 +34,7 @@ export function LabelsTab<R extends LabelRow>({
   meta,
   noun,
 }: LabelsTabProps<R>) {
+  const canEdit = useSession().can("rules.edit");
   const rows = useSWR<R[]>(endpoint, (k: string) => apiFetch<R[]>(k));
   const [editing, setEditing] = useState<R | null>(null);
 
@@ -74,6 +76,7 @@ export function LabelsTab<R extends LabelRow>({
         row={editing}
         path={editing ? `${endpoint}/${keyOf(editing)}` : ""}
         noun={noun}
+        readOnly={!canEdit}
         onClose={() => setEditing(null)}
         onSaved={async () => {
           setEditing(null);
@@ -90,12 +93,14 @@ function LabelDrawer({
   noun,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   row: LabelRow | null;
   path: string;
   noun: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
+  readOnly?: boolean;
 }) {
   const toast = useToast();
   const [label, setLabel] = useState(row?.label ?? "");
@@ -130,31 +135,44 @@ function LabelDrawer({
       description="Everyone sees the new name straight away, on every ticket."
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="label-form" variant="primary" loading={saving}>
-            Save
-          </Button>
+          <Button onClick={onClose}>{readOnly ? "Close" : "Cancel"}</Button>
+          {!readOnly && (
+            <Button type="submit" form="label-form" variant="primary" loading={saving}>
+              Save
+            </Button>
+          )}
         </>
       }
     >
-      <form id="label-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <FormAlert message={errors.form} />
-        <Field label="Shown as" required error={errors.label}>
-          {(p) => (
-            <Input {...p} value={label} maxLength={40} onChange={(e) => setLabel(e.target.value)} />
-          )}
-        </Field>
-        <Field label="Meaning" error={errors.description} help="Helps people choose the right one.">
-          {(p) => (
-            <Textarea
-              {...p}
-              rows={3}
-              maxLength={200}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          )}
-        </Field>
+      <form id="label-form" onSubmit={submit} noValidate>
+        <fieldset disabled={readOnly} className="min-w-0 flex flex-col gap-4">
+          <FormAlert message={errors.form} />
+          <Field label="Shown as" required error={errors.label}>
+            {(p) => (
+              <Input
+                {...p}
+                value={label}
+                maxLength={40}
+                onChange={(e) => setLabel(e.target.value)}
+              />
+            )}
+          </Field>
+          <Field
+            label="Meaning"
+            error={errors.description}
+            help="Helps people choose the right one."
+          >
+            {(p) => (
+              <Textarea
+                {...p}
+                rows={3}
+                maxLength={200}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            )}
+          </Field>
+        </fieldset>
       </form>
     </Drawer>
   );

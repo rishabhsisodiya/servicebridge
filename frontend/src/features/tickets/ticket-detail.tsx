@@ -339,7 +339,9 @@ export function TicketDetailScreen({ id }: { id: string }) {
 
   const onChanged = (next: TicketDetail) => void mutate(next, { revalidate: false });
   const canAssign = ticket.actions.includes("assign");
+  // The API needs both: editing the ticket, and the manager action for priority.
   const editablePriority =
+    can("tickets.edit") &&
     can("tickets.assign") &&
     !ticket.dates.resolvedAt &&
     !["ON_HOLD", "CLOSED", "CANCELLED"].includes(ticket.stage);

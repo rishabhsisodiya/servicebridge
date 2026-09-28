@@ -12,6 +12,7 @@ import { ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Switch } from "@/components/ui/switch";
 import { Sub, Table, Td, Th, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { useSession } from "@/lib/auth/session";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { type Priority, PRIORITY_ORDER, type PriorityRow, type ServiceTypeRow } from "./api";
 import { errorsFrom, FormAlert, type FormErrors } from "./shared";
@@ -19,6 +20,7 @@ import { errorsFrom, FormAlert, type FormErrors } from "./shared";
 const fetcher = <T,>(key: string) => apiFetch<T>(key);
 
 export function ServiceTypesTab() {
+  const canEdit = useSession().can("rules.edit");
   const types = useSWR<ServiceTypeRow[]>("/service-rules/service-types", fetcher);
   const priorities = useSWR<PriorityRow[]>("/service-rules/priorities", fetcher);
   const toast = useToast();
@@ -53,14 +55,16 @@ export function ServiceTypesTab() {
         title="Service types"
         meta="What kind of job a ticket is. Switch one off to hide it from new tickets; old tickets keep it."
         actions={
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<Plus className="size-4" aria-hidden />}
-            onClick={() => setEditing("new")}
-          >
-            Add type
-          </Button>
+          canEdit && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="size-4" aria-hidden />}
+              onClick={() => setEditing("new")}
+            >
+              Add type
+            </Button>
+          )
         }
       />
       <Table caption="Service types">
@@ -95,6 +99,7 @@ export function ServiceTypesTab() {
               </Td>
               <Td>
                 <Switch
+                  disabled={!canEdit}
                   checked={t.active}
                   label={`${t.name} available for new tickets`}
                   busy={busyId === t.id}
@@ -109,6 +114,7 @@ export function ServiceTypesTab() {
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         type={editing}
         priorities={priorities.data ?? []}
+        readOnly={!canEdit}
         onClose={() => setEditing(null)}
         onSaved={async (message) => {
           toast.success(message);
@@ -125,11 +131,13 @@ function ServiceTypeDrawer({
   priorities,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   type: ServiceTypeRow | "new" | null;
   priorities: PriorityRow[];
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const existing = type && type !== "new" ? type : null;
   const [values, setValues] = useState({
@@ -172,71 +180,75 @@ function ServiceTypeDrawer({
       title={existing ? `Edit ${existing.name}` : "Add a service type"}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="service-type-form" variant="primary" loading={saving}>
-            {existing ? "Save" : "Add type"}
-          </Button>
+          <Button onClick={onClose}>{readOnly ? "Close" : "Cancel"}</Button>
+          {!readOnly && (
+            <Button type="submit" form="service-type-form" variant="primary" loading={saving}>
+              {existing ? "Save" : "Add type"}
+            </Button>
+          )}
         </>
       }
     >
-      <form id="service-type-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <FormAlert message={errors.form} />
-        <Field label="Name" required error={errors.name}>
-          {(p) => (
-            <Input
-              {...p}
-              maxLength={60}
-              value={values.name}
-              onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+      <form id="service-type-form" onSubmit={submit} noValidate>
+        <fieldset disabled={readOnly} className="min-w-0 flex flex-col gap-4">
+          <FormAlert message={errors.form} />
+          <Field label="Name" required error={errors.name}>
+            {(p) => (
+              <Input
+                {...p}
+                maxLength={60}
+                value={values.name}
+                onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
+              />
+            )}
+          </Field>
+          <Field label="Description" error={errors.description}>
+            {(p) => (
+              <Textarea
+                {...p}
+                rows={2}
+                maxLength={200}
+                value={values.description}
+                onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
+              />
+            )}
+          </Field>
+          <Field
+            label="Default priority"
+            error={errors.defaultPriority}
+            help="Pre-selected when a ticket of this type is logged."
+          >
+            {(p) => (
+              <Select
+                {...p}
+                value={values.defaultPriority}
+                onChange={(e) =>
+                  setValues((v) => ({ ...v, defaultPriority: e.target.value as Priority }))
+                }
+              >
+                {PRIORITY_ORDER.map((key) => (
+                  <option key={key} value={key}>
+                    {priorities.find((r) => r.priority === key)?.label ?? key}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+          <label className="flex cursor-pointer items-start gap-2.5 text-[13px]">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-[var(--accent-strong)]"
+              checked={values.requiresEquipment}
+              onChange={(e) => setValues((v) => ({ ...v, requiresEquipment: e.target.checked }))}
             />
-          )}
-        </Field>
-        <Field label="Description" error={errors.description}>
-          {(p) => (
-            <Textarea
-              {...p}
-              rows={2}
-              maxLength={200}
-              value={values.description}
-              onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
-            />
-          )}
-        </Field>
-        <Field
-          label="Default priority"
-          error={errors.defaultPriority}
-          help="Pre-selected when a ticket of this type is logged."
-        >
-          {(p) => (
-            <Select
-              {...p}
-              value={values.defaultPriority}
-              onChange={(e) =>
-                setValues((v) => ({ ...v, defaultPriority: e.target.value as Priority }))
-              }
-            >
-              {PRIORITY_ORDER.map((key) => (
-                <option key={key} value={key}>
-                  {priorities.find((r) => r.priority === key)?.label ?? key}
-                </option>
-              ))}
-            </Select>
-          )}
-        </Field>
-        <label className="flex cursor-pointer items-start gap-2.5 text-[13px]">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4 accent-[var(--accent-strong)]"
-            checked={values.requiresEquipment}
-            onChange={(e) => setValues((v) => ({ ...v, requiresEquipment: e.target.checked }))}
-          />
-          <span>
-            <span className="block font-semibold">A machine must be chosen</span>
-            <span className="text-muted">
-              Turn off for jobs like training that aren&apos;t about one machine.
+            <span>
+              <span className="block font-semibold">A machine must be chosen</span>
+              <span className="text-muted">
+                Turn off for jobs like training that aren&apos;t about one machine.
+              </span>
             </span>
-          </span>
-        </label>
+          </label>
+        </fieldset>
       </form>
     </Drawer>
   );

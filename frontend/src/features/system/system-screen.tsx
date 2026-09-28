@@ -99,6 +99,7 @@ export function SystemScreen() {
 }
 
 function QueuesTab() {
+  const canEdit = useSession().can("system.edit");
   const toast = useToast();
   const queues = useSWR<QueueInfo[]>("/system/queues", fetcher, POLL);
   const [selected, setSelected] = useState("system");
@@ -172,7 +173,8 @@ function QueuesTab() {
           titleId="jobs-title"
           title={queue ? `${queue.label} jobs` : "Jobs"}
           actions={
-            queue && (
+            queue &&
+            canEdit && (
               <>
                 <Button
                   size="sm"
@@ -283,7 +285,7 @@ function QueuesTab() {
                       <Button size="sm" variant="ghost" onClick={() => setDetail(job.id)}>
                         Details
                       </Button>
-                      {state === "failed" && (
+                      {canEdit && state === "failed" && (
                         <Button
                           size="sm"
                           onClick={() =>
@@ -296,7 +298,7 @@ function QueuesTab() {
                           Retry
                         </Button>
                       )}
-                      {state === "delayed" && (
+                      {canEdit && state === "delayed" && (
                         <Button
                           size="sm"
                           onClick={() =>
@@ -309,7 +311,7 @@ function QueuesTab() {
                           Run now
                         </Button>
                       )}
-                      {state !== "active" && (
+                      {canEdit && state !== "active" && (
                         <Button
                           size="sm"
                           variant="danger"
@@ -679,6 +681,7 @@ const WEBHOOK_TONE: Record<WebhookEvent["status"], Tone> = {
 };
 
 function WebhooksTab() {
+  const canEdit = useSession().can("system.edit");
   const toast = useToast();
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -756,7 +759,8 @@ function WebhooksTab() {
                   {row.detail && <Sub>{row.detail}</Sub>}
                 </Td>
                 <Td align="right">
-                  {(row.status === "FAILED" || row.status === "IGNORED") &&
+                  {canEdit &&
+                    (row.status === "FAILED" || row.status === "IGNORED") &&
                     row.signatureValid &&
                     row.doctype && (
                       <Button size="sm" onClick={() => void reprocess(row.id)}>

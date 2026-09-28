@@ -13,6 +13,7 @@ import {
   Map,
   Palette,
   ScrollText,
+  ShieldCheck,
   Tags,
   Users,
   Workflow,
@@ -50,6 +51,12 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
         label: "Users & roles",
         description: "Invite people, set role and region",
         href: "/settings/users",
+      },
+      {
+        icon: ShieldCheck,
+        label: "Roles",
+        description: "What each role can see and do",
+        href: "/settings/roles",
       },
       {
         icon: Map,

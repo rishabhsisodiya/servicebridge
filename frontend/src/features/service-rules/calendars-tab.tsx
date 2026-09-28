@@ -12,6 +12,7 @@ import { Segmented } from "@/components/ui/segmented";
 import { ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Table, Td, Th, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { useSession } from "@/lib/auth/session";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import type { CalendarRow, Holiday, OpeningWindow, SlaData } from "./api";
 import { DAY_NAMES, errorsFrom, FormAlert, type FormErrors, WEEK_ORDER } from "./shared";
@@ -50,6 +51,7 @@ function summariseHours(hours: OpeningWindow[]): string {
 }
 
 export function CalendarsTab() {
+  const canEdit = useSession().can("rules.edit");
   const sla = useSWR<SlaData>("/service-rules/sla", fetcher);
   const toast = useToast();
   const [editing, setEditing] = useState<CalendarRow | "new" | null>(null);
@@ -80,14 +82,16 @@ export function CalendarsTab() {
         title="Business calendars"
         meta={`When SLA clocks run. Times are in the company time zone (${sla.data.timezone}).`}
         actions={
-          <Button
-            variant="primary"
-            size="sm"
-            icon={<Plus className="size-4" aria-hidden />}
-            onClick={() => setEditing("new")}
-          >
-            Add calendar
-          </Button>
+          canEdit && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<Plus className="size-4" aria-hidden />}
+              onClick={() => setEditing("new")}
+            >
+              Add calendar
+            </Button>
+          )
         }
       />
       <Table caption="Business calendars">
@@ -122,16 +126,18 @@ export function CalendarsTab() {
                 {c.policyCount} {c.policyCount === 1 ? "policy" : "policies"}
               </Td>
               <Td align="right">
-                <IconButton
-                  label={`Delete ${c.name}`}
-                  size="sm"
-                  onClick={() => {
-                    setDeleteError(undefined);
-                    setDeleting(c);
-                  }}
-                >
-                  <Trash2 className="size-4" aria-hidden />
-                </IconButton>
+                {canEdit && (
+                  <IconButton
+                    label={`Delete ${c.name}`}
+                    size="sm"
+                    onClick={() => {
+                      setDeleteError(undefined);
+                      setDeleting(c);
+                    }}
+                  >
+                    <Trash2 className="size-4" aria-hidden />
+                  </IconButton>
+                )}
               </Td>
             </Tr>
           ))}
@@ -140,6 +146,7 @@ export function CalendarsTab() {
       <CalendarDrawer
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         calendar={editing}
+        readOnly={!canEdit}
         onClose={() => setEditing(null)}
         onSaved={async (message) => {
           toast.success(message);
@@ -171,10 +178,12 @@ function CalendarDrawer({
   calendar,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   calendar: CalendarRow | "new" | null;
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const existing = calendar && calendar !== "new" ? calendar : null;
   const [name, setName] = useState(existing?.name ?? "");
@@ -238,141 +247,145 @@ function CalendarDrawer({
       className="w-[min(560px,100vw)]!"
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="calendar-form" variant="primary" loading={saving}>
-            {existing ? "Save" : "Add calendar"}
-          </Button>
+          <Button onClick={onClose}>{readOnly ? "Close" : "Cancel"}</Button>
+          {!readOnly && (
+            <Button type="submit" form="calendar-form" variant="primary" loading={saving}>
+              {existing ? "Save" : "Add calendar"}
+            </Button>
+          )}
         </>
       }
     >
-      <form id="calendar-form" onSubmit={submit} noValidate className="flex flex-col gap-5">
-        <FormAlert message={errors.form} />
-        <Field label="Name" required error={errors.name}>
-          {(p) => (
-            <Input
-              {...p}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoComplete="off"
+      <form id="calendar-form" onSubmit={submit} noValidate>
+        <fieldset disabled={readOnly} className="min-w-0 flex flex-col gap-5">
+          <FormAlert message={errors.form} />
+          <Field label="Name" required error={errors.name}>
+            {(p) => (
+              <Input
+                {...p}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="off"
+              />
+            )}
+          </Field>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[13px] font-semibold">Open</span>
+            <Segmented
+              label="When the clock runs"
+              value={alwaysOpen ? "always" : "hours"}
+              onChange={(v) => setAlwaysOpen(v === "always")}
+              options={[
+                { value: "hours", label: "Set hours" },
+                { value: "always", label: "24×7" },
+              ]}
             />
-          )}
-        </Field>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[13px] font-semibold">Open</span>
-          <Segmented
-            label="When the clock runs"
-            value={alwaysOpen ? "always" : "hours"}
-            onChange={(v) => setAlwaysOpen(v === "always")}
-            options={[
-              { value: "hours", label: "Set hours" },
-              { value: "always", label: "24×7" },
-            ]}
-          />
-        </div>
-        {errors.rows && <FormAlert message={errors.rows} />}
-        {!alwaysOpen && (
-          <>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1.5 text-[13px] font-semibold">Weekly hours</legend>
-              {WEEK_ORDER.map((day) => {
-                const windows = hours.map((w, i) => ({ w, i })).filter(({ w }) => w.day === day);
-                return (
-                  <div
-                    key={day}
-                    className="flex flex-wrap items-start gap-x-3 gap-y-1.5 border-b border-line pb-2 last:border-b-0"
-                  >
-                    <span className="w-24 pt-2 text-[13px]">{DAY_NAMES[day]}</span>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      {windows.length === 0 && (
-                        <span className="pt-2 text-[13px] text-muted">Closed</span>
-                      )}
-                      {windows.map(({ w, i }) => (
-                        <div key={i} className="flex items-center gap-1.5">
-                          <Input
-                            type="time"
-                            aria-label={`${DAY_NAMES[day]} opens`}
-                            value={w.open}
-                            onChange={(e) => updateWindow(i, { open: e.target.value })}
-                            className="min-h-9 w-32!"
-                          />
-                          <span aria-hidden className="text-muted">
-                            –
-                          </span>
-                          <Input
-                            type="time"
-                            aria-label={`${DAY_NAMES[day]} closes`}
-                            value={w.close}
-                            onChange={(e) => updateWindow(i, { close: e.target.value })}
-                            className="min-h-9 w-32!"
-                          />
-                          <IconButton
-                            label={`Remove ${DAY_NAMES[day]} ${w.open}–${w.close}`}
-                            size="sm"
-                            onClick={() => setHours((all) => all.filter((_, j) => j !== i))}
-                          >
-                            <X className="size-4" aria-hidden />
-                          </IconButton>
-                        </div>
-                      ))}
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        setHours((all) => [
-                          ...all,
-                          windows.length
-                            ? { day, open: "14:00", close: "18:00" }
-                            : { day, open: "09:00", close: "18:00" },
-                        ])
-                      }
+          </div>
+          {errors.rows && <FormAlert message={errors.rows} />}
+          {!alwaysOpen && (
+            <>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-1.5 text-[13px] font-semibold">Weekly hours</legend>
+                {WEEK_ORDER.map((day) => {
+                  const windows = hours.map((w, i) => ({ w, i })).filter(({ w }) => w.day === day);
+                  return (
+                    <div
+                      key={day}
+                      className="flex flex-wrap items-start gap-x-3 gap-y-1.5 border-b border-line pb-2 last:border-b-0"
                     >
-                      {windows.length ? "Add hours" : "Open"}
-                    </Button>
+                      <span className="w-24 pt-2 text-[13px]">{DAY_NAMES[day]}</span>
+                      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                        {windows.length === 0 && (
+                          <span className="pt-2 text-[13px] text-muted">Closed</span>
+                        )}
+                        {windows.map(({ w, i }) => (
+                          <div key={i} className="flex items-center gap-1.5">
+                            <Input
+                              type="time"
+                              aria-label={`${DAY_NAMES[day]} opens`}
+                              value={w.open}
+                              onChange={(e) => updateWindow(i, { open: e.target.value })}
+                              className="min-h-9 w-32!"
+                            />
+                            <span aria-hidden className="text-muted">
+                              –
+                            </span>
+                            <Input
+                              type="time"
+                              aria-label={`${DAY_NAMES[day]} closes`}
+                              value={w.close}
+                              onChange={(e) => updateWindow(i, { close: e.target.value })}
+                              className="min-h-9 w-32!"
+                            />
+                            <IconButton
+                              label={`Remove ${DAY_NAMES[day]} ${w.open}–${w.close}`}
+                              size="sm"
+                              onClick={() => setHours((all) => all.filter((_, j) => j !== i))}
+                            >
+                              <X className="size-4" aria-hidden />
+                            </IconButton>
+                          </div>
+                        ))}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() =>
+                          setHours((all) => [
+                            ...all,
+                            windows.length
+                              ? { day, open: "14:00", close: "18:00" }
+                              : { day, open: "09:00", close: "18:00" },
+                          ])
+                        }
+                      >
+                        {windows.length ? "Add hours" : "Open"}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </fieldset>
+              <fieldset className="flex flex-col gap-2">
+                <legend className="mb-1.5 text-[13px] font-semibold">Holidays</legend>
+                <p className="text-xs text-muted">The clock does not run on these dates.</p>
+                {holidays.map((h, i) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <Input
+                      type="date"
+                      aria-label={`Holiday ${i + 1} date`}
+                      value={h.date}
+                      onChange={(e) => updateHoliday(i, { date: e.target.value })}
+                      className="min-h-9 w-40!"
+                    />
+                    <Input
+                      aria-label={`Holiday ${i + 1} name`}
+                      placeholder="Name, e.g. Diwali"
+                      value={h.name}
+                      onChange={(e) => updateHoliday(i, { name: e.target.value })}
+                      className="min-h-9 min-w-0 flex-1"
+                    />
+                    <IconButton
+                      label={`Remove holiday ${h.name || i + 1}`}
+                      size="sm"
+                      onClick={() => setHolidays((all) => all.filter((_, j) => j !== i))}
+                    >
+                      <X className="size-4" aria-hidden />
+                    </IconButton>
                   </div>
-                );
-              })}
-            </fieldset>
-            <fieldset className="flex flex-col gap-2">
-              <legend className="mb-1.5 text-[13px] font-semibold">Holidays</legend>
-              <p className="text-xs text-muted">The clock does not run on these dates.</p>
-              {holidays.map((h, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <Input
-                    type="date"
-                    aria-label={`Holiday ${i + 1} date`}
-                    value={h.date}
-                    onChange={(e) => updateHoliday(i, { date: e.target.value })}
-                    className="min-h-9 w-40!"
-                  />
-                  <Input
-                    aria-label={`Holiday ${i + 1} name`}
-                    placeholder="Name, e.g. Diwali"
-                    value={h.name}
-                    onChange={(e) => updateHoliday(i, { name: e.target.value })}
-                    className="min-h-9 min-w-0 flex-1"
-                  />
-                  <IconButton
-                    label={`Remove holiday ${h.name || i + 1}`}
+                ))}
+                <div>
+                  <Button
                     size="sm"
-                    onClick={() => setHolidays((all) => all.filter((_, j) => j !== i))}
+                    icon={<CalendarDays className="size-4" aria-hidden />}
+                    onClick={() => setHolidays((all) => [...all, { date: "", name: "" }])}
                   >
-                    <X className="size-4" aria-hidden />
-                  </IconButton>
+                    Add holiday
+                  </Button>
                 </div>
-              ))}
-              <div>
-                <Button
-                  size="sm"
-                  icon={<CalendarDays className="size-4" aria-hidden />}
-                  onClick={() => setHolidays((all) => [...all, { date: "", name: "" }])}
-                >
-                  Add holiday
-                </Button>
-              </div>
-            </fieldset>
-          </>
-        )}
+              </fieldset>
+            </>
+          )}
+        </fieldset>
       </form>
     </Drawer>
   );

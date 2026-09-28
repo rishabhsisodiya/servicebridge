@@ -79,6 +79,7 @@ export function AutomationsScreen() {
   const { can, me } = useSession();
   const toast = useToast();
   const allowed = can("automations.read");
+  const canEdit = can("automations.edit");
   const { data, error, isLoading, mutate } = useSWR<Automation[]>(
     allowed ? "/automations" : null,
     fetcher,
@@ -179,6 +180,7 @@ export function AutomationsScreen() {
                       label={automation.name}
                       checked={automation.enabled}
                       busy={busy === `toggle:${automation.key}`}
+                      disabled={!canEdit}
                       onChange={(enabled) => void toggle(automation, enabled)}
                     />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
@@ -213,7 +215,7 @@ export function AutomationsScreen() {
                       )}
                     </div>
                     <div className="flex flex-wrap gap-2 max-sm:w-full">
-                      {automation.kind === "periodic" && (
+                      {automation.kind === "periodic" && canEdit && (
                         <>
                           <Button
                             size="sm"

@@ -21,6 +21,7 @@ const KEY = "/skills";
 
 export function SkillsScreen() {
   const { can, me } = useSession();
+  const canEdit = can("rules.edit");
   const allowed = can("rules.read");
   const skills = useSWR<SkillRow[]>(allowed ? KEY : null, (k: string) => apiFetch<SkillRow[]>(k));
   const toast = useToast();
@@ -59,13 +60,15 @@ export function SkillsScreen() {
         title="Skill tags"
         description="Which machines need which skill, and who has it. Used to suggest engineers for a ticket."
         actions={
-          <Button
-            variant="primary"
-            icon={<Plus className="size-4" aria-hidden />}
-            onClick={() => setEditing("new")}
-          >
-            Add skill
-          </Button>
+          canEdit && (
+            <Button
+              variant="primary"
+              icon={<Plus className="size-4" aria-hidden />}
+              onClick={() => setEditing("new")}
+            >
+              Add skill
+            </Button>
+          )
         }
       />
       <Card>
@@ -121,16 +124,18 @@ export function SkillsScreen() {
                     )}
                   </Td>
                   <Td align="right">
-                    <IconButton
-                      label={`Delete ${s.name}`}
-                      size="sm"
-                      onClick={() => {
-                        setDeleteError(undefined);
-                        setDeleting(s);
-                      }}
-                    >
-                      <Trash2 className="size-4" aria-hidden />
-                    </IconButton>
+                    {canEdit && (
+                      <IconButton
+                        label={`Delete ${s.name}`}
+                        size="sm"
+                        onClick={() => {
+                          setDeleteError(undefined);
+                          setDeleting(s);
+                        }}
+                      >
+                        <Trash2 className="size-4" aria-hidden />
+                      </IconButton>
+                    )}
                   </Td>
                 </Tr>
               ))}
@@ -141,6 +146,7 @@ export function SkillsScreen() {
       <SkillDrawer
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         skill={editing}
+        readOnly={!canEdit}
         onClose={() => setEditing(null)}
         onSaved={async (message) => {
           toast.success(message);
@@ -210,10 +216,12 @@ function SkillDrawer({
   skill,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   skill: SkillRow | "new" | null;
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const existing = skill && skill !== "new" ? skill : null;
   const options = useSWR<SkillOptions>(skill ? `${KEY}/options` : null, (k: string) =>
@@ -278,60 +286,64 @@ function SkillDrawer({
       title={existing ? `Edit ${existing.name}` : "Add a skill"}
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="skill-form" variant="primary" loading={saving}>
-            {existing ? "Save" : "Add skill"}
-          </Button>
+          <Button onClick={onClose}>{readOnly ? "Close" : "Cancel"}</Button>
+          {!readOnly && (
+            <Button type="submit" form="skill-form" variant="primary" loading={saving}>
+              {existing ? "Save" : "Add skill"}
+            </Button>
+          )}
         </>
       }
     >
-      <form id="skill-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <FormAlert message={errors.form ?? errors.equipmentModels ?? errors.userIds} />
-        <Field label="Name" required error={errors.name}>
-          {(p) => (
-            <Input {...p} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
-          )}
-        </Field>
-        <Field label="Description" error={errors.description}>
-          {(p) => (
-            <Textarea
-              {...p}
-              rows={2}
-              maxLength={200}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+      <form id="skill-form" onSubmit={submit} noValidate>
+        <fieldset disabled={readOnly} className="min-w-0 flex flex-col gap-4">
+          <FormAlert message={errors.form ?? errors.equipmentModels ?? errors.userIds} />
+          <Field label="Name" required error={errors.name}>
+            {(p) => (
+              <Input {...p} maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
+            )}
+          </Field>
+          <Field label="Description" error={errors.description}>
+            {(p) => (
+              <Textarea
+                {...p}
+                rows={2}
+                maxLength={200}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            )}
+          </Field>
+          {options.error && (
+            <ErrorState
+              title="Couldn't load models and engineers"
+              onRetry={() => void options.mutate()}
             />
           )}
-        </Field>
-        {options.error && (
-          <ErrorState
-            title="Couldn't load models and engineers"
-            onRetry={() => void options.mutate()}
-          />
-        )}
-        {options.isLoading && <TableSkeleton rows={4} label="Loading models and engineers" />}
-        {options.data && (
-          <>
-            <CheckList
-              legend="Machine models that need this skill"
-              items={modelItems}
-              selected={models}
-              onToggle={toggle(models, setModels)}
-              empty="No machines yet. Models appear here once machines are synced from the ERP or loaded as demo data."
-            />
-            <CheckList
-              legend="Engineers with this skill"
-              items={options.data.engineers.map((e) => ({
-                value: e.id,
-                label: e.name,
-                hint: e.region ?? undefined,
-              }))}
-              selected={engineers}
-              onToggle={toggle(engineers, setEngineers)}
-              empty="No engineers yet. Invite them under Users & roles."
-            />
-          </>
-        )}
+          {options.isLoading && <TableSkeleton rows={4} label="Loading models and engineers" />}
+          {options.data && (
+            <>
+              <CheckList
+                legend="Machine models that need this skill"
+                items={modelItems}
+                selected={models}
+                onToggle={toggle(models, setModels)}
+                empty="No machines yet. Models appear here once machines are synced from the ERP or loaded as demo data."
+              />
+              <CheckList
+                legend="Engineers with this skill"
+                items={options.data.engineers.map((e) => ({
+                  value: e.id,
+                  label: e.name,
+                  hint: e.region ?? undefined,
+                }))}
+                selected={engineers}
+                onToggle={toggle(engineers, setEngineers)}
+                empty="No engineers yet. Invite them under Users & roles."
+              />
+            </>
+          )}
+        </fieldset>
       </form>
     </Drawer>
   );

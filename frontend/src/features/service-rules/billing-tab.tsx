@@ -11,6 +11,7 @@ import { Field, Input, Select } from "@/components/ui/field";
 import { ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Sub, Table, Td, Th, Tr } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
+import { useSession } from "@/lib/auth/session";
 import { apiFetch } from "@/lib/api/client";
 import { useAppSettings } from "@/lib/app-settings";
 import { money } from "@/features/catalog/shared";
@@ -27,6 +28,7 @@ const UNIT_LABEL: Record<BillingUnit, string> = {
 const KEY = "/service-rules/billing";
 
 export function BillingTab() {
+  const canEdit = useSession().can("rules.edit");
   const billing = useSWR<BillingData>(KEY, (k: string) => apiFetch<BillingData>(k));
   const currency = useAppSettings().data?.company.currency ?? "INR";
   const toast = useToast();
@@ -39,6 +41,7 @@ export function BillingTab() {
   return (
     <div className="flex flex-col gap-4">
       <PriceListsCard
+        readOnly={!canEdit}
         key={`${billing.data.sparesPriceList}|${billing.data.amcPriceList}`}
         data={billing.data}
         onSaved={async () => {
@@ -51,14 +54,16 @@ export function BillingTab() {
           title="Service charges"
           meta="Added to chargeable tickets. Taxed at the company GST rate."
           actions={
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<Plus className="size-4" aria-hidden />}
-              onClick={() => setEditing("new")}
-            >
-              Add charge
-            </Button>
+            canEdit && (
+              <Button
+                variant="primary"
+                size="sm"
+                icon={<Plus className="size-4" aria-hidden />}
+                onClick={() => setEditing("new")}
+              >
+                Add charge
+              </Button>
+            )
           }
         />
         <Table caption="Service charges">
@@ -108,6 +113,7 @@ export function BillingTab() {
         key={editing === "new" ? "new" : (editing?.id ?? "closed")}
         rate={editing}
         currency={currency}
+        readOnly={!canEdit}
         onClose={() => setEditing(null)}
         onSaved={async (message) => {
           toast.success(message);
@@ -119,7 +125,15 @@ export function BillingTab() {
   );
 }
 
-function PriceListsCard({ data, onSaved }: { data: BillingData; onSaved: () => Promise<void> }) {
+function PriceListsCard({
+  data,
+  onSaved,
+  readOnly,
+}: {
+  data: BillingData;
+  onSaved: () => Promise<void>;
+  readOnly: boolean;
+}) {
   const [spares, setSpares] = useState(data.sparesPriceList ?? "");
   const [amc, setAmc] = useState(data.amcPriceList ?? "");
   const [errors, setErrors] = useState<FormErrors>({});
@@ -163,37 +177,41 @@ function PriceListsCard({ data, onSaved }: { data: BillingData; onSaved: () => P
             No selling prices yet. They arrive with the ERP sync or the demo data.
           </p>
         ) : (
-          <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-            <FormAlert message={errors.form} />
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <Field
-                label="Chargeable work"
-                error={errors.sparesPriceList}
-                help="Used to quote spares on chargeable tickets."
-              >
-                {(p) => (
-                  <Select {...p} value={spares} onChange={(e) => setSpares(e.target.value)}>
-                    {options}
-                  </Select>
-                )}
-              </Field>
-              <Field
-                label="Machines under AMC"
-                error={errors.amcPriceList}
-                help="Usually a discounted list. Falls back to the one above."
-              >
-                {(p) => (
-                  <Select {...p} value={amc} onChange={(e) => setAmc(e.target.value)}>
-                    {options}
-                  </Select>
-                )}
-              </Field>
-            </div>
-            <div>
-              <Button type="submit" variant="primary" loading={saving} disabled={!changed}>
-                Save price lists
-              </Button>
-            </div>
+          <form onSubmit={submit} noValidate>
+            <fieldset disabled={readOnly} className="flex min-w-0 flex-col gap-4">
+              <FormAlert message={errors.form} />
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <Field
+                  label="Chargeable work"
+                  error={errors.sparesPriceList}
+                  help="Used to quote spares on chargeable tickets."
+                >
+                  {(p) => (
+                    <Select {...p} value={spares} onChange={(e) => setSpares(e.target.value)}>
+                      {options}
+                    </Select>
+                  )}
+                </Field>
+                <Field
+                  label="Machines under AMC"
+                  error={errors.amcPriceList}
+                  help="Usually a discounted list. Falls back to the one above."
+                >
+                  {(p) => (
+                    <Select {...p} value={amc} onChange={(e) => setAmc(e.target.value)}>
+                      {options}
+                    </Select>
+                  )}
+                </Field>
+              </div>
+              {!readOnly && (
+                <div>
+                  <Button type="submit" variant="primary" loading={saving} disabled={!changed}>
+                    Save price lists
+                  </Button>
+                </div>
+              )}
+            </fieldset>
           </form>
         )}
       </CardBody>
@@ -206,11 +224,13 @@ function RateDrawer({
   currency,
   onClose,
   onSaved,
+  readOnly = false,
 }: {
   rate: BillingRateRow | "new" | null;
   currency: string;
   onClose: () => void;
   onSaved: (message: string) => Promise<void>;
+  readOnly?: boolean;
 }) {
   const existing = rate && rate !== "new" ? rate : null;
   const [values, setValues] = useState({
@@ -269,91 +289,95 @@ function RateDrawer({
       description="New rates apply to quotations and invoices made after you save."
       footer={
         <>
-          <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="rate-form" variant="primary" loading={saving}>
-            {existing ? "Save" : "Add charge"}
-          </Button>
+          <Button onClick={onClose}>{readOnly ? "Close" : "Cancel"}</Button>
+          {!readOnly && (
+            <Button type="submit" form="rate-form" variant="primary" loading={saving}>
+              {existing ? "Save" : "Add charge"}
+            </Button>
+          )}
         </>
       }
     >
-      <form id="rate-form" onSubmit={submit} noValidate className="flex flex-col gap-4">
-        <FormAlert message={errors.form} />
-        <Field label="Name" required error={errors.name}>
-          {(p) => <Input {...p} maxLength={60} value={values.name} onChange={set("name")} />}
-        </Field>
-        <Field
-          label="Code"
-          required
-          error={errors.code}
-          help="A short fixed code used in reports, e.g. VISIT."
-        >
-          {(p) => (
-            <Input
-              {...p}
-              maxLength={30}
-              className="font-mono uppercase"
-              value={values.code}
-              onChange={(e) => setValues((v) => ({ ...v, code: e.target.value.toUpperCase() }))}
-            />
-          )}
-        </Field>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label={`Amount (${currency})`} required error={errors.amount} help="Before GST.">
+      <form id="rate-form" onSubmit={submit} noValidate>
+        <fieldset disabled={readOnly} className="min-w-0 flex flex-col gap-4">
+          <FormAlert message={errors.form} />
+          <Field label="Name" required error={errors.name}>
+            {(p) => <Input {...p} maxLength={60} value={values.name} onChange={set("name")} />}
+          </Field>
+          <Field
+            label="Code"
+            required
+            error={errors.code}
+            help="A short fixed code used in reports, e.g. VISIT."
+          >
             {(p) => (
               <Input
                 {...p}
-                type="number"
-                min={0}
-                step="0.01"
-                inputMode="decimal"
-                value={values.amount}
-                onChange={set("amount")}
+                maxLength={30}
+                className="font-mono uppercase"
+                value={values.code}
+                onChange={(e) => setValues((v) => ({ ...v, code: e.target.value.toUpperCase() }))}
               />
             )}
           </Field>
-          <Field label="Charged" error={errors.unit}>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label={`Amount (${currency})`} required error={errors.amount} help="Before GST.">
+              {(p) => (
+                <Input
+                  {...p}
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  inputMode="decimal"
+                  value={values.amount}
+                  onChange={set("amount")}
+                />
+              )}
+            </Field>
+            <Field label="Charged" error={errors.unit}>
+              {(p) => (
+                <Select {...p} value={values.unit} onChange={set("unit")}>
+                  {(Object.keys(UNIT_LABEL) as BillingUnit[]).map((u) => (
+                    <option key={u} value={u}>
+                      {UNIT_LABEL[u]}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          </div>
+          <Field
+            label="ERP item code"
+            error={errors.erpItemCode}
+            help="The service item billed for this charge on the draft invoice in ERPNext."
+          >
             {(p) => (
-              <Select {...p} value={values.unit} onChange={set("unit")}>
-                {(Object.keys(UNIT_LABEL) as BillingUnit[]).map((u) => (
-                  <option key={u} value={u}>
-                    {UNIT_LABEL[u]}
-                  </option>
-                ))}
-              </Select>
+              <Input
+                {...p}
+                maxLength={140}
+                className="font-mono"
+                value={values.erpItemCode}
+                onChange={set("erpItemCode")}
+              />
             )}
           </Field>
-        </div>
-        <Field
-          label="ERP item code"
-          error={errors.erpItemCode}
-          help="The service item billed for this charge on the draft invoice in ERPNext."
-        >
-          {(p) => (
-            <Input
-              {...p}
-              maxLength={140}
-              className="font-mono"
-              value={values.erpItemCode}
-              onChange={set("erpItemCode")}
-            />
-          )}
-        </Field>
-        {existing && (
-          <label className="flex cursor-pointer items-start gap-2.5 text-[13px]">
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4 accent-[var(--accent-strong)]"
-              checked={values.active}
-              onChange={(e) => setValues((v) => ({ ...v, active: e.target.checked }))}
-            />
-            <span>
-              <span className="block font-semibold">In use</span>
-              <span className="text-muted">
-                Turn off to stop offering this charge on new quotations.
+          {existing && (
+            <label className="flex cursor-pointer items-start gap-2.5 text-[13px]">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--accent-strong)]"
+                checked={values.active}
+                onChange={(e) => setValues((v) => ({ ...v, active: e.target.checked }))}
+              />
+              <span>
+                <span className="block font-semibold">In use</span>
+                <span className="text-muted">
+                  Turn off to stop offering this charge on new quotations.
+                </span>
               </span>
-            </span>
-          </label>
-        )}
+            </label>
+          )}
+        </fieldset>
       </form>
     </Drawer>
   );

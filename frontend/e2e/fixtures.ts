@@ -1,6 +1,6 @@
 import { test as base, type BrowserContext } from "@playwright/test";
 
-export type StubRole = "ADMIN" | "ENGINEER";
+export type StubRole = "ADMIN" | "ENGINEER" | "VIEWER";
 
 /** Signs the browser in against the stub API (cookies only; no form). */
 export async function signIn(context: BrowserContext, baseURL: string, role: StubRole = "ADMIN") {
