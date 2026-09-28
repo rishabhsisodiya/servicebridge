@@ -15,8 +15,10 @@ export const QUEUES = {
   'erp-sync': 'ERP data sync',
   'erp-writeback': 'ERP write-backs',
   sla: 'SLA timers',
+  escalations: 'Ticket escalation timers',
   assignment: 'Automatic assignment',
   notifications: 'Notifications',
+  quotations: 'Quotation expiry timers',
   amc: 'AMC scheduling',
   reports: 'Scheduled reports',
 } as const;

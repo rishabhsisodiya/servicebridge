@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/toast";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/session";
 import { formatDate } from "@/features/catalog/shared";
+import { TicketFeedbackCard } from "@/features/feedback/ticket-feedback";
 import {
   CHANNEL_LABEL,
   COVERAGE_LABEL,
@@ -47,6 +48,8 @@ import { StageStepper } from "./stage-stepper";
 import { TicketActionBar } from "./ticket-action-bar";
 import { TicketActivity } from "./ticket-activity";
 import { TicketFiles } from "./ticket-files";
+import { VisitTimeline } from "@/features/visits/visit-timeline";
+import { QuotationTimeline } from "@/features/quotations/quotation-timeline";
 
 function Callout({
   tone,
@@ -444,6 +447,8 @@ export function TicketDetailScreen({ id }: { id: string }) {
             </CardBody>
           </Card>
           <TicketFiles ticket={ticket} onUploaded={() => mutate()} />
+          <VisitTimeline ticket={ticket} />
+          <QuotationTimeline ticket={ticket} />
           <TicketActivity ticket={ticket} onChanged={onChanged} />
         </div>
 
@@ -580,6 +585,7 @@ export function TicketDetailScreen({ id }: { id: string }) {
           </Card>
 
           <ScheduledCard ticket={ticket} />
+          <TicketFeedbackCard ticketId={ticket.id} />
         </aside>
       </div>
 

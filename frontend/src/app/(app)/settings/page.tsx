@@ -145,12 +145,17 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
   {
     title: "Notifications & records",
     entries: [
-      { icon: Mail, label: "Email (SMTP)", description: "Server used to send email", session: 12 },
+      {
+        icon: Mail,
+        label: "Email (SMTP)",
+        description: "Server used to send email, templates and deliveries",
+        href: "/settings/email",
+      },
       {
         icon: Bell,
         label: "Notification templates",
-        description: "Wording for email, SMS and push",
-        session: 12,
+        description: "Wording for the emails the app sends",
+        href: "/settings/email?tab=templates",
       },
       {
         icon: ScrollText,

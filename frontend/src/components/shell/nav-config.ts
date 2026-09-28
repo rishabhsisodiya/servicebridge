@@ -7,6 +7,7 @@ import {
   Cog,
   Database,
   FileText,
+  FileSignature,
   Gauge,
   KeyRound,
   LayoutDashboard,
@@ -70,6 +71,13 @@ export const NAV: NavGroup[] = [
         summary: "Every service ticket, with filters and SLA status.",
       },
       {
+        href: "/quotations",
+        permission: "quotations.read",
+        label: "Quotations",
+        icon: FileSignature,
+        summary: "Quotes for chargeable work, with POs and revisions.",
+      },
+      {
         href: "/tickets/new",
         permission: "tickets.create",
         label: "Log a ticket",
@@ -95,7 +103,6 @@ export const NAV: NavGroup[] = [
         permission: "amc.read",
         label: "AMC contracts",
         icon: ShieldCheck,
-        plannedSession: 12,
         summary: "Maintenance contracts, planned visits and renewals.",
       },
       {

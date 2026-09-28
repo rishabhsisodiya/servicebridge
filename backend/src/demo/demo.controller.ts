@@ -1,6 +1,6 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Patch, Post } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsNumber, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { Client, CurrentUser, RequirePermissions, RequireRecentAuth } from '../auth/decorators';
 import { AppSettingsService } from './app-settings.service';
@@ -29,6 +29,12 @@ class UpdateCompanyDto {
   @Min(0)
   @Max(100)
   gstRatePercent?: number;
+}
+
+class UpdateQuotationSettingsDto {
+  @IsOptional()
+  @IsBoolean()
+  requirePoBeforeWork?: boolean;
 }
 
 class ClearDemoDto {
@@ -62,6 +68,23 @@ export class DemoController {
       { ...body, currency: body.currency?.toUpperCase() },
       client,
     );
+  }
+
+  /** Quotation rules (e.g. the PO gate). Any signed-in user may read; admins change. */
+  @Get('settings/app/quotations')
+  @RequirePermissions('company.read')
+  quotationSettings() {
+    return this.settings.quotations();
+  }
+
+  @Patch('settings/app/quotations')
+  @RequirePermissions('company.edit')
+  updateQuotationSettings(
+    @CurrentUser() actor: AuthUser,
+    @Body() body: UpdateQuotationSettingsDto,
+    @Client() client: ClientInfo,
+  ) {
+    return this.settings.updateQuotationSettings(actor, body, client);
   }
 
   @Get('demo')

@@ -23,6 +23,11 @@ export interface AutomationDefinition {
   defaultCron?: string;
   /** Shortest allowed gap between scheduled runs. */
   minIntervalMinutes?: number;
+  /**
+   * Optional per-automation settings shown on the automations screen. Return a
+   * list of "field: message" problems (empty when fine); may hit the database.
+   */
+  validateParams?: (params: Record<string, unknown>) => Promise<string[]> | string[];
 }
 
 export interface AutomationContext {
@@ -246,7 +251,7 @@ export class AutomationsService implements OnApplicationBootstrap {
   async update(
     actor: AuthUser,
     key: string,
-    input: { enabled?: boolean; cron?: string; timezone?: string },
+    input: { enabled?: boolean; cron?: string; timezone?: string; params?: Record<string, unknown> },
     client: ClientInfo,
   ) {
     const { definition } = this.entry(key);
@@ -263,6 +268,16 @@ export class AutomationsService implements OnApplicationBootstrap {
       const problem = cronProblem(input.cron, timezone, definition.minIntervalMinutes);
       if (problem) throw validationFailed([{ field: 'cron', message: problem }]);
     }
+    if (input.params !== undefined) {
+      const problems = await definition.validateParams?.(input.params);
+      if (problems?.length)
+        throw validationFailed(
+          problems.map((p) => {
+            const [field, ...rest] = p.split(':');
+            return { field: field.trim() || 'params', message: rest.join(':').trim() || p };
+          }),
+        );
+    }
 
     const setting = await this.prisma.automationSetting.upsert({
       where: { key },
@@ -271,12 +286,21 @@ export class AutomationsService implements OnApplicationBootstrap {
         enabled: input.enabled ?? definition.defaultEnabled,
         cron: input.cron ?? definition.defaultCron ?? null,
         timezone,
+        params: (input.params ?? {}) as Prisma.InputJsonObject,
         updatedById: actor.id,
       },
       update: {
         enabled: input.enabled,
         cron: input.cron,
         timezone: input.timezone,
+        ...(input.params !== undefined
+          ? {
+              params: {
+                ...((current?.params as Record<string, unknown>) ?? {}),
+                ...input.params,
+              } as Prisma.InputJsonObject,
+            }
+          : {}),
         updatedById: actor.id,
       },
     });
@@ -289,6 +313,7 @@ export class AutomationsService implements OnApplicationBootstrap {
       changes.push(`schedule set to "${input.cron}"`);
     if (input.timezone !== undefined && input.timezone !== current?.timezone)
       changes.push(`time zone ${input.timezone}`);
+    if (input.params !== undefined) changes.push('settings changed');
     if (changes.length) {
       await this.audit.record({
         actorId: actor.id,

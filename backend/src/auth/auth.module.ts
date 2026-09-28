@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { AppConfig } from '../core/config/app-config.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { RolesController } from '../roles/roles.controller';
 import { RolesService } from '../roles/roles.service';
 import { UsersController } from '../users/users.controller';
@@ -15,6 +16,7 @@ import { UserTokensService } from './user-tokens.service';
 
 @Module({
   imports: [
+    NotificationsModule,
     JwtModule.registerAsync({
       inject: [AppConfig],
       useFactory: (config: AppConfig) => ({

@@ -13,6 +13,16 @@ export const PERMISSIONS = [
   'tickets.read',
   'tickets.create',
   'tickets.edit',
+  'visits.read',
+  'visits.create',
+  'visits.edit',
+  'visits.delete',
+  'quotations.read',
+  'quotations.create',
+  'quotations.edit',
+  'quotations.delete',
+  'writebacks.read',
+  'writebacks.edit',
   'customers.read',
   'equipment.read',
   'items.read',
@@ -41,10 +51,9 @@ export const PERMISSIONS = [
   'tickets.verify',
   'tickets.escalations',
   'demo.manage',
-  // Planned screens (AMC, quotations, reports); their sessions add grid rows
+  // Planned screens (AMC, reports); their sessions add grid rows
   'amc.read',
   'amc.edit',
-  'quotations.edit',
   'reports.read',
   'reports.schedule',
 ] as const;
@@ -67,6 +76,30 @@ export const RECORD_TYPES: RecordType[] = [
     label: 'Tickets',
     ops: ['read', 'create', 'edit'],
     hint: 'Tickets are cancelled, never deleted.',
+  },
+  {
+    key: 'visits',
+    label: 'Field visits',
+    ops: ['read', 'create', 'edit', 'delete'],
+    hint: 'Drafts can be edited and deleted; submitted visits are locked.',
+  },
+  {
+    key: 'quotations',
+    label: 'Quotations',
+    ops: ['read', 'create', 'edit', 'delete'],
+    hint: 'Drafts can be edited and deleted; sent quotations are locked.',
+  },
+  {
+    key: 'writebacks',
+    label: 'ERP write-backs',
+    ops: ['read', 'edit'],
+    hint: 'See invoice and stock-entry write-backs; edit retries failures and configures triggers and warehouses.',
+  },
+  {
+    key: 'amc',
+    label: 'AMC contracts',
+    ops: ['read', 'edit'],
+    hint: 'Annual maintenance contracts, planned PM visits and renewal alerts.',
   },
   { key: 'customers', label: 'Customers', ops: ['read'] },
   { key: 'equipment', label: 'Equipment', ops: ['read'] },
@@ -127,13 +160,7 @@ export const ACTION_TYPES: ActionType[] = [
 ];
 
 /** Kept for built-in roles until their screens are built; not shown in the grid. */
-export const PLANNED_PERMISSIONS: Permission[] = [
-  'amc.read',
-  'amc.edit',
-  'quotations.edit',
-  'reports.read',
-  'reports.schedule',
-];
+export const PLANNED_PERMISSIONS: Permission[] = ['reports.read', 'reports.schedule'];
 
 /**
  * Administrator has everything except the two actions that put someone into a
@@ -214,9 +241,18 @@ export const BUILT_IN_ROLES: BuiltInRole[] = [
     permissions: [
       ...MANAGER,
       'tickets.escalations',
+      'visits.read',
+      'visits.create',
+      'visits.edit',
+      'visits.delete',
+      'quotations.read',
+      'quotations.create',
+      'quotations.edit',
+      'quotations.delete',
+      'writebacks.read',
+      'writebacks.edit',
       'amc.read',
       'amc.edit',
-      'quotations.edit',
       'reports.read',
       'reports.schedule',
     ],
@@ -226,14 +262,35 @@ export const BUILT_IN_ROLES: BuiltInRole[] = [
     key: 'AREA_MANAGER',
     name: 'Area manager',
     ticketScope: 'REGION',
-    permissions: [...MANAGER, 'amc.read'],
+    permissions: [
+      ...MANAGER,
+      'visits.read',
+      'visits.create',
+      'visits.edit',
+      'visits.delete',
+      'quotations.read',
+      'quotations.create',
+      'quotations.edit',
+      'quotations.delete',
+      'writebacks.read',
+      'amc.read',
+    ],
   },
   {
     id: 'role_engineer',
     key: 'ENGINEER',
     name: 'Service engineer',
     ticketScope: 'OWN',
-    permissions: ['tickets.read', 'tickets.work', 'equipment.read', 'items.read'],
+    permissions: [
+      'tickets.read',
+      'tickets.work',
+      'equipment.read',
+      'items.read',
+      'visits.read',
+      'visits.create',
+      'visits.edit',
+      'visits.delete',
+    ],
   },
   {
     id: 'role_call_center',
@@ -247,7 +304,16 @@ export const BUILT_IN_ROLES: BuiltInRole[] = [
     key: 'CS_SUPPORT',
     name: 'Customer support',
     ticketScope: 'ALL',
-    permissions: [...DESK, 'amc.read', 'amc.edit', 'quotations.edit'],
+    permissions: [
+      ...DESK,
+      'amc.read',
+      'amc.edit',
+      'quotations.read',
+      'quotations.create',
+      'quotations.edit',
+      'quotations.delete',
+      'writebacks.read',
+    ],
   },
   {
     id: 'role_executive',

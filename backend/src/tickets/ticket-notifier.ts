@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { NotificationType } from '@prisma/client';
+import { AppConfig } from '../core/config/app-config.service';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { EmailService, type TemplateVariables } from '../notifications/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { rolesWith } from '../roles/role-filters';
 import type { TicketAction } from './workflow';
@@ -30,6 +32,8 @@ export class TicketNotifier {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly email: EmailService,
+    private readonly config: AppConfig,
   ) {}
 
   /** Everyone whose role receives escalations (service managers, by default). */
@@ -62,6 +66,33 @@ export class TicketNotifier {
       body,
       exceptUserId: actor?.id,
     });
+  }
+
+  private ticketUrl(ticketId: string): string {
+    return `${this.config.get('APP_URL').replace(/\/$/, '')}/tickets/${ticketId}`;
+  }
+
+  /**
+   * The email twin of an in-app notification. queueEmail() is a no-op when
+   * email is off or the template is disabled, and never throws, so the
+   * in-app notification is unaffected.
+   */
+  private async emailUsers(
+    userIds: (string | null | undefined)[],
+    templateKey: string,
+    variables: TemplateVariables,
+    ticketId: string,
+  ): Promise<void> {
+    const ids = [...new Set(userIds.filter((id): id is string => !!id))];
+    if (!ids.length) return;
+    const rows = await this.prisma.user.findMany({
+      where: { id: { in: ids }, status: 'ACTIVE' },
+      select: { email: true },
+    });
+    for (const row of rows) {
+      if (!row.email) continue;
+      await this.email.queueEmail({ to: row.email, templateKey, variables, ticketId });
+    }
   }
 
   async created(ticket: NotifyTicket, actor: Actor, regionName: string | null): Promise<void> {
@@ -100,6 +131,23 @@ export class TicketNotifier {
           `Assigned to you: ${after.number}`,
           actor,
         );
+        if (after.engineerId) {
+          const engineer = await this.prisma.user.findUnique({
+            where: { id: after.engineerId },
+            select: { name: true },
+          });
+          await this.emailUsers(
+            [after.engineerId],
+            'ticket.assigned',
+            {
+              assigneeName: engineer?.name ?? 'there',
+              ticketNumber: after.number,
+              ticketTitle: after.title,
+              ticketUrl: this.ticketUrl(after.id),
+            },
+            after.id,
+          );
+        }
         if (before.engineerId && before.engineerId !== after.engineerId) {
           await this.send(
             'TICKET_UNASSIGNED',
@@ -171,6 +219,62 @@ export class TicketNotifier {
       ticket,
       [ticket.engineerId, ticket.areaManagerId, ...(await this.escalationRecipients())],
       `${ticket.number}: ${what} time missed`,
+    );
+    await this.emailUsers(
+      [ticket.engineerId, ticket.areaManagerId, ...(await this.escalationRecipients())],
+      'sla.breached',
+      {
+        ticketNumber: ticket.number,
+        ticketTitle: ticket.title,
+        ticketUrl: this.ticketUrl(ticket.id),
+      },
+      ticket.id,
+    );
+  }
+
+  /** A visit was submitted: the area manager (or service managers) hear about it. */
+  async visitSubmitted(ticket: NotifyTicket, visitNumber: number, actor: Actor): Promise<void> {
+    await this.send(
+      'VISIT_SUBMITTED',
+      ticket,
+      await this.managersFor(ticket),
+      `Visit ${visitNumber} submitted on ${ticket.number}`,
+      actor,
+    );
+  }
+
+  /**
+   * An escalation timer fired: the level's recipients hear about it. The caller
+   * computed the recipients (area manager or an admin-chosen role).
+   */
+  async escalated(ticket: NotifyTicket, level: number, userIds: string[]): Promise<void> {
+    await this.send(
+      'TICKET_ESCALATED',
+      ticket,
+      userIds,
+      `Escalated to level ${level}: ${ticket.number}`,
+      undefined,
+      `The assigned engineer did not respond in time. ${ticket.title}`,
+    );
+  }
+
+  /**
+   * A quotation expired: customer support (everyone who can price work) hears
+   * about it, so they can follow up or re-quote.
+   */
+  async quotationExpired(
+    ticket: Pick<NotifyTicket, 'id' | 'number' | 'title'>,
+    quotationNumber: string,
+  ): Promise<void> {
+    const rows = await this.prisma.user.findMany({
+      where: { role: rolesWith('quotations.edit'), status: 'ACTIVE' },
+      select: { id: true },
+    });
+    await this.send(
+      'QUOTATION_EXPIRED',
+      ticket as NotifyTicket,
+      rows.map((r) => r.id),
+      `Quotation ${quotationNumber} expired on ${ticket.number}`,
     );
   }
 }

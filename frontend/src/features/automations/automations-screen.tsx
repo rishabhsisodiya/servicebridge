@@ -1,7 +1,7 @@
 "use client";
 
 import cronstrue from "cronstrue";
-import { CalendarClock, History, Lock, Play, Workflow } from "lucide-react";
+import { CalendarClock, History, Lock, Play, Settings2, Workflow } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import useSWR from "swr";
 import { StatusPill, type Tone } from "@/components/ui/badge";
@@ -15,6 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { useSession } from "@/lib/auth/session";
+import { ROLES_KEY, type RoleRow } from "@/features/roles/api";
+import { AmcSettingsCard } from "@/features/settings/amc-settings";
 
 type RunStatus = "RUNNING" | "SUCCEEDED" | "FAILED" | "SKIPPED";
 
@@ -39,7 +41,15 @@ interface Automation {
   timezone: string;
   nextRunAt: string | null;
   lastRun: JobRun | null;
+  params: { afterMinutes?: number; notifyRoleId?: string | null };
 }
+
+/** Escalation levels that take per-level timer settings. */
+const ESCALATION_PARAMS: Record<string, { level: number; roleBased: boolean; defaultAfterMinutes: number }> = {
+  "escalation-l1": { level: 1, roleBased: false, defaultAfterMinutes: 60 },
+  "escalation-l2": { level: 2, roleBased: true, defaultAfterMinutes: 240 },
+  "escalation-l3": { level: 3, roleBased: true, defaultAfterMinutes: 1440 },
+};
 
 const RUN_STATUS: Record<RunStatus, { label: string; tone: Tone }> = {
   RUNNING: { label: "Running", tone: "prog" },
@@ -90,6 +100,7 @@ export function AutomationsScreen() {
   const [busy, setBusy] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState<Automation | null>(null);
   const [history, setHistory] = useState<Automation | null>(null);
+  const [escalation, setEscalation] = useState<Automation | null>(null);
 
   const fail = (caught: unknown) =>
     toast.error(caught instanceof ApiError ? caught.message : "Something went wrong. Try again.");
@@ -143,6 +154,7 @@ export function AutomationsScreen() {
         title="Automations"
         description="Background work ServiceBridge does on its own. Each one can be switched off. Nothing runs unless there is work to do."
       />
+      {can("company.read") && <AmcSettingsCard />}
       {isLoading && (
         <Card>
           <TableSkeleton rows={3} label="Loading automations" />
@@ -201,6 +213,14 @@ export function AutomationsScreen() {
                           <span>Next: {when(automation.nextRunAt)}</span>
                         )}
                         {!automation.enabled && <span>Switched off</span>}
+                        {ESCALATION_PARAMS[automation.key] && (
+                          <span>
+                            Escalates after{" "}
+                            {automation.params.afterMinutes ??
+                              ESCALATION_PARAMS[automation.key].defaultAfterMinutes}{" "}
+                            min
+                          </span>
+                        )}
                       </p>
                       {last && (
                         <p className="flex flex-wrap items-center gap-2 text-xs">
@@ -242,6 +262,16 @@ export function AutomationsScreen() {
                       >
                         History
                       </Button>
+                      {ESCALATION_PARAMS[automation.key] && canEdit && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          icon={<Settings2 className="size-3.5" aria-hidden />}
+                          onClick={() => setEscalation(automation)}
+                        >
+                          Escalation settings
+                        </Button>
+                      )}
                     </div>
                   </li>
                 );
@@ -253,6 +283,11 @@ export function AutomationsScreen() {
       <ScheduleDialog
         automation={scheduling}
         onClose={() => setScheduling(null)}
+        onSaved={() => void mutate()}
+      />
+      <EscalationParamsDialog
+        automation={escalation}
+        onClose={() => setEscalation(null)}
         onSaved={() => void mutate()}
       />
       <HistoryDrawer automation={history} onClose={() => setHistory(null)} />
@@ -414,5 +449,152 @@ function HistoryDrawer({
         ))}
       </ol>
     </Drawer>
+  );
+}
+
+function EscalationParamsDialog({
+  automation,
+  onClose,
+  onSaved,
+}: {
+  automation: Automation | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  return automation && ESCALATION_PARAMS[automation.key] ? (
+    <EscalationParamsForm
+      key={automation.key}
+      automation={automation}
+      onClose={onClose}
+      onSaved={onSaved}
+    />
+  ) : null;
+}
+
+/**
+ * Per-level escalation settings: how long to wait before escalating, and (for
+ * levels 2 and 3) which role gets notified. Params merge with what's stored,
+ * and 422 field errors land next to the field they belong to.
+ */
+function EscalationParamsForm({
+  automation,
+  onClose,
+  onSaved,
+}: {
+  automation: Automation;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const toast = useToast();
+  const { can } = useSession();
+  const config = ESCALATION_PARAMS[automation.key];
+  const [afterMinutes, setAfterMinutes] = useState(
+    String(automation.params.afterMinutes ?? config.defaultAfterMinutes),
+  );
+  const [notifyRoleId, setNotifyRoleId] = useState(automation.params.notifyRoleId ?? "");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const roles = useSWR<RoleRow[]>(
+    config.roleBased && can("roles.read") ? ROLES_KEY : null,
+    fetcher,
+  );
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await apiFetch(`/automations/${automation.key}`, {
+        method: "PATCH",
+        json: {
+          params: {
+            afterMinutes: Number(afterMinutes),
+            ...(config.roleBased ? { notifyRoleId: notifyRoleId || null } : {}),
+          },
+        },
+      });
+      toast.success(`“${automation.name}” settings saved.`);
+      onSaved();
+      onClose();
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.fields.length) {
+        const fieldErrors: Record<string, string> = {};
+        for (const field of caught.fields) fieldErrors[field.field] = field.message;
+        setErrors(fieldErrors);
+      } else {
+        toast.error(caught instanceof ApiError ? caught.message : "Something went wrong. Try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title={`Escalation settings: ${automation.name}`}
+      description="Each assignment sets its own timer with these settings."
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="escalation-params-form" variant="strong" loading={saving}>
+            Save settings
+          </Button>
+        </>
+      }
+    >
+      <form
+        id="escalation-params-form"
+        onSubmit={submit}
+        noValidate
+        className="flex flex-col gap-4"
+      >
+        <Field
+          label="Wait before escalating"
+          error={errors.afterMinutes}
+          help="Whole minutes from 5 to 10080 (a week)."
+        >
+          {(p) => (
+            <div className="flex items-center gap-2.5">
+              <Input
+                {...p}
+                type="number"
+                min={5}
+                max={10080}
+                step={1}
+                inputMode="numeric"
+                value={afterMinutes}
+                onChange={(e) => setAfterMinutes(e.target.value)}
+                className="max-w-40"
+              />
+              <span className="text-[13px] text-muted">minutes</span>
+            </div>
+          )}
+        </Field>
+        {config.roleBased && (
+          <Field
+            label="Notify this role"
+            error={errors.notifyRoleId}
+            help="Everyone active in this role gets the escalation."
+          >
+            {(p) => (
+              <Select
+                {...p}
+                value={notifyRoleId}
+                disabled={!can("roles.read") || roles.isLoading}
+                onChange={(e) => setNotifyRoleId(e.target.value)}
+              >
+                <option value="">Choose a role…</option>
+                {roles.data?.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        )}
+      </form>
+    </Dialog>
   );
 }

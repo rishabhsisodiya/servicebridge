@@ -113,3 +113,56 @@ describe('AutomationsService.execute', () => {
     expect(data.error).not.toContain(':pw@');
   });
 });
+
+describe('AutomationsService.update params', () => {
+  const actor = { id: 'u1', name: 'Mira' } as never;
+  const client = { ip: '127.0.0.1', requestId: 'r1' } as never;
+
+  function build(validateParams?: (p: Record<string, unknown>) => string[]) {
+    const upsert = jest.fn().mockResolvedValue({ key: 'esc', enabled: true });
+    const prisma = {
+      automationSetting: {
+        findUnique: jest.fn().mockResolvedValue({ key: 'esc', params: { afterMinutes: 60 } }),
+        upsert,
+      },
+    };
+    const audit = { record: jest.fn() };
+    const service = new AutomationsService(
+      prisma as unknown as PrismaService,
+      { register: jest.fn() } as unknown as QueueService,
+      audit as unknown as AuditService,
+    );
+    (service as unknown as { applySchedule: () => Promise<void> }).applySchedule = jest.fn();
+    service.define(
+      {
+        key: 'esc',
+        name: 'Esc',
+        description: '',
+        category: 'Service',
+        queue: 'escalations',
+        kind: 'event',
+        defaultEnabled: false,
+        validateParams,
+      },
+      jest.fn(),
+    );
+    return { service, upsert, audit };
+  }
+
+  it('merges new params over the stored ones and audits the change', async () => {
+    const { service, upsert, audit } = build();
+    await service.update(actor, 'esc', { params: { afterMinutes: 45 } }, client);
+    expect(upsert.mock.calls[0][0].update.params).toEqual({ afterMinutes: 45 });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'automation.updated' }),
+    );
+  });
+
+  it('rejects invalid params before writing anything', async () => {
+    const { service, upsert } = build(() => ['afterMinutes: too small']);
+    await expect(
+      service.update(actor, 'esc', { params: { afterMinutes: 3 } }, client),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+});

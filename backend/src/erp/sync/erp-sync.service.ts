@@ -163,6 +163,23 @@ export class ErpSyncService {
   ) {
     const now = new Date();
     const delegate = this.delegate(spec);
+    // An active local contract owns a machine's AMC dates: the ERP must not
+    // overwrite them (decision: active local contract wins over ERP sync).
+    const erpCovered =
+      spec.table === 'equipment'
+        ? new Set(
+            (
+              await this.prisma.equipment.findMany({
+                where: {
+                  erpConnectionId: connectionId,
+                  erpName: { in: docs.map((doc) => doc.name) },
+                  amcContractLinks: { some: { contract: { status: 'ACTIVE' } } },
+                },
+                select: { erpName: true },
+              })
+            ).map((row) => row.erpName),
+          )
+        : null;
     await this.prisma.$transaction(
       docs.map((doc) => {
         const data = {
@@ -170,10 +187,13 @@ export class ErpSyncService {
           erpModified: erpTimestamp(doc.modified),
           syncedAt: now,
         };
+        const update = { ...data };
+        // The mapped row type is generic per spec; the strip only applies to equipment.
+        if (erpCovered?.has(doc.name)) delete (update as Record<string, unknown>).amcExpiresOn;
         return delegate.upsert({
           where: { erpConnectionId_erpName: { erpConnectionId: connectionId, erpName: doc.name } },
           create: { ...data, source: 'ERP', erpConnectionId: connectionId, erpName: doc.name },
-          update: data,
+          update,
         }) as never;
       }),
     );

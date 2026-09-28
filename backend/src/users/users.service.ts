@@ -7,9 +7,21 @@ import { hashPassword, passwordProblems } from '../core/security/password';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { ADMIN_ROLE_ID } from '../auth/permissions';
 import { SessionsService } from '../auth/sessions.service';
-import { type IssuedLink, UserTokensService } from '../auth/user-tokens.service';
+import { LINK_TTL_MS, type IssuedLink, UserTokensService } from '../auth/user-tokens.service';
+import { EmailService, type TemplateVariables } from '../notifications/email.service';
 import { assertWithinActor } from '../roles/role-access';
 import type { InviteUserDto, ListUsersQuery, UpdateUserDto } from './dto';
+
+/** An invite/reset link plus whether it was emailed (the copy-link path covers the rest). */
+export interface EmailedLink extends IssuedLink {
+  emailed: boolean;
+}
+
+/** "48 hours" from a TTL in milliseconds, for the email templates. */
+const friendlyTtl = (ms: number): string => {
+  const hours = Math.round(ms / 3_600_000);
+  return hours === 1 ? '1 hour' : `${hours} hours`;
+};
 
 export interface UserRow {
   id: string;
@@ -52,7 +64,21 @@ export class UsersService {
     private readonly audit: AuditService,
     private readonly sessions: SessionsService,
     private readonly links: UserTokensService,
+    private readonly email: EmailService,
   ) {}
+
+  /**
+   * Emails an invite/reset link when email is on. Never throws and returns
+   * whether the email was queued; the admin can always copy the link instead.
+   */
+  private async emailLink(
+    to: string,
+    templateKey: 'auth.invite' | 'auth.reset',
+    variables: TemplateVariables,
+  ): Promise<boolean> {
+    const queued = await this.email.queueEmail({ to, templateKey, variables });
+    return queued !== null;
+  }
 
   async list(query: ListUsersQuery) {
     const where: Prisma.UserWhereInput = {
@@ -112,10 +138,10 @@ export class UsersService {
     actor: AuthUser,
     dto: InviteUserDto,
     client: ClientInfo,
-  ): Promise<{ user: UserRow; invite: IssuedLink }> {
+  ): Promise<{ user: UserRow; invite: EmailedLink }> {
     const email = dto.email.trim().toLowerCase();
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         await this.assertRegion(dto.regionId, tx);
         await this.assignableRole(actor, dto.roleId, tx);
         const user = await tx.user.create({
@@ -143,6 +169,12 @@ export class UsersService {
         );
         return { user: toUserRow(user), invite };
       });
+      const emailed = await this.emailLink(email, 'auth.invite', {
+        name: result.user.name,
+        inviteUrl: result.invite.url,
+        expiresIn: friendlyTtl(LINK_TTL_MS.INVITE),
+      });
+      return { user: result.user, invite: { ...result.invite, emailed } };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
         throw new AppException(
@@ -302,8 +334,8 @@ export class UsersService {
   }
 
   /** New invite link for someone who hasn't accepted yet (the old link stops working). */
-  async reissueInvite(actor: AuthUser, id: string, client: ClientInfo): Promise<IssuedLink> {
-    return this.prisma.$transaction(async (tx) => {
+  async reissueInvite(actor: AuthUser, id: string, client: ClientInfo): Promise<EmailedLink> {
+    const link = await this.prisma.$transaction(async (tx) => {
       const user = await this.manageable(actor, id, tx);
       if (user.status !== 'INVITED') {
         throw new AppException(
@@ -325,13 +357,19 @@ export class UsersService {
         },
         tx,
       );
-      return link;
+      return { link, name: user.name, email: user.email };
     });
+    const emailed = await this.emailLink(link.email, 'auth.invite', {
+      name: link.name,
+      inviteUrl: link.link.url,
+      expiresIn: friendlyTtl(LINK_TTL_MS.INVITE),
+    });
+    return { ...link.link, emailed };
   }
 
-  /** Password reset link an admin hands to the user (email delivery arrives in session 12). */
-  async issueResetLink(actor: AuthUser, id: string, client: ClientInfo): Promise<IssuedLink> {
-    return this.prisma.$transaction(async (tx) => {
+  /** A reset link the admin hands to the user; emailed too when email is on. */
+  async issueResetLink(actor: AuthUser, id: string, client: ClientInfo): Promise<EmailedLink> {
+    const result = await this.prisma.$transaction(async (tx) => {
       const user = await this.manageable(actor, id, tx);
       if (user.status !== 'ACTIVE') {
         throw new AppException(
@@ -353,8 +391,14 @@ export class UsersService {
         },
         tx,
       );
-      return link;
+      return { link, name: user.name, email: user.email };
     });
+    const emailed = await this.emailLink(result.email, 'auth.reset', {
+      name: result.name,
+      resetUrl: result.link.url,
+      expiresIn: friendlyTtl(LINK_TTL_MS.PASSWORD_RESET),
+    });
+    return { ...result.link, emailed };
   }
 
   /** Used by the admin:create command to bootstrap an install. */

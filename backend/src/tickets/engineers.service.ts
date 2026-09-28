@@ -17,7 +17,7 @@ export const WORKLOAD_STAGES: TicketStage[] = [
   'ON_HOLD',
 ];
 /** Stages that mean the engineer is at a site right now. */
-const VISIT_STAGES: TicketStage[] = ['ON_SITE', 'IN_PROGRESS'];
+export const VISIT_STAGES: TicketStage[] = ['ON_SITE', 'IN_PROGRESS'];
 
 export const DUTY_LABELS: Record<DutyStatus, string> = {
   ON_DUTY: 'On duty',

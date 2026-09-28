@@ -35,7 +35,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col bg-rail text-rail-text">
       <div className="px-4 pt-4 pb-3">
-        <Link href="/" onClick={onNavigate} className="rounded-lg" aria-label="ServiceBridge home">
+        <Link href="/" onClick={onNavigate} className="inline-block rounded-lg" aria-label="ServiceBridge home">
           <BrandMark />
         </Link>
       </div>

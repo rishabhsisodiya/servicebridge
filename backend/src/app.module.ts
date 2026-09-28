@@ -7,12 +7,15 @@ import { CoreModule } from './core/core.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { ServiceRulesModule } from './service-rules/service-rules.module';
 import { TicketsModule } from './tickets/tickets.module';
+import { VisitsModule } from './visits/visits.module';
+import { QuotationsModule } from './quotations/quotations.module';
 import { DemoModule } from './demo/demo.module';
 import { ErpModule } from './erp/erp.module';
 import { SystemModule } from './system/system.module';
 import { AppConfig } from './core/config/app-config.service';
 import { HealthModule } from './core/health/health.module';
-import { buildLoggerParams } from './core/logging/logging.config';
+import { AmcModule } from './amc/amc.module';
+import { FeedbackModule } from './feedback/feedback.module';import { buildLoggerParams } from './core/logging/logging.config';
 import { PrismaModule } from './core/prisma/prisma.module';
 import { RedisModule } from './core/redis/redis.module';
 
@@ -39,6 +42,10 @@ import { RedisModule } from './core/redis/redis.module';
     CatalogModule,
     ServiceRulesModule,
     TicketsModule,
+    VisitsModule,
+    QuotationsModule,
+    AmcModule,
+    FeedbackModule,
   ],
 })
 export class AppModule {}

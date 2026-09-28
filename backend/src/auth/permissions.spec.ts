@@ -49,20 +49,36 @@ describe('built-in roles', () => {
     }
   });
 
-  it('match the rows the roles migration inserts', () => {
+  it('match the rows the migrations produce', () => {
     const dir = join(__dirname, '../../prisma/migrations');
-    const folder = readdirSync(dir).find((d) => d.endsWith('_custom_roles'));
-    const sql = readFileSync(join(dir, folder as string, 'migration.sql'), 'utf8');
+    const folders = readdirSync(dir)
+      .filter((d) => /^\d+_/.test(d))
+      .sort();
+    const baselineFolder = folders.find((d) => d.endsWith('_custom_roles')) as string;
+    const baseline = readFileSync(join(dir, baselineFolder, 'migration.sql'), 'utf8');
+    // Later migrations may only ADD permissions to built-in roles, never remove.
+    const added: Record<string, string[]> = {};
+    for (const folder of folders) {
+      if (folder <= baselineFolder) continue;
+      const sql = readFileSync(join(dir, folder, 'migration.sql'), 'utf8');
+      for (const m of sql.matchAll(
+        /UPDATE\s+"Role"[\s\S]*?ARRAY\[([^\]]*)\][\s\S]*?WHERE\s+"id"\s*=\s*'([^']+)'/g,
+      )) {
+        const perms = [...m[1].matchAll(/'([^']+)'/g)].map((x) => x[1]);
+        added[m[2]] = [...(added[m[2]] ?? []), ...perms];
+      }
+    }
     for (const role of BUILT_IN_ROLES) {
       const row = new RegExp(
         `\\('${role.id}', '${role.key}', '${role.name}', (true|false),\\s*ARRAY\\[([^\\]]*)\\](?:::TEXT\\[\\])?,\\s*'(\\w+)'`,
-      ).exec(sql);
+      ).exec(baseline);
       expect(row).not.toBeNull();
       const [, locked, list, scope] = row as RegExpExecArray;
       expect(locked === 'true').toBe(!!role.isLocked);
       expect(scope).toBe(role.ticketScope);
-      const stored = [...list.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
-      expect(stored).toEqual([...role.permissions].sort());
+      const stored = [...list.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+      const expected = [...new Set([...stored, ...(added[role.id] ?? [])])].sort();
+      expect(expected).toEqual([...role.permissions].sort());
     }
   });
 });

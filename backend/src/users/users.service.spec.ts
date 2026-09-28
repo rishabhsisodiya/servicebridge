@@ -99,6 +99,7 @@ function build(
     audit as unknown as AuditService,
     sessions as unknown as SessionsService,
     {} as UserTokensService,
+    { queueEmail: jest.fn().mockResolvedValue(null) } as never,
   );
   return { service, tx, sessions, audit };
 }

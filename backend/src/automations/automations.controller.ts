@@ -10,7 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsObject, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { Client, CurrentUser, RequirePermissions } from '../auth/decorators';
 import { AutomationsService } from './automations.service';
@@ -29,6 +29,11 @@ class UpdateAutomationDto {
   @IsString()
   @MaxLength(64)
   timezone?: string;
+
+  /** Per-automation settings (e.g. escalation timers); validated by the automation itself. */
+  @IsOptional()
+  @IsObject()
+  params?: Record<string, unknown>;
 }
 
 class RunsQuery {

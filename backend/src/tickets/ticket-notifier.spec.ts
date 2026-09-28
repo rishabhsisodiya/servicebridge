@@ -10,10 +10,16 @@ function build() {
     }),
   };
   const prisma = {
-    user: { findMany: jest.fn(() => Promise.resolve([{ id: 'sm1' }, { id: 'sm2' }])) },
+    user: {
+      findMany: jest.fn(() => Promise.resolve([{ id: 'sm1' }, { id: 'sm2' }])),
+      findUnique: jest.fn(() => Promise.resolve(null)),
+    },
   };
-  const notifier = new TicketNotifier(prisma as never, notifications as never);
-  return { notifier, sent };
+  const email = { queueEmail: jest.fn().mockResolvedValue(null) };
+  const notifier = new TicketNotifier(prisma as never, notifications as never, email as never, {
+    get: () => 'https://app.example.com',
+  } as never);
+  return { notifier, sent, email };
 }
 
 const ticket = {
@@ -79,5 +85,20 @@ describe('TicketNotifier', () => {
     const { notifier, sent } = build();
     await notifier.action('arrive', ticket, ticket, { id: 'eng1', name: 'Farhan' }, null);
     expect(sent).toEqual([]);
+  });
+
+  it('emails the new engineer on assignment when they have an email address', async () => {
+    const { notifier, email } = build();
+    const prisma = (notifier as unknown as { prisma: { user: { findMany: jest.Mock; findUnique: jest.Mock } } }).prisma;
+    prisma.user.findUnique.mockResolvedValue({ id: 'eng2', name: 'Farhan' });
+    prisma.user.findMany.mockResolvedValue([{ email: 'farhan@example.com' }]);
+    await notifier.action('assign', ticket, { ...ticket, engineerId: 'eng2' }, manager, null);
+    expect(email.queueEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: 'farhan@example.com',
+        templateKey: 'ticket.assigned',
+        variables: expect.objectContaining({ assigneeName: 'Farhan', ticketNumber: 'SB-26-000001' }),
+      }),
+    );
   });
 });

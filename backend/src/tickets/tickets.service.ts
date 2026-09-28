@@ -13,6 +13,8 @@ import { AppException, validationFailed } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { roleGrants } from '../roles/role-filters';
 import { AppSettingsService } from '../demo/app-settings.service';
+import { CsatService } from '../feedback/csat.service';
+import { EmailService } from '../notifications/email.service';
 import { addBusinessMinutes, businessMinutesBetween } from '../service-rules/business-calendar';
 import { assertVersion } from '../service-rules/common';
 import { RegionsService } from '../service-rules/regions.service';
@@ -27,6 +29,9 @@ import type {
 import { rankEngineers } from './assignment';
 import { AutoAssignService } from './auto-assign.service';
 import { EngineersService } from './engineers.service';
+import { EscalationTimersService } from './escalation-timers.service';
+import { findPoBlockingQuotation } from '../quotations/po-gate';
+import { WritebacksService } from '../erp/writebacks/writebacks.service';
 import { SlaTimersService } from './sla-timers.service';
 import { TicketNotifier } from './ticket-notifier';
 import { slaFields, slaStatus } from './sla';
@@ -104,6 +109,10 @@ export class TicketsService {
     private readonly engineers: EngineersService,
     private readonly notifier: TicketNotifier,
     private readonly autoAssign: AutoAssignService,
+    private readonly writebacks: WritebacksService,
+    private readonly csat: CsatService,
+    private readonly email: EmailService,
+    private readonly escalations: EscalationTimersService,
   ) {}
 
   /** Labels and choices every ticket screen needs (any user who can see tickets). */
@@ -380,8 +389,10 @@ export class TicketsService {
     return `${NUMBER_PREFIX}-${String(year % 100).padStart(2, '0')}-${String(counter.last).padStart(6, '0')}`;
   }
 
-  async create(user: AuthUser, dto: CreateTicketDto) {
+  async create(user: AuthUser, dto: CreateTicketDto, opts?: { createdById?: string | null }) {
     const now = new Date();
+    // Automation-created tickets (AMC visits) belong to ServiceBridge itself, not a person.
+    const createdById = opts && 'createdById' in opts ? opts.createdById : user.id;
     const result = await this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findUnique({
         where: { id: dto.customerId },
@@ -472,13 +483,13 @@ export class TicketsService {
           coverageUntil: cover.until,
           regionId: region?.id ?? null,
           areaManagerId: region?.areaManagerId ?? null,
-          createdById: user.id,
+          createdById,
           isDemo: customer.source === 'DEMO',
           ...sla,
           ...slaFields(base),
           events: {
             create: [
-              { type: 'CREATED', actorId: user.id, toStage: 'NEW', data: { channel: dto.channel } },
+              { type: 'CREATED', actorId: createdById, toStage: 'NEW', data: { channel: dto.channel } },
               {
                 type: 'ROUTED',
                 data: region
@@ -498,6 +509,7 @@ export class TicketsService {
     });
     const { created: ticket, regionName } = result;
     await this.timers.sync(ticket);
+    await this.escalations.sync(ticket);
     await this.notifier.created(ticket, user, regionName);
     await this.autoAssign.queue(ticket.id);
     return { id: ticket.id, number: ticket.number };
@@ -628,8 +640,23 @@ export class TicketsService {
         }
         case 'triage':
         case 'arrive':
-        case 'start':
           break;
+        case 'start': {
+          // Session 10 (approved): the PO gate. When switched on, work can't
+          // start while a SENT quotation on the ticket is waiting for a PO.
+          const gate = await this.settings.quotations();
+          if (gate.requirePoBeforeWork) {
+            const blocker = await findPoBlockingQuotation(tx, t.id);
+            if (blocker) {
+              throw new AppException(
+                'PO_REQUIRED',
+                `Work can't start on ${t.number} until a purchase order is recorded for quotation ${blocker}.`,
+                HttpStatus.CONFLICT,
+              );
+            }
+          }
+          break;
+        }
       }
 
       const merged = { ...t, ...changes } as Ticket;
@@ -648,12 +675,62 @@ export class TicketsService {
           data: eventData,
         },
       });
-      return { before: t, row };
+      // Closing mints the feedback token in the same transaction, so the link
+      // and the close commit together. The invite email goes out afterwards.
+      const feedback =
+        dto.action === 'close' ? await this.csat.createToken(t.id, tx) : null;
+      return { before: t, row, feedback };
     });
-    const { before, row: updated } = outcome;
+    const { before, row: updated, feedback } = outcome;
     await this.timers.sync(updated);
+    await this.escalations.sync(updated);
     await this.notifier.action(dto.action, before, updated, user, note);
-    return this.detail(user, updated.id);
+    // Session 11: queue the ERP sales invoice when the trigger action fires.
+    // Never throws, so ticket work is never blocked by write-back queueing.
+    // Demo tickets never write back.
+    if ((dto.action === 'close' || dto.action === 'verify') && !updated.isDemo) {
+      await this.writebacks.onTicketAction(dto.action, updated, user.id);
+    }
+    const detail = await this.detail(user, updated.id);
+    if (!feedback) return detail;
+    // Both paths: the closer gets a copyable link, and the customer is emailed
+    // when SMTP is on and we have their address.
+    const feedbackEmailed = await this.sendCsatInvite(updated.id, feedback);
+    return { ...detail, feedbackUrl: feedback.url, feedbackEmailed };
+  }
+
+  /**
+   * Emails the feedback link to the customer. Never throws and returns whether
+   * an email was queued; the copy-link path in the action response covers the
+   * customer-not-found / email-off cases.
+   */
+  private async sendCsatInvite(
+    ticketId: string,
+    feedback: { tokenId: string; url: string },
+  ): Promise<boolean> {
+    try {
+      const ticket = await this.prisma.ticket.findUnique({
+        where: { id: ticketId },
+        select: { number: true, customer: { select: { name: true, email: true } } },
+      });
+      const address = ticket?.customer.email?.trim();
+      if (!ticket || !address) return false;
+      const queued = await this.email.queueEmail({
+        to: address,
+        templateKey: 'csat.invite',
+        variables: {
+          customerName: ticket.customer.name,
+          ticketNumber: ticket.number,
+          feedbackUrl: feedback.url,
+        },
+        ticketId,
+      });
+      if (!queued) return false;
+      await this.csat.markEmailed(feedback.tokenId);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async update(user: AuthUser, idOrNumber: string, dto: UpdateTicketDto) {

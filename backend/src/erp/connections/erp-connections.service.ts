@@ -436,6 +436,25 @@ export class ErpConnectionsService {
     return toView(updated);
   }
 
+  /**
+   * Read-only probe for the write-back setup check: tests the connection
+   * without rate-limiting and without changing its stored status.
+   */
+  async probeForSetup(id: string): Promise<{
+    view: ConnectionView;
+    result: ConnectionTestResult;
+    credentials: ErpCredentials;
+    allowPrivateHosts: boolean;
+  }> {
+    const row = await this.get(id);
+    const credentials = await this.credentialsFor(row);
+    const result = await testConnection(credentials, {
+      allowPrivateHosts: this.allowPrivateHosts,
+      record: this.requestLog.record,
+    });
+    return { view: toView(row), result, credentials, allowPrivateHosts: this.allowPrivateHosts };
+  }
+
   async setEnabled(
     actor: AuthUser,
     id: string,
