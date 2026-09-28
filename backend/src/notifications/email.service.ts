@@ -99,6 +99,15 @@ export const EMAIL_TEMPLATE_SEEDS: TemplateSeed[] = [
       'Contract {{contractNumber}} for {{customerName}} ends on {{endsOn}} — {{daysLeft}} days from now.\n\nPlease follow up on the renewal.\n\n— {{companyName}}',
     enabled: true,
   },
+  {
+    key: 'report.scheduled',
+    name: 'Scheduled report',
+    subject: '[{{companyName}}] {{scheduleName}} — {{reportLabel}}',
+    bodyHtml: `<p>Hi,</p><p>Your scheduled report <strong>{{scheduleName}}</strong> ({{reportLabel}}) ran with {{rowCount}} rows.</p><p>{{summary}}</p><p>{{downloadNote}}</p><p>— {{companyName}}</p>`,
+    bodyText:
+      'Hi,\n\nYour scheduled report {{scheduleName}} ({{reportLabel}}) ran with {{rowCount}} rows.\n\n{{summary}}\n\n{{downloadNote}}\n\n— {{companyName}}',
+    enabled: true,
+  },
 ];
 
 /** Renders `{{variable}}` placeholders; unknown variables render empty. Pure. */
@@ -114,6 +123,20 @@ export interface QueuedEmail {
   templateKey: string;
   variables: TemplateVariables;
   ticketId?: string;
+  /**
+   * Optional attachments, delivered with the email. Content is base64-encoded;
+   * it travels with the BullMQ job data (not the database), so keep it small —
+   * callers cap attachments themselves (scheduled reports: 5 MB).
+   */
+  attachments?: EmailAttachment[];
+}
+
+/** One file attached to a queued email. */
+export interface EmailAttachment {
+  filename: string;
+  /** Base64-encoded file bytes. */
+  content: string;
+  contentType: string;
 }
 
 /**
@@ -133,8 +156,10 @@ export class EmailService implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.queues.register('notifications', SEND_EMAIL_JOB, async (job: Job<{ emailLogId: string }>) =>
-      this.deliver(job),
+    this.queues.register(
+      'notifications',
+      SEND_EMAIL_JOB,
+      async (job: Job<{ emailLogId: string; attachments?: EmailAttachment[] }>) => this.deliver(job),
     );
     void this.seedTemplates().catch((error: Error) =>
       this.logger.error(`Could not seed email templates: ${error.message}`),
@@ -180,7 +205,7 @@ export class EmailService implements OnModuleInit {
       });
       await this.queues.queue('notifications').add(
         SEND_EMAIL_JOB,
-        { emailLogId: log.id },
+        { emailLogId: log.id, attachments: input.attachments },
         {
           jobId: emailJobId(log.id),
           attempts: EMAIL_ATTEMPTS,
@@ -235,7 +260,13 @@ export class EmailService implements OnModuleInit {
 
   private async send(
     credentials: EmailSettings & { password: string | null },
-    mail: { to: string; subject: string; html: string; text: string },
+    mail: {
+      to: string;
+      subject: string;
+      html: string;
+      text: string;
+      attachments?: EmailAttachment[];
+    },
   ): Promise<void> {
     const from = credentials.fromName
       ? `"${credentials.fromName}" <${credentials.fromAddress}>`
@@ -246,10 +277,15 @@ export class EmailService implements OnModuleInit {
       subject: mail.subject,
       html: mail.html,
       text: mail.text,
+      attachments: mail.attachments?.map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.content, 'base64'),
+        contentType: a.contentType,
+      })),
     });
   }
 
-  private async deliver(job: Job<{ emailLogId: string }>): Promise<string> {
+  private async deliver(job: Job<{ emailLogId: string; attachments?: EmailAttachment[] }>): Promise<string> {
     const log = await this.prisma.emailLog.findUnique({ where: { id: job.data.emailLogId } });
     if (!log) return 'Skipped: email log row no longer exists';
     if (log.status === 'SENT') return 'Skipped: already sent';
@@ -267,6 +303,7 @@ export class EmailService implements OnModuleInit {
         subject: log.subject,
         html: log.bodyHtml,
         text: log.bodyText,
+        attachments: job.data.attachments,
       });
       await this.prisma.emailLog.update({
         where: { id: log.id },

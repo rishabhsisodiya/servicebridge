@@ -98,7 +98,7 @@ export function QuotationsBrowser({ initialSearch = "" }: { initialSearch?: stri
             <button
               type="button"
               onClick={clear}
-              className="text-[13px] font-semibold text-accent underline underline-offset-2"
+              className="text-[13px] font-semibold text-accent-ink underline underline-offset-2"
             >
               Clear
             </button>

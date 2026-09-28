@@ -37,6 +37,11 @@ const ALL = [
   "system.read",
   "system.edit",
   "audit.read",
+  "partner.read",
+  "partner.edit",
+  "imports.read",
+  "imports.edit",
+  "audit.edit",
   "tickets.assign",
   "tickets.verify",
   "demo.manage",
@@ -2002,6 +2007,156 @@ const server = createServer(async (req, res) => {
     row.attempts += 1;
     row.error = null;
     return send(res, 200, { id: row.id, status: row.status });
+  }
+
+  // Session 14: reports fixtures for the Playwright/axe sweep.
+  if (path === "/api/v1/reports" && req.method === "GET") {
+    return send(res, 200, [
+      {
+        key: "ticket-volume-ageing",
+        label: "Ticket volume & ageing",
+        description: "Tickets logged in the period, with age and age bucket for open ones.",
+        params: [
+          { key: "from", label: "From", type: "date" },
+          { key: "to", label: "To", type: "date" },
+          { key: "regionId", label: "Region", type: "select" },
+          {
+            key: "priority",
+            label: "Priority",
+            type: "select",
+            options: [
+              { value: "P1", label: "P1" },
+              { value: "P2", label: "P2" },
+            ],
+          },
+        ],
+      },
+      {
+        key: "sla-compliance",
+        label: "SLA compliance",
+        description: "Response and resolution SLA outcomes for tickets closed in the period.",
+        params: [
+          { key: "from", label: "From", type: "date" },
+          { key: "to", label: "To", type: "date" },
+          { key: "regionId", label: "Region", type: "select" },
+        ],
+      },
+      {
+        key: "engineer-performance",
+        label: "Engineer performance",
+        description: "Workload, resolution speed and SLA outcomes per engineer for the period.",
+        params: [
+          { key: "from", label: "From", type: "date" },
+          { key: "to", label: "To", type: "date" },
+          { key: "regionId", label: "Region", type: "select" },
+        ],
+      },
+      {
+        key: "quotation-pipeline",
+        label: "Quotation pipeline",
+        description: "Quotations created in the period, with values and pipeline status.",
+        params: [
+          { key: "from", label: "From", type: "date" },
+          { key: "to", label: "To", type: "date" },
+        ],
+      },
+      {
+        key: "csat-summary",
+        label: "CSAT summary",
+        description: "Customer satisfaction ratings received in the period.",
+        params: [
+          { key: "from", label: "From", type: "date" },
+          { key: "to", label: "To", type: "date" },
+        ],
+      },
+    ]);
+  }
+  const reportRun = path.match(/^\/api\/v1\/reports\/([^/]+)\/run$/);
+  if (reportRun && req.method === "POST") {
+    return send(res, 200, {
+      reportKey: reportRun[1],
+      label: "Ticket volume & ageing",
+      columns: [
+        { key: "ticket", label: "Ticket" },
+        { key: "title", label: "Title" },
+        { key: "customer", label: "Customer" },
+      ],
+      rows: [
+        {
+          ticket: "SB-26-000415",
+          title: "Conveyor belt snapped",
+          customer: "Apex Crushing Systems (Demo)",
+        },
+      ],
+      total: 1,
+      truncated: false,
+      summary: {},
+    });
+  }
+  if (path === "/api/v1/reports/kpi" && req.method === "GET") {
+    return send(res, 200, {
+      from: "2026-08-30",
+      to: "2026-09-28",
+      rows: [
+        {
+          regionId: "r1",
+          regionName: "Jaipur",
+          kpis: [
+            { key: "sla-compliance", label: "SLA compliance", value: 96, target: 95, unit: "%", better: "higher", met: true },
+            { key: "avg-resolution-hours", label: "Avg resolution time", value: 41, target: 48, unit: "h", better: "lower", met: true },
+            { key: "reopen-rate", label: "Reopen rate", value: 3, target: 5, unit: "%", better: "lower", met: true },
+            { key: "csat-average", label: "CSAT average", value: 4.6, target: 4.5, unit: "/5", better: "higher", met: true },
+            { key: "backlog-change", label: "Backlog change", value: -2, target: 0, unit: "", better: "lower", met: true },
+            { key: "visit-completion", label: "Visit completion", value: 100, target: 100, unit: "%", better: "higher", met: true },
+          ],
+        },
+      ],
+    });
+  }
+  if (path === "/api/v1/reports/kpi/targets" && req.method === "GET") {
+    return send(res, 200, {
+      "sla-compliance": { target: 95, regions: {} },
+      "avg-resolution-hours": { target: 48, regions: {} },
+      "reopen-rate": { target: 5, regions: {} },
+      "csat-average": { target: 4.5, regions: {} },
+      "backlog-change": { target: 0, regions: {} },
+      "visit-completion": { target: 100, regions: {} },
+    });
+  }
+  if (path === "/api/v1/report-schedules" && req.method === "GET") {
+    return send(res, 200, [
+      {
+        id: "rs-1",
+        name: "Weekly SLA digest",
+        reportKey: "sla-compliance",
+        params: { from: "2026-09-21", to: "2026-09-28" },
+        cron: "0 9 * * 1",
+        timezone: "Asia/Calcutta",
+        recipients: ["u-admin"],
+        active: true,
+        lastRunAt: "2026-09-28T03:30:00.000Z",
+        createdBy: { id: "u-admin", name: "Test Admin" },
+        version: 1,
+        createdAt: "2026-09-20T09:00:00.000Z",
+      },
+    ]);
+  }
+  const scheduleRuns = path.match(/^\/api\/v1\/report-schedules\/([^/]+)\/runs$/);
+  if (scheduleRuns && req.method === "GET") {
+    return send(res, 200, [
+      {
+        id: "rr-1",
+        reportKey: "sla-compliance",
+        trigger: "SCHEDULE",
+        status: "SUCCESS",
+        rowCount: 42,
+        error: null,
+        startedAt: "2026-09-28T03:30:00.000Z",
+        finishedAt: "2026-09-28T03:30:05.000Z",
+        csvKey: null,
+        requestedBy: { id: "u-admin", name: "Test Admin" },
+      },
+    ]);
   }
 
   fail(res, 404, "NOT_FOUND", "Not found");

@@ -114,7 +114,7 @@ export function AmcBrowser({ initialSearch = "" }: { initialSearch?: string }) {
             <button
               type="button"
               onClick={clear}
-              className="text-[13px] font-semibold text-accent underline underline-offset-2"
+              className="text-[13px] font-semibold text-accent-ink underline underline-offset-2"
             >
               Clear
             </button>
@@ -160,7 +160,7 @@ export function AmcBrowser({ initialSearch = "" }: { initialSearch?: string }) {
                     <Td className="font-mono whitespace-nowrap">
                       <Link
                         href={`/amc/${contract.id}`}
-                        className="font-semibold text-accent underline-offset-2 hover:underline"
+                        className="font-semibold text-accent-ink underline-offset-2 hover:underline"
                       >
                         {contract.number}
                       </Link>

@@ -45,13 +45,17 @@ export const PERMISSIONS = [
   'system.read',
   'system.edit',
   'audit.read',
+  'partner.read',
+  'partner.edit',
+  'imports.read',
+  'imports.edit',
+  'audit.edit',
   // Workflow actions
   'tickets.assign',
   'tickets.work',
   'tickets.verify',
   'tickets.escalations',
   'demo.manage',
-  // Planned screens (AMC, reports); their sessions add grid rows
   'amc.read',
   'amc.edit',
   'reports.read',
@@ -126,7 +130,25 @@ export const RECORD_TYPES: RecordType[] = [
     ops: ['read', 'edit'],
     hint: 'Edit retries, pauses and cleans queued jobs.',
   },
-  { key: 'audit', label: 'Audit log', ops: ['read'] },
+  { key: 'audit', label: 'Audit log', ops: ['read', 'edit'] },
+  {
+    key: 'partner',
+    label: 'Partner API keys',
+    ops: ['read', 'edit'],
+    hint: 'Keys for partners who log tickets.',
+  },
+  {
+    key: 'imports',
+    label: 'Bulk import',
+    ops: ['read', 'edit'],
+    hint: 'Load customers or machines from CSV.',
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    ops: ['read'],
+    hint: 'Run and export service reports, see the KPI matrix.',
+  },
 ];
 
 export interface ActionType {
@@ -157,10 +179,15 @@ export const ACTION_TYPES: ActionType[] = [
     hint: 'Alerts for tickets with no region or area manager, and SLA breaches.',
   },
   { key: 'demo.manage', label: 'Manage demo data', hint: 'Load and clear demo data.' },
+  {
+    key: 'reports.schedule',
+    label: 'Schedule reports',
+    hint: 'Create and manage automatic report deliveries; edit KPI targets.',
+  },
 ];
 
 /** Kept for built-in roles until their screens are built; not shown in the grid. */
-export const PLANNED_PERMISSIONS: Permission[] = ['reports.read', 'reports.schedule'];
+export const PLANNED_PERMISSIONS: Permission[] = [];
 
 /**
  * Administrator has everything except the two actions that put someone into a
@@ -255,6 +282,12 @@ export const BUILT_IN_ROLES: BuiltInRole[] = [
       'amc.edit',
       'reports.read',
       'reports.schedule',
+      'partner.read',
+      'partner.edit',
+      'imports.read',
+      'imports.edit',
+      'audit.read',
+      'audit.edit',
     ],
   },
   {
@@ -274,6 +307,7 @@ export const BUILT_IN_ROLES: BuiltInRole[] = [
       'quotations.delete',
       'writebacks.read',
       'amc.read',
+      'reports.read',
     ],
   },
   {

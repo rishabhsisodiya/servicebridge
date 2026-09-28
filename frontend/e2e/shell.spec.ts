@@ -27,6 +27,12 @@ const BUILT_PAGES = [
   "/account",
   "/customers",
   "/settings/service-rules",
+  "/reports",
+  "/reports/kpi",
+  "/reports/schedules",
+  "/settings/partner-keys",
+  "/settings/import",
+  "/settings/audit-log",
 ];
 
 async function expectNoA11yViolations(page: Page) {
@@ -59,12 +65,6 @@ test.describe("navigation", () => {
     await expect(crumbs.getByText("SB-26-000415")).toHaveAttribute("aria-current", "page");
     // Focus moves to the new page's heading after client navigation.
     await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
-  });
-
-  test("planned screens explain when they arrive", async ({ page }) => {
-    await page.goto("/settings/audit-log");
-    await expect(page.getByRole("heading", { name: "Audit log", level: 1 })).toBeVisible();
-    await expect(page.getByText(/build session 15/)).toBeVisible();
   });
 
   test("unknown addresses show the not-found page", async ({ page }) => {

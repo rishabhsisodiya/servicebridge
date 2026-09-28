@@ -126,6 +126,7 @@ model User {
   ticketsAssigned       Ticket[]           @relation("TicketEngineer")
   ticketsManaged        Ticket[]           @relation("TicketAreaManager")
   ticketsLogged         Ticket[]           @relation("TicketCreatedBy")
+  partnerApiKeys        PartnerApiKey[]
   ticketEvents          TicketEvent[]
   ticketFiles           TicketAttachment[]
   notifications         Notification[]
@@ -137,6 +138,8 @@ model User {
   preferredAmcContracts AmcContract[]      @relation("AmcPreferredEngineer")
   amcContractsCreated   AmcContract[]      @relation("AmcContractCreatedBy")
   pushTokens            PushToken[]
+  reportSchedules       ReportSchedule[]   @relation("ReportScheduleCreatedBy")
+  reportRuns            ReportRun[]        @relation("ReportRunRequestedBy")
 
   @@index([roleId])
   @@index([status])
@@ -206,11 +209,15 @@ model AuditLog {
   changes    Json?
   ip         String?
   requestId  String?
+  /// Partner API key behind this change, if any.
+  partnerKeyId String?
+  partnerKey   PartnerApiKey? @relation(fields: [partnerKeyId], references: [id], onDelete: SetNull)
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
   @@index([entityType, entityId])
   @@index([actorId])
+  @@index([partnerKeyId])
 }
 
 // ─── ERP connections ────────────────────────────────────────────────────────
@@ -406,6 +413,65 @@ model JobRun {
   @@index([status])
 }
 
+// ─── Reports (session 14) ────────────────────────────────────────────────────
+// One repeatable BullMQ job per active schedule (fixed id `report-schedule-<id>`);
+// the worker re-reads the row and skips inactive/deleted ones. Every schedule is
+// its own switch, off by default.
+
+enum ReportTrigger {
+  MANUAL
+  SCHEDULE
+}
+
+enum ReportRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model ReportSchedule {
+  id          String   @id @default(cuid())
+  name        String
+  reportKey   String
+  params      Json
+  cron        String
+  timezone    String   @default("Asia/Kolkata")
+  /// User ids of recipients; each must have an email address.
+  recipients  Json
+  active      Boolean  @default(false)
+  lastRunAt   DateTime?
+  createdById String?
+  createdBy   User?    @relation("ReportScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  /// Optimistic locking: edits must send the version they read.
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  runs        ReportRun[]
+
+  @@index([active])
+}
+
+model ReportRun {
+  id            String          @id @default(cuid())
+  scheduleId    String?
+  schedule      ReportSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  reportKey     String
+  params        Json
+  trigger       ReportTrigger
+  status        ReportRunStatus @default(RUNNING)
+  rowCount      Int             @default(0)
+  /// StorageService key of the generated CSV (`reports/<runId>.csv`), if kept.
+  csvKey        String?
+  error         String?         @db.Text
+  requestedById String?
+  requestedBy   User?           @relation("ReportRunRequestedBy", fields: [requestedById], references: [id], onDelete: SetNull)
+  startedAt     DateTime        @default(now())
+  finishedAt    DateTime?
+
+  @@index([scheduleId, startedAt])
+  @@index([status])
+}
+
 // ─── Master data mirrored from the ERP ──────────────────────────────────────
 // Read-only copies. `source` says where a row came from; ERP rows are keyed by
 // (erpConnectionId, erpName). Rows missing from the ERP are marked inactive,
@@ -415,6 +481,7 @@ enum RecordSource {
   DEMO
   ERP
   LOCAL
+  IMPORT
 }
 
 model Customer {
@@ -874,6 +941,11 @@ model Ticket {
   duplicateOfId      String?
   duplicateOf        Ticket?            @relation("TicketDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
   duplicates         Ticket[]           @relation("TicketDuplicate")
+  /// Partner API key that logged this ticket, if any.
+  partnerKeyId       String?
+  partnerKey         PartnerApiKey?     @relation(fields: [partnerKeyId], references: [id], onDelete: SetNull)
+  /// The partner's own reference — idempotency key, unique per partner key.
+  externalRef        String?
   isDemo             Boolean            @default(false)
   version            Int                @default(1)
   createdAt          DateTime           @default(now())
@@ -888,6 +960,7 @@ model Ticket {
   emailLogs          EmailLog[]
   plannedVisits      AmcPlannedVisit[]
 
+  @@unique([partnerKeyId, externalRef])
   @@index([stage, priority])
   @@index([engineerId, stage])
   @@index([areaManagerId, stage])
@@ -896,6 +969,30 @@ model Ticket {
   @@index([customerId, createdAt])
   @@index([createdAt])
   @@index([slaRiskAt])
+}
+
+model PartnerApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  /// SHA-256 hex of the key. The key itself is never stored.
+  keyHash     String    @unique
+  /// Non-secret prefix (e.g. "sbp_9f2k…") shown in the UI for identification.
+  keyPrefix   String
+  /// Permission names granted to this key; validated as a subset of the
+  /// creator's own permissions when the key is created.
+  scopes      String[]
+  createdById String?
+  createdBy   User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  tickets   Ticket[]
+  auditLogs AuditLog[]
+
+  @@index([createdById])
 }
 
 model TicketEvent {
