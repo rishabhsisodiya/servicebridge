@@ -11,6 +11,10 @@ const ALL = [
   "tickets.read",
   "tickets.create",
   "tickets.edit",
+  "visits.read",
+  "visits.create",
+  "visits.edit",
+  "visits.delete",
   "customers.read",
   "equipment.read",
   "items.read",
@@ -38,7 +42,12 @@ const ALL = [
   "demo.manage",
   "amc.read",
   "amc.edit",
+  "quotations.read",
+  "quotations.create",
   "quotations.edit",
+  "quotations.delete",
+  "writebacks.read",
+  "writebacks.edit",
   "reports.read",
   "reports.schedule",
 ];
@@ -48,7 +57,16 @@ const ROLES = {
     id: "role_engineer",
     label: "Service engineer",
     ticketScope: "OWN",
-    permissions: ["tickets.read", "tickets.work", "equipment.read", "items.read"],
+    permissions: [
+      "tickets.read",
+      "tickets.work",
+      "equipment.read",
+      "items.read",
+      "visits.read",
+      "visits.create",
+      "visits.edit",
+      "visits.delete",
+    ],
   },
   // A custom role that may look at users and roles but not change them.
   VIEWER: {
@@ -106,6 +124,94 @@ function erpState(session) {
     });
   }
   return erpStates.get(session);
+}
+// ── ERP write-backs (in memory, per test session) ──
+const writebackStates = new Map();
+function writebackState(session) {
+  if (!writebackStates.has(session)) {
+    writebackStates.set(session, {
+      settings: {
+        invoiceTriggers: ["close"],
+        defaultWarehouseId: "wh-local-1",
+        stockEntryAsDraft: true,
+        invoiceTaxTemplate: "GST 18%",
+      },
+      automations: [
+        {
+          key: "writeback-invoice",
+          name: "ERP sales invoices",
+          description:
+            "Raises a draft sales invoice in the ERP when a ticket is closed or verified, depending on the settings below.",
+          enabled: true,
+        },
+        {
+          key: "writeback-stock-entry",
+          name: "ERP stock entries",
+          description:
+            "Issues consumed spares from the default warehouse in the ERP when a visit is submitted.",
+          enabled: false,
+        },
+      ],
+      warehouses: [
+        {
+          id: "wh-local-1",
+          name: "Jaipur service store",
+          erpName: "Jaipur Service Store",
+          active: true,
+          source: "LOCAL",
+        },
+        {
+          id: "wh-erp-1",
+          name: "Mumbai central warehouse",
+          erpName: "Mumbai Central Warehouse",
+          active: true,
+          source: "ERP",
+        },
+      ],
+      rows: [
+        {
+          id: "wb-1",
+          type: "INVOICE",
+          status: "FAILED",
+          ticketId: "t-d1",
+          ticketNumber: "SB-26-000415",
+          visitId: null,
+          erpDocType: "Sales Invoice",
+          erpDocName: null,
+          attempts: 3,
+          error: "Item GST-18 not found in the ERP item master.",
+          createdAt: "2026-09-28T10:15:00.000Z",
+        },
+        {
+          id: "wb-2",
+          type: "STOCK_ENTRY",
+          status: "SUCCEEDED",
+          ticketId: "t-d1",
+          ticketNumber: "SB-26-000415",
+          visitId: "v-d1",
+          erpDocType: "Stock Entry",
+          erpDocName: "MAT-STE-2026-00042",
+          attempts: 1,
+          error: null,
+          createdAt: "2026-09-28T09:40:00.000Z",
+        },
+        {
+          id: "wb-3",
+          type: "INVOICE",
+          status: "PROCESSING",
+          ticketId: "t-d2",
+          ticketNumber: "SB-26-000416",
+          visitId: null,
+          erpDocType: "Sales Invoice",
+          erpDocName: null,
+          attempts: 1,
+          error: null,
+          createdAt: "2026-09-28T11:02:00.000Z",
+        },
+      ],
+    });
+  }
+  return writebackStates.get(session);
 }
 // ── roles (in memory, per test session) ──
 const ROLE_CATALOG = {
@@ -509,6 +615,180 @@ function notificationsFor(session) {
 }
 const myDuty = new Map();
 
+// ── visits (fictional fixture, per test session) ──
+const visitStates = new Map();
+function visitsFor(session) {
+  if (!visitStates.has(session)) {
+    const now = Date.now();
+    const iso = (ms) => new Date(ms).toISOString();
+    visitStates.set(session, [
+      {
+        id: "v-sub1",
+        ticketId: "t-415",
+        visitNumber: 1,
+        status: "SUBMITTED",
+        workDone:
+          "Replaced the worn V-belt set and re-tensioned the drive. Vibration back within limits.",
+        signatoryName: "Plant in-charge",
+        hasSignature: true,
+        signatureRefused: false,
+        refusalReason: null,
+        submittedAt: iso(now - 2 * 3_600_000),
+        submittedBy: { name: "Kiran Shetty" },
+        createdBy: { name: "Kiran Shetty" },
+        version: 4,
+        createdAt: iso(now - 5 * 3_600_000),
+        updatedAt: iso(now - 2 * 3_600_000),
+        spares: [
+          {
+            id: "vs-1",
+            quantity: 2,
+            item: { id: "i-belt", itemCode: "BELT-V-SET", name: "V-belt set", uom: "SET" },
+          },
+        ],
+        photos: [
+          {
+            id: "vp-1",
+            fileName: "nameplate.jpg",
+            mimeType: "image/jpeg",
+            sizeBytes: 184320,
+            createdAt: iso(now - 4 * 3_600_000),
+          },
+        ],
+      },
+      {
+        id: "v-d1",
+        ticketId: "t-415",
+        visitNumber: 2,
+        status: "DRAFT",
+        workDone: "",
+        signatoryName: null,
+        hasSignature: false,
+        signatureRefused: false,
+        refusalReason: null,
+        submittedAt: null,
+        submittedBy: null,
+        createdBy: { name: "Kiran Shetty" },
+        version: 1,
+        createdAt: iso(now - 30 * 60_000),
+        updatedAt: iso(now - 30 * 60_000),
+        spares: [],
+        photos: [],
+      },
+    ]);
+  }
+  return visitStates.get(session);
+}
+/** The list shape: lines collapse to quantities/rates, like the real API. */
+const visitSummary = (v) => {
+  const { spares, photos, ...rest } = v;
+  return { ...rest, _count: { spares: spares.length, photos: photos.length } };
+};
+
+// ── quotations (fictional fixture, per test session) ──
+const quotationStates = new Map();
+const QUOTATION_GST_RATE = 18;
+function quotationTotals(lines, discountPercent) {
+  const subtotal = lines.reduce((sum, l) => sum + l.quantity * l.rate, 0);
+  const discount = subtotal * ((discountPercent ?? 0) / 100);
+  const taxable = subtotal - discount;
+  const gst = taxable * (QUOTATION_GST_RATE / 100);
+  const total = taxable + gst;
+  const fixed = (n) => n.toFixed(2);
+  return {
+    currency: "INR",
+    gstRatePercent: QUOTATION_GST_RATE,
+    lineCount: lines.length,
+    subtotal: fixed(subtotal),
+    discount: fixed(discount),
+    taxable: fixed(taxable),
+    gst: fixed(gst),
+    total: fixed(total),
+  };
+}
+const withQuotationTotals = (q) => ({ ...q, totals: quotationTotals(q.lines, q.discountPercent) });
+const quotationSummary = (q) => {
+  const full = withQuotationTotals(q);
+  return { ...full, lines: q.lines.map((l) => ({ quantity: l.quantity, rate: l.rate })) };
+};
+function quotationsFor(session) {
+  if (!quotationStates.has(session)) {
+    const now = Date.now();
+    const iso = (ms) => new Date(ms).toISOString();
+    const future = (days) => iso(now + days * 86_400_000);
+    quotationStates.set(session, [
+      {
+        id: "q-d1",
+        ticketId: "t-415",
+        number: "QT-26-000101",
+        status: "DRAFT",
+        discountPercent: 5,
+        validUntil: future(30),
+        notes: "Labour included. Spares extra if the nameplate is damaged.",
+        sentAt: null,
+        poNumber: null,
+        poDate: null,
+        poReceivedAt: null,
+        revisesId: null,
+        version: 3,
+        createdAt: iso(now - 86_400_000),
+        updatedAt: iso(now - 3_600_000),
+        sentBy: null,
+        createdBy: { name: "Ravi Prakash" },
+        revises: null,
+        ticket: { id: "t-415", number: "SB-26-000415", title: "Heavy vibration, output size drifting" },
+        lines: [
+          {
+            id: "ql-1",
+            itemId: "i-belt",
+            quantity: 2,
+            rate: 1450,
+            item: { id: "i-belt", itemCode: "BELT-V-SET", name: "V-belt set", uom: "SET" },
+          },
+          {
+            id: "ql-2",
+            itemId: "i-bearing",
+            quantity: 4,
+            rate: 620,
+            item: { id: "i-bearing", itemCode: "BRG-6205", name: "Bearing 6205", uom: "NOS" },
+          },
+        ],
+      },
+      {
+        id: "q-s1",
+        ticketId: "t-415",
+        number: "QT-26-000098",
+        status: "SENT",
+        discountPercent: null,
+        validUntil: future(12),
+        notes: null,
+        sentAt: iso(now - 2 * 86_400_000),
+        poNumber: null,
+        poDate: null,
+        poReceivedAt: null,
+        revisesId: null,
+        version: 5,
+        createdAt: iso(now - 3 * 86_400_000),
+        updatedAt: iso(now - 2 * 86_400_000),
+        sentBy: { name: "Kiran Shetty" },
+        createdBy: { name: "Ravi Prakash" },
+        revises: null,
+        ticket: { id: "t-415", number: "SB-26-000415", title: "Heavy vibration, output size drifting" },
+        lines: [
+          {
+            id: "ql-3",
+            itemId: "i-bearing",
+            quantity: 2,
+            rate: 620,
+            item: { id: "i-bearing", itemCode: "BRG-6205", name: "Bearing 6205", uom: "NOS" },
+          },
+        ],
+      },
+    ]);
+  }
+  return quotationStates.get(session);
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, "http://stub");
   const path = url.pathname;
@@ -706,9 +986,375 @@ const server = createServer(async (req, res) => {
       }
       return send(res, 201, ticketFor(session).detail);
     }
+    // Latest CSAT token for the ticket (newest first); empty when none issued.
+    if (sub === "/feedback" && req.method === "GET")
+      return send(res, 200, [
+        {
+          id: "fb-1",
+          createdAt: "2026-09-26T09:00:00.000Z",
+          usedAt: null,
+          emailed: true,
+          feedbackUrl: "http://127.0.0.1:3100/feedback/csat-d1",
+          rating: null,
+          comment: null,
+          answeredAt: null,
+        },
+      ]);
   }
   if (ticketMatch && req.method === "GET")
     return fail(res, 404, "TICKET_NOT_FOUND", "That ticket doesn't exist, or you can't see it.");
+
+  // ── visits ──
+  const visitListMatch = path.match(/^\/api\/v1\/visits\/ticket\/([^/]+)$/);
+  if (visitListMatch && req.method === "GET")
+    return send(
+      res,
+      200,
+      visitsFor(session)
+        .filter((v) => v.ticketId === decodeURIComponent(visitListMatch[1]))
+        .map(visitSummary),
+    );
+  if (path === "/api/v1/visits" && req.method === "POST") {
+    const { ticketId } = await body(req);
+    const visits = visitsFor(session);
+    if (visits.some((v) => v.ticketId === ticketId && v.status === "DRAFT"))
+      return fail(
+        res,
+        409,
+        "VISIT_DRAFT_EXISTS",
+        "Finish or delete the open visit before starting another.",
+      );
+    const now = new Date().toISOString();
+    const visit = {
+      id: `v-${Date.now()}`,
+      ticketId,
+      visitNumber: visits.length + 1,
+      status: "DRAFT",
+      workDone: null,
+      signatoryName: null,
+      hasSignature: false,
+      signatureRefused: false,
+      refusalReason: null,
+      submittedAt: null,
+      submittedBy: null,
+      createdBy: { name: "Kiran Shetty" },
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+      spares: [],
+      photos: [],
+    };
+    visits.push(visit);
+    return send(res, 201, visit);
+  }
+  const visitMatch = path.match(/^\/api\/v1\/visits\/([^/]+)(\/submit)?$/);
+  if (visitMatch) {
+    const visit = visitsFor(session).find((v) => v.id === visitMatch[1]);
+    if (!visit) return fail(res, 404, "VISIT_NOT_FOUND", "That visit no longer exists.");
+    if (!visitMatch[2] && req.method === "GET") return send(res, 200, visit);
+    if (!visitMatch[2] && req.method === "DELETE") {
+      const visits = visitsFor(session);
+      visits.splice(visits.indexOf(visit), 1);
+      return send(res, 204);
+    }
+    if (visitMatch[2] && req.method === "POST") {
+      if (visit.status === "SUBMITTED")
+        return fail(res, 409, "VISIT_ALREADY_SUBMITTED", "This visit is already submitted.");
+      if (!visit.workDone?.trim())
+        return fail(
+          res,
+          422,
+          "VISIT_NOTES_REQUIRED",
+          "Write up what was done before submitting the visit.",
+        );
+      if (!visit.hasSignature && !visit.signatureRefused)
+        return fail(
+          res,
+          422,
+          "VISIT_SIGNATURE_REQUIRED",
+          "Capture the customer signature (or record a refusal) before submitting.",
+        );
+      visit.status = "SUBMITTED";
+      visit.submittedAt = new Date().toISOString();
+      visit.submittedBy = { name: "Kiran Shetty" };
+      visit.version += 1;
+      return send(res, 200, visit);
+    }
+  }
+
+  // ── quotations ──
+  if (path === "/api/v1/quotations" && req.method === "GET") {
+    const search = (url.searchParams.get("search") ?? "").toLowerCase();
+    const status = url.searchParams.get("status") ?? "";
+    const page = Number(url.searchParams.get("page") ?? "1");
+    const pageSize = Number(url.searchParams.get("pageSize") ?? "25");
+    const all = quotationsFor(session).filter(
+      (q) =>
+        (!status || q.status === status) && (!search || q.number.toLowerCase().includes(search)),
+    );
+    return send(res, 200, {
+      data: all.slice((page - 1) * pageSize, page * pageSize).map(quotationSummary),
+      page,
+      pageSize,
+      total: all.length,
+    });
+  }
+  const quotationTicketMatch = path.match(/^\/api\/v1\/quotations\/ticket\/([^/]+)$/);
+  if (quotationTicketMatch && req.method === "GET")
+    return send(
+      res,
+      200,
+      quotationsFor(session)
+        .filter((q) => q.ticketId === decodeURIComponent(quotationTicketMatch[1]))
+        .map(quotationSummary),
+    );
+  if (path === "/api/v1/quotations" && req.method === "POST") {
+    const { ticketId, validUntil, discountPercent, notes } = await body(req);
+    const quotations = quotationsFor(session);
+    const now = new Date().toISOString();
+    const quotation = {
+      id: `q-${Date.now()}`,
+      ticketId,
+      number: `QT-26-${String(102 + quotations.length).padStart(6, "0")}`,
+      status: "DRAFT",
+      discountPercent: discountPercent ?? null,
+      validUntil: new Date(`${validUntil}T00:00:00Z`).toISOString(),
+      notes: notes?.trim() || null,
+      sentAt: null,
+      poNumber: null,
+      poDate: null,
+      poReceivedAt: null,
+      revisesId: null,
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+      sentBy: null,
+      createdBy: { name: "Kiran Shetty" },
+      revises: null,
+      ticket: { id: ticketId, number: "SB-26-000415", title: "Heavy vibration, output size drifting" },
+      lines: [],
+    };
+    quotations.unshift(quotation);
+    return send(res, 201, withQuotationTotals(quotation));
+  }
+  const quotationPrintMatch = path.match(/^\/api\/v1\/quotations\/([^/]+)\/print$/);
+  if (quotationPrintMatch && req.method === "GET") {
+    const quotation = quotationsFor(session).find((q) => q.id === quotationPrintMatch[1]);
+    if (!quotation)
+      return fail(res, 404, "QUOTATION_NOT_FOUND", "That quotation no longer exists.");
+    return send(res, 200, {
+      company: { name: "Apex Crushing Systems (Demo)", timezone: "Asia/Kolkata", currency: "INR" },
+      ticket: {
+        number: "SB-26-000415",
+        title: "Heavy vibration, output size drifting",
+        stage: "IN_PROGRESS",
+        customer: { name: "Northfield Infra", taxId: null, mobile: "+91 90000 20097", email: null },
+        site: { title: "Nelamangala plant", line1: "Plot 12, Industrial Area", line2: null },
+      },
+      quotation: withQuotationTotals(quotation),
+      generatedAt: new Date().toISOString(),
+    });
+  }
+  const quotationActionMatch = path.match(/^\/api\/v1\/quotations\/([^/]+)\/(send|po|revise|cancel)$/);
+  if (quotationActionMatch && req.method === "POST") {
+    const quotations = quotationsFor(session);
+    const quotation = quotations.find((q) => q.id === quotationActionMatch[1]);
+    if (!quotation)
+      return fail(res, 404, "QUOTATION_NOT_FOUND", "That quotation no longer exists.");
+    const action = quotationActionMatch[2];
+    const stamp = () => {
+      quotation.version += 1;
+      quotation.updatedAt = new Date().toISOString();
+    };
+    if (action === "send") {
+      if (quotation.status !== "DRAFT")
+        return fail(res, 409, "QUOTATION_NOT_DRAFT", "This quotation is already sent.");
+      if (quotation.lines.length === 0)
+        return fail(
+          res,
+          422,
+          "QUOTATION_EMPTY",
+          "Add at least one line before sending the quotation.",
+        );
+      quotation.status = "SENT";
+      quotation.sentAt = new Date().toISOString();
+      quotation.sentBy = { name: "Kiran Shetty" };
+      stamp();
+      return send(res, 200, withQuotationTotals(quotation));
+    }
+    const payload = await body(req);
+    if (payload.version !== quotation.version)
+      return fail(
+        res,
+        409,
+        "VERSION_CONFLICT",
+        "That quotation changed under you. Reload and try again.",
+      );
+    if (action === "po") {
+      if (quotation.status !== "SENT")
+        return fail(
+          res,
+          409,
+          "QUOTATION_PO_NOT_ALLOWED",
+          "A purchase order can only be recorded on a sent quotation.",
+        );
+      quotation.status = "PO_RECEIVED";
+      quotation.poNumber = String(payload.poNumber).trim();
+      quotation.poDate = payload.poDate
+        ? new Date(`${payload.poDate}T00:00:00Z`).toISOString()
+        : null;
+      quotation.poReceivedAt = new Date().toISOString();
+      stamp();
+      return send(res, 200, withQuotationTotals(quotation));
+    }
+    if (action === "revise") {
+      if (quotation.status !== "SENT" && quotation.status !== "EXPIRED")
+        return fail(
+          res,
+          409,
+          "QUOTATION_REVISE_NOT_ALLOWED",
+          "Only sent or expired quotations can be revised.",
+        );
+      quotation.status = "REVISED";
+      stamp();
+      const now = new Date().toISOString();
+      const next = {
+        ...quotation,
+        id: `q-${Date.now()}`,
+        number: `QT-26-${String(102 + quotations.length).padStart(6, "0")}`,
+        status: "DRAFT",
+        sentAt: null,
+        sentBy: null,
+        poNumber: null,
+        poDate: null,
+        poReceivedAt: null,
+        revisesId: quotation.id,
+        revises: null,
+        version: 1,
+        createdAt: now,
+        updatedAt: now,
+        lines: quotation.lines.map((l) => ({ ...l, id: `ql-${Date.now()}-${l.id}` })),
+      };
+      quotations.unshift(next);
+      return send(res, 201, withQuotationTotals(next));
+    }
+    if (quotation.status !== "DRAFT" && quotation.status !== "SENT")
+      return fail(res, 409, "QUOTATION_CANCEL_NOT_ALLOWED", "This quotation is already closed.");
+    quotation.status = "CANCELLED";
+    stamp();
+    return send(res, 200, withQuotationTotals(quotation));
+  }
+  const quotationLineMatch = path.match(/^\/api\/v1\/quotations\/([^/]+)\/lines(?:\/([^/]+))?$/);
+  if (quotationLineMatch) {
+    const quotations = quotationsFor(session);
+    const quotation = quotations.find((q) => q.id === quotationLineMatch[1]);
+    if (!quotation)
+      return fail(res, 404, "QUOTATION_NOT_FOUND", "That quotation no longer exists.");
+    const stamp = () => {
+      quotation.version += 1;
+      quotation.updatedAt = new Date().toISOString();
+    };
+    if (req.method === "POST" && !quotationLineMatch[2]) {
+      const payload = await body(req);
+      const known = { "i-belt": ["BELT-V-SET", "V-belt set", "SET"], "i-bearing": ["BRG-6205", "Bearing 6205", "NOS"] };
+      const [itemCode, name, uom] = known[payload.itemId] ?? ["ITEM", "Item", null];
+      const line = {
+        id: `ql-${Date.now()}`,
+        itemId: payload.itemId,
+        quantity: payload.quantity,
+        rate: payload.rate,
+        item: { id: payload.itemId, itemCode, name, uom },
+      };
+      quotation.lines.push(line);
+      stamp();
+      return send(res, 201, line);
+    }
+    const line = quotation.lines.find((l) => l.id === quotationLineMatch[2]);
+    if (!line) return fail(res, 404, "QUOTATION_LINE_NOT_FOUND", "That line no longer exists.");
+    if (req.method === "PATCH") {
+      const payload = await body(req);
+      if (payload.version !== quotation.version)
+        return fail(
+          res,
+          409,
+          "VERSION_CONFLICT",
+          "That quotation changed under you. Reload and try again.",
+        );
+      line.quantity = payload.quantity;
+      line.rate = payload.rate;
+      stamp();
+      return send(res, 200, line);
+    }
+    if (req.method === "DELETE") {
+      quotation.lines.splice(quotation.lines.indexOf(line), 1);
+      stamp();
+      return send(res, 204);
+    }
+  }
+  const quotationMatch = path.match(/^\/api\/v1\/quotations\/([^/]+)$/);
+  if (quotationMatch) {
+    const quotations = quotationsFor(session);
+    const quotation = quotations.find((q) => q.id === quotationMatch[1]);
+    if (!quotation)
+      return fail(res, 404, "QUOTATION_NOT_FOUND", "That quotation no longer exists.");
+    if (req.method === "GET") return send(res, 200, withQuotationTotals(quotation));
+    if (req.method === "DELETE") {
+      quotations.splice(quotations.indexOf(quotation), 1);
+      return send(res, 204);
+    }
+    if (req.method === "PATCH") {
+      const payload = await body(req);
+      if (payload.version !== quotation.version)
+        return fail(
+          res,
+          409,
+          "VERSION_CONFLICT",
+          "That quotation changed under you. Reload and try again.",
+        );
+      if (payload.validUntil)
+        quotation.validUntil = new Date(`${payload.validUntil}T00:00:00Z`).toISOString();
+      if (payload.discountPercent !== undefined) quotation.discountPercent = payload.discountPercent;
+      if (payload.notes !== undefined) quotation.notes = payload.notes?.trim() || null;
+      quotation.version += 1;
+      quotation.updatedAt = new Date().toISOString();
+      return send(res, 200, withQuotationTotals(quotation));
+    }
+  }
+
+  // ── items (spares picker) ──
+  if (path === "/api/v1/items" && req.method === "GET") {
+    const search = (url.searchParams.get("search") ?? "").toLowerCase();
+    const items = [
+      {
+        id: "i-belt",
+        itemCode: "BELT-V-SET",
+        name: "V-belt set",
+        itemGroup: "Belts",
+        uom: "SET",
+        source: "DEMO",
+        stock: [],
+        totalQty: 4,
+        prices: [],
+      },
+      {
+        id: "i-bearing",
+        itemCode: "BRG-6205",
+        name: "Bearing 6205",
+        itemGroup: "Bearings",
+        uom: "NOS",
+        source: "DEMO",
+        stock: [],
+        totalQty: 12,
+        prices: [],
+      },
+    ].filter((i) => !search || `${i.itemCode} ${i.name}`.toLowerCase().includes(search));
+    return send(res, 200, {
+      data: items,
+      meta: { page: 1, pageSize: 10, total: items.length },
+      groups: [],
+      priceLists: [],
+    });
+  }
 
   if (path === "/api/v1/regions") return send(res, 200, regions);
   if (path === "/api/v1/users/roles") return send(res, 200, ROLE_OPTIONS);
@@ -750,6 +1396,7 @@ const server = createServer(async (req, res) => {
       invite: {
         url: "http://127.0.0.1:3100/welcome/valid-token",
         expiresAt: "2026-09-26T09:00:00.000Z",
+        emailed: false,
       },
     });
   }
@@ -760,7 +1407,385 @@ const server = createServer(async (req, res) => {
     return send(res, 201, {
       url: "http://127.0.0.1:3100/reset-password/valid-token",
       expiresAt: "2026-09-24T11:00:00.000Z",
+      emailed: false,
     });
+  }
+
+  // ── AMC (maintenance contracts) + settings/app + public CSAT ──
+  const STUB_EQUIPMENT = [
+    { id: "m-1", customerId: "c-1", serialNo: "CX400-2311-052", itemName: "Cone Crusher CX-400" },
+    { id: "m-2", customerId: "c-1", serialNo: "JS150-2403-011", itemName: "Jaw Crusher JS-150" },
+    { id: "m-3", customerId: "c-2", serialNo: "GR220-2501-004", itemName: "Grinding Mill GR-220" },
+  ];
+  const amcContract = {
+    id: "amc-d1",
+    number: "AMC-26-0001",
+    customer: { id: "c-1", name: "Northfield Infra", email: null, mobile: "+91 90000 20097" },
+    status: "DRAFT",
+    startsOn: "2026-01-01",
+    endsOn: "2026-12-31",
+    billingUnit: "YEAR",
+    value: "120000",
+    serviceTypeId: null,
+    serviceType: null,
+    preferredEngineerId: null,
+    preferredEngineer: null,
+    notes: null,
+    equipment: [
+      {
+        equipmentId: "m-1",
+        equipment: { id: "m-1", itemName: "Cone Crusher CX-400", serialNo: "CX400-2311-052" },
+      },
+    ],
+    plannedVisits: [
+      {
+        id: "pv-1",
+        equipmentId: null,
+        plannedOn: "2026-10-15",
+        ticketId: null,
+        status: "PLANNED",
+      },
+    ],
+    version: 1,
+    createdAt: "2026-09-20T10:00:00.000Z",
+    updatedAt: "2026-09-20T10:00:00.000Z",
+  };
+  const amcRow = () => ({
+    id: amcContract.id,
+    number: amcContract.number,
+    customer: { id: amcContract.customer.id, name: amcContract.customer.name },
+    status: amcContract.status,
+    startsOn: amcContract.startsOn,
+    endsOn: amcContract.endsOn,
+    billingUnit: amcContract.billingUnit,
+    value: amcContract.value,
+    equipmentCount: amcContract.equipment.length,
+    plannedVisitCount: amcContract.plannedVisits.length,
+    version: amcContract.version,
+  });
+  if (path === "/api/v1/customers" && req.method === "GET") {
+    const search = (url.searchParams.get("search") ?? "").toLowerCase();
+    const full = [
+      {
+        id: "c-1",
+        name: "Northfield Infra",
+        source: "LOCAL",
+        erpName: null,
+        customerGroup: "Industrial",
+        territory: "Central",
+        taxId: null,
+        mobile: "+91 90000 20097",
+        siteCount: 1,
+        machineCount: 2,
+        primaryContact: { name: "Sanjay Gowda", mobile: "+91 90000 20108" },
+      },
+      {
+        id: "c-2",
+        name: "Deccan Power Tools",
+        source: "LOCAL",
+        erpName: null,
+        customerGroup: "Industrial",
+        territory: "South",
+        taxId: null,
+        mobile: "+91 90000 20111",
+        siteCount: 1,
+        machineCount: 1,
+        primaryContact: null,
+      },
+    ];
+    const data = full.filter((c) => !search || c.name.toLowerCase().includes(search));
+    return send(res, 200, {
+      data,
+      meta: { page: 1, pageSize: 25, total: data.length },
+      territories: ["Central", "South"],
+    });
+  }
+  if (path === "/api/v1/equipment" && req.method === "GET") {
+    const customerId = url.searchParams.get("customerId");
+    return send(res, 200, {
+      data: STUB_EQUIPMENT.filter((m) => !customerId || m.customerId === customerId),
+    });
+  }
+  if (path === "/api/v1/amc" && req.method === "GET") {
+    if (!ROLES[role]?.permissions.includes("amc.read"))
+      return fail(res, 403, "FORBIDDEN", "You don't have access to this.");
+    return send(res, 200, { data: [amcRow()], page: 1, pageSize: 25, total: 1 });
+  }
+  if (path === "/api/v1/amc" && req.method === "POST") {
+    if (!ROLES[role]?.permissions.includes("amc.edit"))
+      return fail(res, 403, "FORBIDDEN", "You don't have access to this.");
+    return send(res, 201, amcContract);
+  }
+  const amcId = path.match(/^\/api\/v1\/amc\/(amc-d1)((?:\/.*)?)$/);
+  if (amcId) {
+    const rest = amcId[2];
+    if (rest === "" && req.method === "GET") return send(res, 200, amcContract);
+    if (rest === "" && req.method === "PATCH") {
+      const input = await body(req);
+      if (Number(input.version) !== amcContract.version)
+        return fail(res, 409, "VERSION_CONFLICT", "Someone else changed this contract.");
+      Object.assign(amcContract, {
+        startsOn: input.startsOn ?? amcContract.startsOn,
+        endsOn: input.endsOn ?? amcContract.endsOn,
+        billingUnit: input.billingUnit ?? amcContract.billingUnit,
+        value: input.value === null ? null : input.value !== undefined ? String(input.value) : amcContract.value,
+        notes: input.notes === null ? null : (input.notes ?? amcContract.notes),
+        version: amcContract.version + 1,
+      });
+      return send(res, 200, amcContract);
+    }
+    const needsStepUp = !stepUpDone.has(session);
+    if (rest === "/activate" && req.method === "POST") {
+      if (needsStepUp)
+        return fail(res, 403, "STEP_UP_REQUIRED", "Confirm your password to continue.");
+      amcContract.status = "ACTIVE";
+      amcContract.version += 1;
+      return send(res, 200, amcContract);
+    }
+    if (rest === "/cancel" && req.method === "POST") {
+      if (needsStepUp)
+        return fail(res, 403, "STEP_UP_REQUIRED", "Confirm your password to continue.");
+      amcContract.status = "CANCELLED";
+      amcContract.version += 1;
+      return send(res, 200, amcContract);
+    }
+    if (rest === "/equipment" && req.method === "POST") {
+      const input = await body(req);
+      const machine = STUB_EQUIPMENT.find((m) => m.id === input.equipmentId);
+      if (!machine) return fail(res, 404, "EQUIPMENT_NOT_FOUND", "That machine no longer exists.");
+      if (!amcContract.equipment.some((e) => e.equipmentId === machine.id)) {
+        amcContract.equipment.push({
+          equipmentId: machine.id,
+          equipment: { id: machine.id, itemName: machine.itemName, serialNo: machine.serialNo },
+        });
+        amcContract.version += 1;
+      }
+      return send(res, 200, amcContract);
+    }
+    const removeEq = rest.match(/^\/equipment\/([^/]+)$/);
+    if (removeEq && req.method === "DELETE") {
+      amcContract.equipment = amcContract.equipment.filter(
+        (e) => e.equipmentId !== removeEq[1],
+      );
+      amcContract.version += 1;
+      return send(res, 200, amcContract);
+    }
+    if (rest === "/visits" && req.method === "POST") {
+      const input = await body(req);
+      amcContract.plannedVisits.push({
+        id: `pv-${amcContract.plannedVisits.length + 1}`,
+        equipmentId: input.equipmentId ?? null,
+        plannedOn: input.plannedOn,
+        ticketId: null,
+        status: "PLANNED",
+      });
+      amcContract.version += 1;
+      return send(res, 200, amcContract);
+    }
+    const removeVisit = rest.match(/^\/visits\/([^/]+)$/);
+    if (removeVisit && req.method === "DELETE") {
+      const visit = amcContract.plannedVisits.find((v) => v.id === removeVisit[1]);
+      if (!visit) return fail(res, 404, "AMC_VISIT_NOT_FOUND", "That planned visit no longer exists.");
+      if (visit.status !== "PLANNED")
+        return fail(res, 409, "AMC_VISIT_LOCKED", "That visit already produced a ticket and can no longer be removed.");
+      amcContract.plannedVisits = amcContract.plannedVisits.filter((v) => v.id !== removeVisit[1]);
+      amcContract.version += 1;
+      return send(res, 200, { removed: true });
+    }
+  }
+  const appAmc = path === "/api/v1/settings/app/amc";
+  if (appAmc && req.method === "GET") return send(res, 200, { pmLeadTimeDays: 3 });
+  if (appAmc && req.method === "PATCH") {
+    if (!stepUpDone.has(session))
+      return fail(res, 403, "STEP_UP_REQUIRED", "Confirm your password to continue.");
+    return send(res, 200, { pmLeadTimeDays: (await body(req)).pmLeadTimeDays ?? 3 });
+  }
+  const emailSettings = {
+    enabled: false,
+    fromName: "ServiceBridge",
+    fromAddress: "service@example.com",
+    host: "",
+    port: 587,
+    secure: false,
+    username: "",
+    hasPassword: false,
+  };
+  if (path === "/api/v1/settings/app/email" && req.method === "GET")
+    return send(res, 200, emailSettings);
+  if (path === "/api/v1/settings/app/email" && req.method === "PATCH") {
+    if (!stepUpDone.has(session))
+      return fail(res, 403, "STEP_UP_REQUIRED", "Confirm your password to continue.");
+    const input = await body(req);
+    Object.assign(emailSettings, input, input.password ? { hasPassword: true } : {});
+    return send(res, 200, emailSettings);
+  }
+  if (path === "/api/v1/settings/app/email/test" && req.method === "POST") {
+    if (!stepUpDone.has(session))
+      return fail(res, 403, "STEP_UP_REQUIRED", "Confirm your password to continue.");
+    return send(res, 200, { sent: true });
+  }
+  const emailTemplates = [
+    {
+      key: "ticket.assigned",
+      name: "Ticket assigned",
+      description: "Sent to the engineer when a ticket is assigned.",
+      subject: "Ticket {{ticketNumber}} assigned to you",
+      bodyHtml: "<p>Ticket <strong>{{ticketNumber}}</strong> is assigned to {{assigneeName}}.</p>",
+      bodyText: "Ticket {{ticketNumber}} is assigned to {{assigneeName}}.",
+      enabled: true,
+      version: 1,
+    },
+    {
+      key: "sla.breached",
+      name: "SLA breached",
+      description: "Sent when a ticket breaches its SLA.",
+      subject: "SLA breached on {{ticketNumber}}",
+      bodyHtml: "<p>Ticket {{ticketNumber}} breached its SLA.</p>",
+      bodyText: "Ticket {{ticketNumber}} breached its SLA.",
+      enabled: true,
+      version: 1,
+    },
+    {
+      key: "escalation.fired",
+      name: "Escalation fired",
+      description: "Sent when an escalation level fires.",
+      subject: "Escalation level {{level}} for {{ticketNumber}}",
+      bodyHtml: "<p>Escalation level {{level}} fired for {{ticketNumber}}: {{reason}}.</p>",
+      bodyText: "Escalation level {{level}} fired for {{ticketNumber}}: {{reason}}.",
+      enabled: true,
+      version: 1,
+    },
+    {
+      key: "csat.invite",
+      name: "Feedback request",
+      description: "Asks the customer to rate a closed ticket.",
+      subject: "How was our service on {{ticketNumber}}?",
+      bodyHtml: "<p>Please rate us: <a href=\"{{feedbackUrl}}\">feedback</a>.</p>",
+      bodyText: "Please rate us: {{feedbackUrl}}",
+      enabled: true,
+      version: 1,
+    },
+    {
+      key: "auth.invite",
+      name: "User invite",
+      description: "Sent to a new user with their invite link.",
+      subject: "You've been invited to {{companyName}}",
+      bodyHtml: "<p>Accept your invite: <a href=\"{{inviteUrl}}\">join</a>.</p>",
+      bodyText: "Accept your invite: {{inviteUrl}}",
+      enabled: true,
+      version: 1,
+    },
+    {
+      key: "auth.reset",
+      name: "Password reset",
+      description: "Sent when a user asks to reset their password.",
+      subject: "Reset your password",
+      bodyHtml: "<p>Reset your password: <a href=\"{{resetUrl}}\">reset</a>.</p>",
+      bodyText: "Reset your password: {{resetUrl}}",
+      enabled: true,
+      version: 1,
+    },
+    {
+      key: "amc.renewal",
+      name: "AMC renewal reminder",
+      description: "Sent before a maintenance contract expires.",
+      subject: "{{contractNumber}} expires in {{daysLeft}} days",
+      bodyHtml: "<p>Contract {{contractNumber}} for {{customerName}} ends on {{endsOn}}.</p>",
+      bodyText: "Contract {{contractNumber}} for {{customerName}} ends on {{endsOn}}.",
+      enabled: true,
+      version: 1,
+    },
+  ];
+  if (path === "/api/v1/settings/app/email/templates" && req.method === "GET")
+    return send(res, 200, emailTemplates);
+  const tplId = path.match(/^\/api\/v1\/settings\/app\/email\/templates\/([^/]+)$/);
+  if (tplId && req.method === "PATCH") {
+    const template = emailTemplates.find((t) => t.key === tplId[1]);
+    if (!template) return fail(res, 404, "TEMPLATE_NOT_FOUND", "That template no longer exists.");
+    const input = await body(req);
+    if (Number(input.version) !== template.version)
+      return fail(res, 409, "VERSION_CONFLICT", "Someone else changed this template.");
+    Object.assign(template, {
+      subject: input.subject ?? template.subject,
+      bodyHtml: input.bodyHtml ?? template.bodyHtml,
+      bodyText: input.bodyText ?? template.bodyText,
+      enabled: input.enabled ?? template.enabled,
+      version: template.version + 1,
+    });
+    return send(res, 200, template);
+  }
+  if (path === "/api/v1/settings/app/email/log" && req.method === "GET")
+    return send(res, 200, []);
+  const csatToken = path.match(/^\/api\/v1\/public\/csat\/([^/]+)$/);
+  if (csatToken) {
+    if (csatToken[1] === "csat-d1" && req.method === "GET")
+      return send(res, 200, {
+        ticketNumber: "SB-26-000415",
+        ticketTitle: "Heavy vibration, output size drifting",
+        customerName: "Sanjay Gowda",
+        answered: false,
+      });
+    if (csatToken[1] === "csat-d1" && req.method === "POST") return send(res, 200, { ok: true });
+    if (csatToken[1] === "csat-used" && req.method === "POST")
+      return fail(res, 409, "CSAT_ALREADY_ANSWERED", "This feedback link has already been used.");
+    return fail(res, 410, "CSAT_TOKEN_NOT_FOUND", "This feedback link is no longer valid.");
+  }
+  const automations = [
+    {
+      key: "escalation-l1",
+      name: "Escalation level 1",
+      description: "Nudges the area manager when a ticket sits too long.",
+      category: "Service",
+      kind: "event",
+      enabled: false,
+      cron: null,
+      timezone: "Asia/Calcutta",
+      nextRunAt: null,
+      lastRun: null,
+      params: {},
+    },
+    {
+      key: "escalation-l2",
+      name: "Escalation level 2",
+      description: "Escalates to the chosen role when level 1 is ignored.",
+      category: "Service",
+      kind: "event",
+      enabled: false,
+      cron: null,
+      timezone: "Asia/Calcutta",
+      nextRunAt: null,
+      lastRun: null,
+      params: {},
+    },
+    {
+      key: "escalation-l3",
+      name: "Escalation level 3",
+      description: "The final escalation, straight to the chosen role.",
+      category: "Service",
+      kind: "event",
+      enabled: false,
+      cron: null,
+      timezone: "Asia/Calcutta",
+      nextRunAt: null,
+      lastRun: null,
+      params: {},
+    },
+  ];
+  if (path === "/api/v1/automations" && req.method === "GET") return send(res, 200, automations);
+  const automationId = path.match(/^\/api\/v1\/automations\/([^/]+)(\/runs)?$/);
+  if (automationId) {
+    const automation = automations.find((a) => a.key === automationId[1]);
+    if (!automation) return fail(res, 404, "AUTOMATION_NOT_FOUND", "That automation no longer exists.");
+    if (automationId[2]) return send(res, 200, { data: [] });
+    if (req.method === "PATCH") {
+      const input = await body(req);
+      if (typeof input.enabled === "boolean") automation.enabled = input.enabled;
+      if (typeof input.cron === "string") automation.cron = input.cron;
+      if (typeof input.timezone === "string") automation.timezone = input.timezone;
+      if (input.params && typeof input.params === "object")
+        automation.params = { ...automation.params, ...input.params };
+      return send(res, 200, automation);
+    }
   }
 
   // ── roles ──
@@ -899,6 +1924,84 @@ const server = createServer(async (req, res) => {
         c.purposes = Object.keys(erp.purposes).filter((p) => erp.purposes[p] === c.id);
     }
     return send(res, 200, { assignments: erp.purposes, labels: PURPOSE_LABELS });
+  }
+
+  // ── ERP write-backs ──
+  if (path === "/api/v1/erp/writebacks/overview" && req.method === "GET") {
+    const erp = erpState(session);
+    const wb = writebackState(session);
+    const conn =
+      erp.connections.find((c) => c.purposes?.includes("WRITEBACK")) ??
+      erp.connections.find((c) => c.status === "ACTIVE") ??
+      null;
+    return send(res, 200, {
+      settings: wb.settings,
+      automations: wb.automations,
+      connection: conn ? { id: conn.id, name: conn.name, status: conn.status } : null,
+      setup: {
+        ok: !!conn,
+        readyForWriteback: !!conn,
+        missingFields: [],
+        fieldInstructions: [
+          "Add the custom field ServiceBridge uses to link ERP documents back to tickets:",
+          "",
+          "1. In ERPNext, open “Customize Form”.",
+          "2. Set DocType to “Stock Entry” and press Go.",
+          "3. In the Fields table add a row: Label “SB reference”, Fieldname “custom_sb_ref”, Type “Data”.",
+          "4. Save, then repeat steps 2–3 for DocType “Sales Invoice”.",
+        ].join("\n"),
+      },
+      warehouses: wb.warehouses,
+      recent: wb.rows,
+    });
+  }
+  if (path === "/api/v1/erp/writebacks/settings" && req.method === "PATCH") {
+    const wb = writebackState(session);
+    Object.assign(wb.settings, await body(req));
+    return send(res, 200, wb.settings);
+  }
+  if (path === "/api/v1/erp/writebacks/warehouses" && req.method === "POST") {
+    const wb = writebackState(session);
+    const input = await body(req);
+    const warehouse = {
+      id: `wh-local-${wb.warehouses.length + 1}`,
+      name: String(input.name ?? "").trim(),
+      erpName: String(input.name ?? "").trim(),
+      active: true,
+      source: "LOCAL",
+    };
+    wb.warehouses.push(warehouse);
+    return send(res, 201, warehouse);
+  }
+  const wbWarehouse = path.match(/^\/api\/v1\/erp\/writebacks\/warehouses\/([^/]+)$/);
+  if (wbWarehouse && req.method === "PATCH") {
+    const wb = writebackState(session);
+    const warehouse = wb.warehouses.find((w) => w.id === wbWarehouse[1]);
+    if (!warehouse)
+      return fail(res, 404, "WAREHOUSE_NOT_FOUND", "That warehouse no longer exists.");
+    if (warehouse.source === "ERP")
+      return fail(
+        res,
+        409,
+        "WAREHOUSE_SYNCED",
+        "Warehouses synced from the ERP can't be changed here.",
+      );
+    const input = await body(req);
+    if (typeof input.name === "string" && input.name.trim())
+      warehouse.name = input.name.trim();
+    if (typeof input.active === "boolean") warehouse.active = input.active;
+    return send(res, 200, warehouse);
+  }
+  const wbRetry = path.match(/^\/api\/v1\/erp\/writebacks\/([^/]+)\/retry$/);
+  if (wbRetry && req.method === "POST") {
+    const wb = writebackState(session);
+    const row = wb.rows.find((r) => r.id === wbRetry[1]);
+    if (!row)
+      return fail(res, 404, "WRITEBACK_NOT_FOUND", "That write-back no longer exists.");
+    row.status = "PROCESSING";
+    row.attempts += 1;
+    row.error = null;
+    return send(res, 200, { id: row.id, status: row.status });
   }
 
   fail(res, 404, "NOT_FOUND", "Not found");
