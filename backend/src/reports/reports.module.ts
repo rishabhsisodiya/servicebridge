@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { DemoModule } from '../demo/demo.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { KpiService } from './kpi.service';
 import {
   ReportRunsController,
@@ -13,6 +15,7 @@ import { ReportsService } from './reports.service';
  * repeatable per-schedule jobs are synced from the ReportSchedule rows.
  */
 @Module({
+  imports: [DemoModule, NotificationsModule],
   controllers: [ReportsController, ReportSchedulesController, ReportRunsController],
   providers: [ReportsService, KpiService],
   exports: [ReportsService],
