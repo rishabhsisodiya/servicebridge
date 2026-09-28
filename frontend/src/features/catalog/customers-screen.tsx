@@ -46,7 +46,7 @@ export function CustomersScreen() {
   const params = new URLSearchParams({ page: String(page), pageSize: "25" });
   if (search) params.set("search", search);
   if (territory) params.set("territory", territory);
-  const allowed = can("customers.view");
+  const allowed = can("customers.read");
   const { data, error, isLoading, mutate } = useSWR<CustomersPage>(
     allowed ? `/customers?${params}` : null,
     (k: string) => apiFetch<CustomersPage>(k),

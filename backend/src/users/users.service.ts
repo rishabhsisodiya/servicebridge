@@ -1,21 +1,21 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import { Prisma, type Region, Role, type User, UserStatus } from '@prisma/client';
+import { Prisma, type Region, type Role, type User, UserStatus } from '@prisma/client';
 import { diffFields, AuditService } from '../core/audit/audit.service';
 import { AppException, validationFailed } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { hashPassword, passwordProblems } from '../core/security/password';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
-import { ROLE_LABELS } from '../auth/permissions';
+import { ADMIN_ROLE_ID } from '../auth/permissions';
 import { SessionsService } from '../auth/sessions.service';
 import { type IssuedLink, UserTokensService } from '../auth/user-tokens.service';
+import { assertWithinActor } from '../roles/role-access';
 import type { InviteUserDto, ListUsersQuery, UpdateUserDto } from './dto';
 
 export interface UserRow {
   id: string;
   name: string;
   email: string;
-  role: Role;
-  roleLabel: string;
+  role: { id: string; name: string };
   status: UserStatus;
   locked: boolean;
   region: { id: string; name: string } | null;
@@ -24,13 +24,15 @@ export interface UserRow {
   version: number;
 }
 
-export function toUserRow(user: User & { region: Region | null }): UserRow {
+type UserWithRole = User & { region: Region | null; role: Role };
+const WITH_ROLE = { region: true, role: true } as const;
+
+export function toUserRow(user: UserWithRole): UserRow {
   return {
     id: user.id,
     name: user.name,
     email: user.email,
-    role: user.role,
-    roleLabel: ROLE_LABELS[user.role],
+    role: { id: user.role.id, name: user.role.name },
     status: user.status,
     locked: !!user.lockedUntil && user.lockedUntil > new Date(),
     region: user.region ? { id: user.region.id, name: user.region.name } : null,
@@ -54,7 +56,7 @@ export class UsersService {
 
   async list(query: ListUsersQuery) {
     const where: Prisma.UserWhereInput = {
-      role: query.role,
+      roleId: query.roleId,
       status: query.status,
       regionId: query.regionId,
       ...(query.search
@@ -70,7 +72,7 @@ export class UsersService {
       this.prisma.user.count({ where }),
       this.prisma.user.findMany({
         where,
-        include: { region: true },
+        include: WITH_ROLE,
         orderBy: [{ status: 'asc' }, { name: 'asc' }],
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
@@ -89,6 +91,23 @@ export class UsersService {
       throw validationFailed([{ field: 'regionId', message: 'Choose a region from the list.' }]);
   }
 
+  /** The role being given, checked against what the actor may grant. */
+  private async assignableRole(actor: AuthUser, roleId: string, tx: Prisma.TransactionClient) {
+    const role = await tx.role.findUnique({ where: { id: roleId } });
+    if (!role)
+      throw validationFailed([{ field: 'roleId', message: 'Choose a role from the list.' }]);
+    assertWithinActor(actor, role, 'assign');
+    return role;
+  }
+
+  /** Loads a user and checks the actor may manage someone with their role. */
+  private async manageable(actor: AuthUser, id: string, tx: Prisma.TransactionClient) {
+    const user = await tx.user.findUnique({ where: { id }, include: WITH_ROLE });
+    if (!user) throw notFound();
+    if (user.id !== actor.id) assertWithinActor(actor, user.role, 'manage');
+    return user;
+  }
+
   async invite(
     actor: AuthUser,
     dto: InviteUserDto,
@@ -98,15 +117,16 @@ export class UsersService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await this.assertRegion(dto.regionId, tx);
+        await this.assignableRole(actor, dto.roleId, tx);
         const user = await tx.user.create({
           data: {
             email,
             name: dto.name.trim(),
-            role: dto.role,
+            roleId: dto.roleId,
             regionId: dto.regionId ?? null,
             status: 'INVITED',
           },
-          include: { region: true },
+          include: WITH_ROLE,
         });
         const invite = await this.links.issue(user.id, 'INVITE', actor.id, tx);
         await this.audit.record(
@@ -115,7 +135,7 @@ export class UsersService {
             action: 'user.invited',
             entityType: 'user',
             entityId: user.id,
-            summary: `${actor.name} invited ${user.name} (${email}) as ${ROLE_LABELS[user.role]}`,
+            summary: `${actor.name} invited ${user.name} (${email}) as ${user.role.name}`,
             ip: client.ip,
             requestId: client.requestId,
           },
@@ -136,12 +156,14 @@ export class UsersService {
     }
   }
 
-  /** Only active administrators other than `excludingId` count. */
+  /** Only active users on the Administrator role other than `excludingId` count. */
   private async otherActiveAdmins(
     excludingId: string,
     tx: Prisma.TransactionClient,
   ): Promise<number> {
-    return tx.user.count({ where: { role: 'ADMIN', status: 'ACTIVE', id: { not: excludingId } } });
+    return tx.user.count({
+      where: { role: { isLocked: true }, status: 'ACTIVE', id: { not: excludingId } },
+    });
   }
 
   private lastAdmin() {
@@ -159,8 +181,7 @@ export class UsersService {
     client: ClientInfo,
   ): Promise<UserRow> {
     return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id }, include: { region: true } });
-      if (!user) throw notFound();
+      const user = await this.manageable(actor, id, tx);
       if (user.version !== dto.version) {
         throw new AppException(
           'VERSION_CONFLICT',
@@ -168,7 +189,7 @@ export class UsersService {
           HttpStatus.CONFLICT,
         );
       }
-      if (dto.role && dto.role !== user.role) {
+      if (dto.roleId && dto.roleId !== user.roleId) {
         if (id === actor.id)
           throw new AppException(
             'OWN_ROLE',
@@ -176,24 +197,25 @@ export class UsersService {
             HttpStatus.CONFLICT,
           );
         if (
-          user.role === 'ADMIN' &&
+          user.role.isLocked &&
           user.status === 'ACTIVE' &&
           (await this.otherActiveAdmins(id, tx)) === 0
         ) {
           throw this.lastAdmin();
         }
+        await this.assignableRole(actor, dto.roleId, tx);
       }
       await this.assertRegion(dto.regionId, tx);
 
-      const data = { name: dto.name?.trim(), role: dto.role, regionId: dto.regionId };
+      const data = { name: dto.name?.trim(), roleId: dto.roleId, regionId: dto.regionId };
       const changes = diffFields(
-        { name: user.name, role: user.role, regionId: user.regionId },
+        { name: user.name, roleId: user.roleId, regionId: user.regionId },
         data,
       );
       const updated = await tx.user.update({
         where: { id },
         data: { ...data, version: { increment: 1 } },
-        include: { region: true },
+        include: WITH_ROLE,
       });
       if (Object.keys(changes).length) {
         await this.audit.record(
@@ -221,8 +243,7 @@ export class UsersService {
     client: ClientInfo,
   ): Promise<UserRow> {
     const row = await this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id }, include: { region: true } });
-      if (!user) throw notFound();
+      const user = await this.manageable(actor, id, tx);
       if (!active) {
         if (id === actor.id) {
           throw new AppException(
@@ -232,7 +253,7 @@ export class UsersService {
           );
         }
         if (
-          user.role === 'ADMIN' &&
+          user.role.isLocked &&
           user.status === 'ACTIVE' &&
           (await this.otherActiveAdmins(id, tx)) === 0
         ) {
@@ -254,7 +275,7 @@ export class UsersService {
           version: { increment: 1 },
           ...(active ? { failedLoginCount: 0, lockedUntil: null } : {}),
         },
-        include: { region: true },
+        include: WITH_ROLE,
       });
       if (!active) {
         await tx.userToken.updateMany({
@@ -283,8 +304,7 @@ export class UsersService {
   /** New invite link for someone who hasn't accepted yet (the old link stops working). */
   async reissueInvite(actor: AuthUser, id: string, client: ClientInfo): Promise<IssuedLink> {
     return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id } });
-      if (!user) throw notFound();
+      const user = await this.manageable(actor, id, tx);
       if (user.status !== 'INVITED') {
         throw new AppException(
           'NOT_INVITED',
@@ -312,8 +332,7 @@ export class UsersService {
   /** Password reset link an admin hands to the user (email delivery arrives in session 12). */
   async issueResetLink(actor: AuthUser, id: string, client: ClientInfo): Promise<IssuedLink> {
     return this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id } });
-      if (!user) throw notFound();
+      const user = await this.manageable(actor, id, tx);
       if (user.status !== 'ACTIVE') {
         throw new AppException(
           'NOT_ACTIVE',
@@ -351,7 +370,7 @@ export class UsersService {
         data: {
           email,
           name: input.name.trim(),
-          role: 'ADMIN',
+          roleId: ADMIN_ROLE_ID,
           status: 'ACTIVE',
           passwordHash,
           passwordChangedAt: new Date(),

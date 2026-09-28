@@ -9,43 +9,50 @@ import { apiFetch } from "@/lib/api/client";
  * every request; the web app only uses them to decide what to show.
  */
 export type Permission =
-  | "tickets.view"
-  | "tickets.viewAll"
+  | "tickets.read"
   | "tickets.create"
+  | "tickets.edit"
+  | "customers.read"
+  | "equipment.read"
+  | "items.read"
+  | "rules.read"
+  | "rules.edit"
+  | "users.read"
+  | "users.create"
+  | "users.edit"
+  | "users.delete"
+  | "roles.read"
+  | "roles.create"
+  | "roles.edit"
+  | "roles.delete"
+  | "company.read"
+  | "company.edit"
+  | "erp.read"
+  | "erp.edit"
+  | "automations.read"
+  | "automations.edit"
+  | "system.read"
+  | "system.edit"
+  | "audit.read"
   | "tickets.assign"
   | "tickets.work"
   | "tickets.verify"
-  | "customers.view"
-  | "equipment.view"
-  | "items.view"
-  | "amc.view"
-  | "amc.manage"
-  | "quotations.manage"
-  | "reports.view"
-  | "reports.schedule"
-  | "users.manage"
-  | "settings.manage"
-  | "erp.manage"
-  | "automations.manage"
-  | "system.monitor"
-  | "audit.view";
+  | "tickets.escalations"
+  | "demo.manage"
+  | "amc.read"
+  | "amc.edit"
+  | "quotations.edit"
+  | "reports.read"
+  | "reports.schedule";
 
-export type Role =
-  | "ADMIN"
-  | "SERVICE_MANAGER"
-  | "AREA_MANAGER"
-  | "ENGINEER"
-  | "CALL_CENTER"
-  | "CS_SUPPORT"
-  | "EXECUTIVE";
+export type TicketScope = "ALL" | "REGION" | "OWN";
 
 export interface Me {
   user: {
     id: string;
     email: string;
     name: string;
-    role: Role;
-    roleLabel: string;
+    role: { id: string; name: string; ticketScope: TicketScope };
     status: "INVITED" | "ACTIVE" | "DEACTIVATED";
     region: { id: string; name: string } | null;
   };

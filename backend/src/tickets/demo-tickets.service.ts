@@ -8,6 +8,7 @@ import type {
   TicketStage,
   User,
 } from '@prisma/client';
+import { builtInRoleId } from '../auth/permissions';
 import { coverageOf } from '../catalog/coverage';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { StorageService } from '../core/storage/storage.service';
@@ -207,7 +208,7 @@ export class DemoTicketsService implements OnModuleInit {
     ]);
     if (!machines.length || !serviceTypes.length) return async () => {};
 
-    const byRole = (role: string) => users.filter((u) => u.role === role);
+    const byRole = (key: string) => users.filter((u) => u.roleId === builtInRoleId(key));
     const engineers = byRole('ENGINEER');
     const manager = byRole('SERVICE_MANAGER')[0] ?? null;
     const desk = [...byRole('CALL_CENTER'), ...byRole('CS_SUPPORT')];

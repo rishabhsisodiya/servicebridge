@@ -45,7 +45,7 @@ class RequestsQuery {
 }
 
 @Controller('system')
-@RequirePermissions('system.monitor')
+@RequirePermissions('system.read')
 export class SystemController {
   constructor(private readonly system: SystemService) {}
 
@@ -65,6 +65,7 @@ export class SystemController {
   }
 
   @Post('queues/:queue/jobs/:id/retry')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   async retry(
     @CurrentUser() actor: AuthUser,
@@ -76,6 +77,7 @@ export class SystemController {
   }
 
   @Post('queues/:queue/jobs/:id/promote')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   async promote(
     @CurrentUser() actor: AuthUser,
@@ -87,6 +89,7 @@ export class SystemController {
   }
 
   @Post('queues/:queue/jobs/:id/remove')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(
     @CurrentUser() actor: AuthUser,
@@ -98,6 +101,7 @@ export class SystemController {
   }
 
   @Post('queues/:queue/pause')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   async pause(
     @CurrentUser() actor: AuthUser,
@@ -108,6 +112,7 @@ export class SystemController {
   }
 
   @Post('queues/:queue/resume')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   async resume(
     @CurrentUser() actor: AuthUser,
@@ -118,6 +123,7 @@ export class SystemController {
   }
 
   @Post('queues/:queue/retry-failed')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.OK)
   retryFailed(
     @CurrentUser() actor: AuthUser,
@@ -128,6 +134,7 @@ export class SystemController {
   }
 
   @Post('queues/:queue/clean')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.OK)
   clean(
     @CurrentUser() actor: AuthUser,

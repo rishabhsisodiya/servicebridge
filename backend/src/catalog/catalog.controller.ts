@@ -66,31 +66,31 @@ export class CatalogController {
   constructor(private readonly catalog: CatalogService) {}
 
   @Get('customers')
-  @RequirePermissions('customers.view')
+  @RequirePermissions('customers.read')
   customers(@Query() q: CustomersQuery) {
     return this.catalog.customers(q);
   }
 
   @Get('customers/:id')
-  @RequirePermissions('customers.view')
+  @RequirePermissions('customers.read')
   customer(@Param('id') id: string) {
     return this.catalog.customer(id);
   }
 
   @Get('equipment')
-  @RequirePermissions('equipment.view')
+  @RequirePermissions('equipment.read')
   equipment(@Query() q: EquipmentQuery) {
     return this.catalog.equipment(q);
   }
 
   @Get('equipment/:id')
-  @RequirePermissions('equipment.view')
+  @RequirePermissions('equipment.read')
   machine(@Param('id') id: string) {
     return this.catalog.machine(id);
   }
 
   @Get('items')
-  @RequirePermissions('items.view')
+  @RequirePermissions('items.read')
   items(@Query() q: ItemsQuery) {
     return this.catalog.items(q);
   }

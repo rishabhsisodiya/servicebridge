@@ -4,6 +4,7 @@ import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { AuditService } from '../core/audit/audit.service';
 import { validationFailed } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { rolesWith } from '../roles/role-filters';
 import { assertVersion, notFound, rethrowUnique } from './common';
 import type { SkillDto, UpdateSkillDto } from './dto';
 
@@ -43,7 +44,7 @@ export class SkillsService {
         orderBy: { itemCode: 'asc' },
       }),
       this.prisma.user.findMany({
-        where: { role: 'ENGINEER', status: { not: 'DEACTIVATED' } },
+        where: { role: rolesWith('tickets.work'), status: { not: 'DEACTIVATED' } },
         orderBy: { name: 'asc' },
         select: { id: true, name: true, region: { select: { name: true } } },
       }),
@@ -71,7 +72,9 @@ export class SkillsService {
       ]);
     }
     if (userIds.length) {
-      const found = await tx.user.count({ where: { id: { in: userIds }, role: 'ENGINEER' } });
+      const found = await tx.user.count({
+        where: { id: { in: userIds }, role: rolesWith('tickets.work') },
+      });
       if (found !== userIds.length) {
         throw validationFailed([{ field: 'userIds', message: 'Choose engineers from the list.' }]);
       }

@@ -47,13 +47,13 @@ export class ErpWebhookAdminController {
   constructor(private readonly webhooks: ErpWebhooksService) {}
 
   @Get('erp/connections/:id/webhooks')
-  @RequirePermissions('erp.manage')
+  @RequirePermissions('erp.read')
   setup(@Param('id') id: string) {
     return this.webhooks.setupInfo(id);
   }
 
   @Post('erp/connections/:id/webhooks/secret')
-  @RequirePermissions('erp.manage')
+  @RequirePermissions('erp.edit')
   @RequireRecentAuth()
   @HttpCode(HttpStatus.OK)
   rotateSecret(
@@ -65,7 +65,7 @@ export class ErpWebhookAdminController {
   }
 
   @Post('erp/connections/:id/webhooks/create-in-erp')
-  @RequirePermissions('erp.manage')
+  @RequirePermissions('erp.edit')
   @RequireRecentAuth()
   @HttpCode(HttpStatus.OK)
   createInErp(
@@ -77,13 +77,13 @@ export class ErpWebhookAdminController {
   }
 
   @Get('system/webhooks')
-  @RequirePermissions('system.monitor')
+  @RequirePermissions('system.read')
   list(@Query() query: WebhookEventsQuery) {
     return this.webhooks.list({ status: query.status, page: query.page });
   }
 
   @Post('system/webhooks/:id/reprocess')
-  @RequirePermissions('system.monitor')
+  @RequirePermissions('system.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   async reprocess(
     @CurrentUser() actor: AuthUser,

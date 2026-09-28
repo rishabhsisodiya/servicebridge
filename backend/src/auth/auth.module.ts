@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { AppConfig } from '../core/config/app-config.service';
+import { RolesController } from '../roles/roles.controller';
+import { RolesService } from '../roles/roles.service';
 import { UsersController } from '../users/users.controller';
 import { UsersService } from '../users/users.service';
 import { AuthController } from './auth.controller';
@@ -22,12 +24,13 @@ import { UserTokensService } from './user-tokens.service';
       }),
     }),
   ],
-  controllers: [AuthController, UsersController],
+  controllers: [AuthController, UsersController, RolesController],
   providers: [
     AuthService,
     SessionsService,
     UserTokensService,
     UsersService,
+    RolesService,
     // Order matters: the origin check runs before authentication.
     { provide: APP_GUARD, useClass: OriginGuard },
     { provide: APP_GUARD, useClass: AuthGuard },

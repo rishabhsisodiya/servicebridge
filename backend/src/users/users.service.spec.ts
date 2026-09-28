@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.types';
+import { ADMIN_PERMISSIONS, type Permission } from '../auth/permissions';
 import type { SessionsService } from '../auth/sessions.service';
 import type { UserTokensService } from '../auth/user-tokens.service';
 import type { AuditService } from '../core/audit/audit.service';
@@ -11,19 +12,48 @@ const admin: AuthUser = {
   id: 'admin-1',
   email: 'admin@example.com',
   name: 'Admin One',
-  role: 'ADMIN',
+  roleId: 'role_admin',
+  isAdmin: true,
+  ticketScope: 'ALL',
   regionId: null,
-  permissions: [],
+  permissions: [...ADMIN_PERMISSIONS],
   sessionId: 's1',
   stepUpAt: null,
 };
+
+/** A service manager who may manage users but isn't an administrator. */
+const manager: AuthUser = {
+  ...admin,
+  id: 'sm-1',
+  name: 'Meera Iyer',
+  roleId: 'role_service_manager',
+  isAdmin: false,
+  permissions: ['tickets.read', 'tickets.assign', 'users.read', 'users.edit', 'users.delete'],
+};
+
+const role = (id: string, patch: Record<string, unknown> = {}) => ({
+  id,
+  name: id,
+  isLocked: false,
+  permissions: ['tickets.read', 'tickets.work'] as Permission[],
+  ticketScope: 'OWN',
+  ...patch,
+});
+const ADMIN_ROLE = role('role_admin', {
+  name: 'Administrator',
+  isLocked: true,
+  permissions: [],
+  ticketScope: 'ALL',
+});
+const ENGINEER_ROLE = role('role_engineer', { name: 'Service engineer' });
 
 function target(overrides: Record<string, unknown> = {}) {
   return {
     id: 'u2',
     name: 'Kiran Shetty',
     email: 'kiran@example.com',
-    role: 'ENGINEER',
+    roleId: 'role_engineer',
+    role: ENGINEER_ROLE,
     status: 'ACTIVE',
     passwordHash: 'hash',
     regionId: null,
@@ -36,8 +66,19 @@ function target(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function build(found: ReturnType<typeof target> | null, otherAdmins = 1) {
+function build(
+  found: ReturnType<typeof target> | null,
+  otherAdmins = 1,
+  roles: Record<string, ReturnType<typeof role>> = {},
+) {
   const tx = {
+    role: {
+      findUnique: jest
+        .fn()
+        .mockImplementation(({ where }: { where: { id: string } }) =>
+          Promise.resolve(roles[where.id] ?? null),
+        ),
+    },
     user: {
       findUnique: jest.fn().mockResolvedValue(found),
       count: jest.fn().mockResolvedValue(otherAdmins),
@@ -75,34 +116,36 @@ describe('UsersService.update', () => {
   });
 
   it("doesn't let admins change their own role", async () => {
-    const { service } = build(target({ id: 'admin-1', role: 'ADMIN' }));
+    const { service } = build(target({ id: 'admin-1', roleId: 'role_admin', role: ADMIN_ROLE }));
     await expect(
-      service.update(admin, 'admin-1', { role: 'ENGINEER', version: 3 }, client),
+      service.update(admin, 'admin-1', { roleId: 'role_engineer', version: 3 }, client),
     ).rejects.toMatchObject({
       code: 'OWN_ROLE',
     });
   });
 
   it('keeps at least one active administrator', async () => {
-    const { service } = build(target({ role: 'ADMIN' }), 0);
+    const { service } = build(target({ roleId: 'role_admin', role: ADMIN_ROLE }), 0);
     await expect(
-      service.update(admin, 'u2', { role: 'ENGINEER', version: 3 }, client),
+      service.update(admin, 'u2', { roleId: 'role_engineer', version: 3 }, client),
     ).rejects.toMatchObject({
       code: 'LAST_ADMIN',
     });
   });
 
   it('audits only what changed and bumps the version', async () => {
-    const { service, tx, audit } = build(target());
+    const { service, tx, audit } = build(target(), 1, {
+      role_area_manager: role('role_area_manager', { ticketScope: 'REGION' }),
+    });
     const row = await service.update(
       admin,
       'u2',
-      { name: 'Kiran Shetty', role: 'AREA_MANAGER', version: 3 },
+      { name: 'Kiran Shetty', roleId: 'role_area_manager', version: 3 },
       client,
     );
     expect(tx.user.update.mock.calls[0][0].data.version).toEqual({ increment: 1 });
     expect(audit.record.mock.calls[0][0].changes).toEqual({
-      role: { from: 'ENGINEER', to: 'AREA_MANAGER' },
+      roleId: { from: 'role_engineer', to: 'role_area_manager' },
     });
     expect(row.version).toBe(4);
   });
@@ -129,14 +172,14 @@ describe('UsersService.setActive', () => {
   });
 
   it("doesn't let admins deactivate themselves", async () => {
-    const { service } = build(target({ id: 'admin-1', role: 'ADMIN' }));
+    const { service } = build(target({ id: 'admin-1', roleId: 'role_admin', role: ADMIN_ROLE }));
     await expect(service.setActive(admin, 'admin-1', false, client)).rejects.toMatchObject({
       code: 'OWN_ACCOUNT',
     });
   });
 
   it('protects the last active administrator', async () => {
-    const { service } = build(target({ role: 'ADMIN' }), 0);
+    const { service } = build(target({ roleId: 'role_admin', role: ADMIN_ROLE }), 0);
     await expect(service.setActive(admin, 'u2', false, client)).rejects.toMatchObject({
       code: 'LAST_ADMIN',
     });
@@ -146,5 +189,53 @@ describe('UsersService.setActive', () => {
     const { service } = build(target({ status: 'DEACTIVATED', passwordHash: null }));
     const row = await service.setActive(admin, 'u2', true, client);
     expect(row.status).toBe('INVITED');
+  });
+});
+
+describe('UsersService: no privilege escalation', () => {
+  it('rejects a role id that does not exist', async () => {
+    const { service } = build(target());
+    await expect(
+      service.update(admin, 'u2', { roleId: 'nope', version: 3 }, client),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
+  it('only administrators give out the Administrator role', async () => {
+    const { service } = build(target(), 1, { role_admin: ADMIN_ROLE });
+    await expect(
+      service.update(manager, 'u2', { roleId: 'role_admin', version: 3 }, client),
+    ).rejects.toMatchObject({ code: 'ROLE_ESCALATION' });
+  });
+
+  it('blocks giving a role with permissions the actor lacks', async () => {
+    const auditor = role('role_auditor', { permissions: ['audit.read'], ticketScope: 'OWN' });
+    const { service } = build(target(), 1, { role_auditor: auditor });
+    await expect(
+      service.update(manager, 'u2', { roleId: 'role_auditor', version: 3 }, client),
+    ).rejects.toMatchObject({ code: 'ROLE_ESCALATION' });
+  });
+
+  it('lets anyone hand out engineer membership they do not hold themselves', async () => {
+    const { service } = build(
+      target({ roleId: 'role_desk', role: role('role_desk', { permissions: ['tickets.read'] }) }),
+      1,
+      {
+        role_engineer: ENGINEER_ROLE,
+      },
+    );
+    const row = await service.update(
+      manager,
+      'u2',
+      { roleId: 'role_engineer', version: 3 },
+      client,
+    );
+    expect(row.version).toBe(4);
+  });
+
+  it("stops non-administrators taking over an administrator's account", async () => {
+    const { service } = build(target({ roleId: 'role_admin', role: ADMIN_ROLE }));
+    await expect(service.setActive(manager, 'u2', false, client)).rejects.toMatchObject({
+      code: 'ROLE_ESCALATION',
+    });
   });
 });

@@ -20,15 +20,32 @@ model AppSetting {
 
 // ─── People & access ────────────────────────────────────────────────────────
 
-/// What a user may do comes from their role (see roles/permissions.ts).
-enum Role {
-  ADMIN
-  SERVICE_MANAGER
-  AREA_MANAGER
-  ENGINEER
-  CALL_CENTER
-  CS_SUPPORT
-  EXECUTIVE
+/// Which tickets people with a role can see.
+enum TicketScope {
+  ALL
+  /// The user's region, plus tickets they manage, raised or work on.
+  REGION
+  /// Tickets assigned to or raised by the user.
+  OWN
+}
+
+/// What a user may do. Admins create roles and pick permissions from the
+/// catalog in auth/permissions.ts; built-in roles are seeded by migration.
+model Role {
+  id          String      @id @default(cuid())
+  /// Fixed key of a built-in role (e.g. ENGINEER); null for roles admins create.
+  key         String?     @unique
+  name        String      @unique
+  description String?
+  /// The Administrator role: every permission, cannot be changed or deleted.
+  isLocked    Boolean     @default(false)
+  /// Permission names; unknown names are ignored when read.
+  permissions String[]
+  ticketScope TicketScope
+  version     Int         @default(1)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  users       User[]
 }
 
 enum DutyStatus {
@@ -78,7 +95,8 @@ model User {
   /// Always stored lower-case.
   email             String     @unique
   name              String
-  role              Role
+  roleId            String
+  role              Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
   status            UserStatus @default(INVITED)
   /// argon2id. Null until the invite is accepted.
   passwordHash      String?
@@ -112,7 +130,7 @@ model User {
   ticketFiles     TicketAttachment[]
   notifications   Notification[]
 
-  @@index([role])
+  @@index([roleId])
   @@index([status])
   @@index([regionId])
 }

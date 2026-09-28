@@ -88,7 +88,7 @@ function ProfileCard({ me }: { me: Me }) {
           </Field>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label="Role" help="Set by an administrator.">
-              {(p) => <Input {...p} readOnly value={me.user.roleLabel} />}
+              {(p) => <Input {...p} readOnly value={me.user.role.name} />}
             </Field>
             <Field label="Region">
               {(p) => <Input {...p} readOnly value={me.user.region?.name ?? "No region"} />}

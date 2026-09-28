@@ -7,10 +7,11 @@ import {
   type TicketStage,
 } from '@prisma/client';
 import type { AuthUser } from '../auth/auth.types';
-import { hasPermission } from '../auth/permissions';
+import { can } from '../auth/permissions';
 import { coverageOf } from '../catalog/coverage';
 import { AppException, validationFailed } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { roleGrants } from '../roles/role-filters';
 import { AppSettingsService } from '../demo/app-settings.service';
 import { addBusinessMinutes, businessMinutesBetween } from '../service-rules/business-calendar';
 import { assertVersion } from '../service-rules/common';
@@ -71,12 +72,17 @@ export function toTicketRow(t: RowTicket, now = new Date()) {
   };
 }
 
-/** Where a user may see tickets. Everyone else gets a 404, not a 403, so ticket numbers don't leak. */
+/**
+ * Where a user may see tickets, from their role's ticket scope. Everyone else
+ * gets a 404, not a 403, so ticket numbers don't leak.
+ */
 export function visibleTo(
-  user: Pick<AuthUser, 'id' | 'role' | 'regionId'>,
+  user: Pick<AuthUser, 'id' | 'ticketScope' | 'regionId'>,
 ): Prisma.TicketWhereInput {
-  if (hasPermission(user.role, 'tickets.viewAll')) return {};
-  if (user.role === 'ENGINEER') return { engineerId: user.id };
+  if (user.ticketScope === 'ALL') return {};
+  if (user.ticketScope === 'OWN') {
+    return { OR: [{ engineerId: user.id }, { createdById: user.id }] };
+  }
   return {
     OR: [
       ...(user.regionId ? [{ regionId: user.regionId }] : []),
@@ -519,9 +525,13 @@ export class TicketsService {
       switch (dto.action) {
         case 'assign': {
           const engineer = dto.engineerId
-            ? await tx.user.findUnique({ where: { id: dto.engineerId } })
+            ? await tx.user.findUnique({ where: { id: dto.engineerId }, include: { role: true } })
             : null;
-          if (!engineer || engineer.role !== 'ENGINEER' || engineer.status !== 'ACTIVE') {
+          if (
+            !engineer ||
+            !roleGrants(engineer.role, 'tickets.work') ||
+            engineer.status !== 'ACTIVE'
+          ) {
             throw validationFailed([
               { field: 'engineerId', message: 'Choose an active engineer.' },
             ]);
@@ -647,10 +657,7 @@ export class TicketsService {
   }
 
   async update(user: AuthUser, idOrNumber: string, dto: UpdateTicketDto) {
-    if (
-      !hasPermission(user.role, 'tickets.assign') &&
-      !hasPermission(user.role, 'tickets.create')
-    ) {
+    if (!can(user, 'tickets.edit')) {
       throw new AppException(
         'FORBIDDEN',
         "You don't have permission to edit tickets.",
@@ -672,7 +679,7 @@ export class TicketsService {
       if (dto.description !== undefined) changes.description = dto.description.trim() || null;
 
       if (dto.priority && dto.priority !== t.priority) {
-        if (!hasPermission(user.role, 'tickets.assign')) {
+        if (!can(user, 'tickets.assign')) {
           throw new AppException(
             'FORBIDDEN',
             'Only managers can change the priority.',

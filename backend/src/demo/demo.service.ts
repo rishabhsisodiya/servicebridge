@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { builtInRoleId } from '../auth/permissions';
 import { AuditService } from '../core/audit/audit.service';
 import { AppException } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
@@ -269,7 +270,7 @@ export class DemoService {
           data: DEMO_USERS.filter((u) => !takenEmails.has(demoEmail(u.name))).map((u) => ({
             name: u.name,
             email: demoEmail(u.name),
-            role: u.role,
+            roleId: builtInRoleId(u.role),
             regionId: u.region ? regionIds.get(u.region) : null,
             dutyStatus: u.duty ?? 'ON_DUTY',
             status: 'ACTIVE' as const,
@@ -336,9 +337,16 @@ export class DemoService {
       summary: `${actor.name} loaded demo data: ${counts.customers} customers, ${counts.machines} machines, ${counts.users} demo users`,
       ip: ip ?? null,
     });
+    // Built-in roles can be renamed, so show their current names.
+    const roles = await this.prisma.role.findMany({ select: { id: true, name: true } });
+    const roleNames = new Map(roles.map((r) => [r.id, r.name]));
     return {
       password,
-      logins: DEMO_USERS.map((u) => ({ name: u.name, email: demoEmail(u.name), role: u.role })),
+      logins: DEMO_USERS.map((u) => ({
+        name: u.name,
+        email: demoEmail(u.name),
+        role: roleNames.get(builtInRoleId(u.role)) ?? u.role,
+      })),
       counts,
     };
   }

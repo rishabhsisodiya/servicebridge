@@ -51,7 +51,7 @@ export class DemoController {
   }
 
   @Patch('settings/app/company')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('company.edit')
   updateCompany(
     @CurrentUser() actor: AuthUser,
     @Body() body: UpdateCompanyDto,
@@ -65,13 +65,13 @@ export class DemoController {
   }
 
   @Get('demo')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('demo.manage')
   status() {
     return this.demo.status();
   }
 
   @Post('demo/load')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('demo.manage')
   @RequireRecentAuth()
   @HttpCode(HttpStatus.OK)
   load(@CurrentUser() actor: AuthUser, @Client() client: ClientInfo) {
@@ -79,7 +79,7 @@ export class DemoController {
   }
 
   @Post('demo/clear')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('demo.manage')
   @RequireRecentAuth()
   @HttpCode(HttpStatus.OK)
   clear(@CurrentUser() actor: AuthUser, @Body() body: ClearDemoDto, @Client() client: ClientInfo) {

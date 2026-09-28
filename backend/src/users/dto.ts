@@ -1,4 +1,4 @@
-import { Role, UserStatus } from '@prisma/client';
+import { UserStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsEmail,
@@ -20,8 +20,9 @@ export class ListUsersQuery {
   search?: string;
 
   @IsOptional()
-  @IsEnum(Role)
-  role?: Role;
+  @IsString()
+  @MaxLength(40)
+  roleId?: string;
 
   @IsOptional()
   @IsEnum(UserStatus)
@@ -55,8 +56,10 @@ export class InviteUserDto {
   @MaxLength(254)
   email: string;
 
-  @IsEnum(Role, { message: 'Choose a role.' })
-  role: Role;
+  @IsString({ message: 'Choose a role.' })
+  @MinLength(1, { message: 'Choose a role.' })
+  @MaxLength(40)
+  roleId: string;
 
   @IsOptional()
   @IsString()
@@ -71,8 +74,10 @@ export class UpdateUserDto {
   name?: string;
 
   @IsOptional()
-  @IsEnum(Role, { message: 'Choose a role.' })
-  role?: Role;
+  @IsString({ message: 'Choose a role.' })
+  @MinLength(1, { message: 'Choose a role.' })
+  @MaxLength(40)
+  roleId?: string;
 
   /** null removes the region. */
   @IsOptional()

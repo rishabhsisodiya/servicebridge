@@ -10,7 +10,7 @@ import {
   RECENT_AUTH_MINUTES,
   REQUIRED_PERMISSIONS,
 } from './decorators';
-import { hasPermission, permissionsFor, type Permission } from './permissions';
+import { permissionsOf, type Permission } from './permissions';
 import { SessionsService } from './sessions.service';
 
 const unauthenticated = () =>
@@ -60,8 +60,9 @@ export class AuthGuard implements CanActivate {
       throw unauthenticated();
     }
 
-    // One indexed lookup per request, so sign-out, deactivation and role
-    // changes take effect immediately rather than when the token expires.
+    // One indexed lookup per request (with the role joined), so sign-out,
+    // deactivation and permission changes take effect immediately rather
+    // than when the token expires.
     const session = await this.sessions.findActive(claims.sid, claims.sub);
     if (!session) {
       throw new AppException(
@@ -72,13 +73,16 @@ export class AuthGuard implements CanActivate {
     }
 
     const { user } = session;
+    const permissions = permissionsOf(user.role);
     const authUser: AuthUser = {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      roleId: user.roleId,
+      isAdmin: user.role.isLocked,
+      ticketScope: user.role.ticketScope,
       regionId: user.regionId,
-      permissions: permissionsFor(user.role),
+      permissions,
       sessionId: session.id,
       stepUpAt: session.stepUpAt,
     };
@@ -88,7 +92,7 @@ export class AuthGuard implements CanActivate {
       REQUIRED_PERMISSIONS,
       targets,
     );
-    if (required?.some((permission) => !hasPermission(user.role, permission))) {
+    if (required?.some((permission) => !permissions.includes(permission))) {
       throw new AppException('FORBIDDEN', "You don't have access to this.", HttpStatus.FORBIDDEN);
     }
 

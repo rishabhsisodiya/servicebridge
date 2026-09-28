@@ -43,7 +43,7 @@ const COUNT_LABELS: Record<string, string> = {
 
 export function CompanyScreen() {
   const { can, me } = useSession();
-  if (me && !can("settings.manage")) {
+  if (me && !can("company.read")) {
     return (
       <>
         <PageHeader title="Company & demo data" />
@@ -301,9 +301,7 @@ function DemoCard() {
               {result.logins.map((login) => (
                 <li key={login.email} className="flex flex-wrap justify-between gap-x-3">
                   <span className="font-mono text-xs">{login.email}</span>
-                  <span className="text-xs text-muted">
-                    {login.role.replace("_", " ").toLowerCase()}
-                  </span>
+                  <span className="text-xs text-muted">{login.role}</span>
                 </li>
               ))}
             </ul>

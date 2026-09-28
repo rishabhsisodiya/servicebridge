@@ -47,7 +47,11 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   `health/`
 - `backend/src/bootstrap.ts` — global HTTP setup shared by `main.ts` and e2e tests
 - `backend/src/auth/` — sign-in, sessions (rotating refresh tokens), invite/reset links, the
-  global `OriginGuard` + `AuthGuard`, and `permissions.ts` (role → permission map)
+  global `OriginGuard` + `AuthGuard`, and `permissions.ts` (the permission catalog: names, grid
+  rows, workflow actions, built-in roles)
+- `backend/src/roles/` — custom roles API (`/roles`, `/roles/catalog`), `role-filters.ts`
+  (`rolesWith(permission)` for queries like "every engineer") and `role-access.ts` (no
+  privilege escalation)
 - `backend/src/users/` — user management and regions
 - `backend/src/core/audit/`, `core/rate-limit/`, `core/security/` — audit log, Redis rate limits,
   password hashing and token helpers
@@ -193,6 +197,30 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
    Periodic jobs are limited to the optional nightly ERP catch-up and weekly housekeeping.
 6. Do not copy code, schema, business rules, names or data from any previous client project.
    Demo data is fictional.
+
+## Custom roles
+
+Roles live in the `Role` table; admins create them and pick permissions (ERPNext-style). The API
+is built; the Roles screen is next (the users screen already picks roles from `/users/roles`).
+- Permissions: a grid of `<record>.<read|create|edit|delete>` plus workflow actions
+  (`tickets.assign`, `tickets.work`, `tickets.verify`, `tickets.escalations`, `demo.manage`).
+  Any permission on a record implies its `.read` (`normalizePermissions`). Each role also has a
+  ticket scope: `ALL`, `REGION` or `OWN` (`visibleTo` in tickets.service).
+- One role per user. Built-in roles (fixed `key`, inserted by the `custom_roles` migration, kept
+  in step with `BUILT_IN_ROLES` by a spec) can be renamed and edited but not deleted. The locked
+  Administrator role gets every permission except `tickets.work` and `tickets.escalations`, and
+  can't be changed. At least one active Administrator must remain.
+- **Never check role names or ids in code.** Gate by permission (`can(user, …)`,
+  `@RequirePermissions`); find groups of people with `rolesWith('tickets.work')` etc.; demo data
+  uses `builtInRoleId(key)`.
+- No privilege escalation: only administrators grant the Administrator role or access they
+  don't hold themselves (membership actions excepted), and non-admins can't manage accounts whose
+  role has more access than theirs (`role-access.ts`).
+- Role writes need a password re-check, are audited with permissions added/removed, and apply on
+  each user's next request (the session lookup joins the role).
+- A new permission needs: the name in `PERMISSIONS`, a grid row op or `ACTION_TYPES` entry (spec
+  checks), the web copy in `lib/auth/session.tsx`, and a migration that grants it to the built-in
+  roles that should have it.
 
 ## Next.js
 

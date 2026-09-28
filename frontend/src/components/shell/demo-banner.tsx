@@ -19,7 +19,7 @@ export function DemoBanner() {
       <span className="text-text">
         Demo data is loaded. Customers, machines and demo users marked as demo are fictional.
       </span>
-      {can("settings.manage") && (
+      {can("demo.manage") && (
         <Link
           href="/settings/company"
           className="font-semibold text-info underline underline-offset-2"

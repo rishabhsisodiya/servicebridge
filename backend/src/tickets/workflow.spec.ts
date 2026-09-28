@@ -1,10 +1,16 @@
+import { BUILT_IN_ROLES } from '../auth/permissions';
 import { slaFields, slaStatus, type SlaTicket } from './sla';
 import { availableActions, blockedReason, nextStage, type WorkflowTicket } from './workflow';
 
-const engineer = { id: 'eng', role: 'ENGINEER' as const };
-const otherEngineer = { id: 'eng2', role: 'ENGINEER' as const };
-const areaManager = { id: 'am', role: 'AREA_MANAGER' as const };
-const callCenter = { id: 'cc', role: 'CALL_CENTER' as const };
+/** Users with the permissions of the built-in roles. */
+const as = (id: string, key: string) => ({
+  id,
+  permissions: BUILT_IN_ROLES.find((r) => r.key === key)?.permissions ?? [],
+});
+const engineer = as('eng', 'ENGINEER');
+const otherEngineer = as('eng2', 'ENGINEER');
+const areaManager = as('am', 'AREA_MANAGER');
+const callCenter = as('cc', 'CALL_CENTER');
 
 const ticket = (patch: Partial<WorkflowTicket> = {}): WorkflowTicket => ({
   stage: 'ASSIGNED',

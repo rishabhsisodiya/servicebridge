@@ -88,7 +88,7 @@ export function HomeScreen() {
   if (can("tickets.assign")) return <ManagerHome />;
   if (can("tickets.work")) return <EngineerHome name={me.user.name} />;
   if (can("tickets.create")) return <DeskHome name={me.user.name} />;
-  if (can("tickets.view")) return <OverviewHome />;
+  if (can("tickets.read")) return <OverviewHome />;
   return (
     <>
       <PageHeader title={greeting(me.user.name)} eyebrow={<span>{today()}</span>} />

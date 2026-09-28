@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import type { NotificationType } from '@prisma/client';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { rolesWith } from '../roles/role-filters';
 import type { TicketAction } from './workflow';
 
 interface NotifyTicket {
@@ -21,7 +22,7 @@ interface Actor {
  * Who hears about what (in-app bell; email reuses this in session 12):
  * - engineer: assigned, taken off, sent back or reopened; SLA alerts on their tickets
  * - area manager: new ticket in their region, declined, resolved (to verify); SLA alerts
- * - service managers: tickets that match no region; SLA breaches; declines/resolutions with no area manager
+ * - escalation recipients (service managers by default): tickets that match no region; SLA breaches; declines/resolutions with no area manager
  * The person who acted is never notified about their own action.
  */
 @Injectable()
@@ -31,9 +32,10 @@ export class TicketNotifier {
     private readonly notifications: NotificationsService,
   ) {}
 
-  private async serviceManagers(): Promise<string[]> {
+  /** Everyone whose role receives escalations (service managers, by default). */
+  private async escalationRecipients(): Promise<string[]> {
     const rows = await this.prisma.user.findMany({
-      where: { role: 'SERVICE_MANAGER', status: 'ACTIVE' },
+      where: { role: rolesWith('tickets.escalations'), status: 'ACTIVE' },
       select: { id: true },
     });
     return rows.map((r) => r.id);
@@ -41,7 +43,7 @@ export class TicketNotifier {
 
   /** The area manager, or the service managers when the ticket has none. */
   private async managersFor(ticket: NotifyTicket): Promise<string[]> {
-    return ticket.areaManagerId ? [ticket.areaManagerId] : this.serviceManagers();
+    return ticket.areaManagerId ? [ticket.areaManagerId] : this.escalationRecipients();
   }
 
   private send(
@@ -75,7 +77,7 @@ export class TicketNotifier {
       await this.send(
         'TICKET_UNROUTED',
         ticket,
-        await this.serviceManagers(),
+        await this.escalationRecipients(),
         `${ticket.number} matches no region — assign it`,
         actor,
       );
@@ -167,7 +169,7 @@ export class TicketNotifier {
     await this.send(
       'SLA_BREACHED',
       ticket,
-      [ticket.engineerId, ticket.areaManagerId, ...(await this.serviceManagers())],
+      [ticket.engineerId, ticket.areaManagerId, ...(await this.escalationRecipients())],
       `${ticket.number}: ${what} time missed`,
     );
   }

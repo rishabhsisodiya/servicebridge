@@ -6,39 +6,55 @@ import { createServer } from "node:http";
 
 const port = Number(process.env.STUB_API_PORT ?? 4599);
 
+/** The Administrator role: everything except engineer and escalation membership. */
 const ALL = [
-  "tickets.view",
-  "tickets.viewAll",
+  "tickets.read",
   "tickets.create",
+  "tickets.edit",
+  "customers.read",
+  "equipment.read",
+  "items.read",
+  "rules.read",
+  "rules.edit",
+  "users.read",
+  "users.create",
+  "users.edit",
+  "users.delete",
+  "roles.read",
+  "roles.create",
+  "roles.edit",
+  "roles.delete",
+  "company.read",
+  "company.edit",
+  "erp.read",
+  "erp.edit",
+  "automations.read",
+  "automations.edit",
+  "system.read",
+  "system.edit",
+  "audit.read",
   "tickets.assign",
-  "tickets.work",
   "tickets.verify",
-  "customers.view",
-  "equipment.view",
-  "items.view",
-  "amc.view",
-  "amc.manage",
-  "quotations.manage",
-  "reports.view",
+  "demo.manage",
+  "amc.read",
+  "amc.edit",
+  "quotations.edit",
+  "reports.read",
   "reports.schedule",
-  "users.manage",
-  "settings.manage",
-  "erp.manage",
-  "automations.manage",
-  "system.monitor",
-  "audit.view",
 ];
 const ROLES = {
-  ADMIN: { label: "Administrator", permissions: ALL },
+  ADMIN: { id: "role_admin", label: "Administrator", ticketScope: "ALL", permissions: ALL },
   ENGINEER: {
+    id: "role_engineer",
     label: "Service engineer",
-    permissions: ["tickets.view", "tickets.work", "equipment.view", "items.view"],
+    ticketScope: "OWN",
+    permissions: ["tickets.read", "tickets.work", "equipment.read", "items.read"],
   },
 };
 const ROLE_OPTIONS = [
-  { value: "ADMIN", label: "Administrator" },
-  { value: "SERVICE_MANAGER", label: "Service manager" },
-  { value: "ENGINEER", label: "Service engineer" },
+  { value: "role_admin", label: "Administrator" },
+  { value: "role_service_manager", label: "Service manager" },
+  { value: "role_engineer", label: "Service engineer" },
 ];
 
 const regions = [{ id: "r-central", name: "Central" }];
@@ -47,8 +63,7 @@ const users = [
     id: "u-admin",
     name: "Test Admin",
     email: "admin@example.com",
-    role: "ADMIN",
-    roleLabel: "Administrator",
+    role: { id: "role_admin", name: "Administrator" },
     status: "ACTIVE",
     locked: false,
     region: null,
@@ -60,8 +75,7 @@ const users = [
     id: "u-kiran",
     name: "Kiran Shetty",
     email: "kiran@example.com",
-    role: "ENGINEER",
-    roleLabel: "Service engineer",
+    role: { id: "role_engineer", name: "Service engineer" },
     status: "ACTIVE",
     locked: false,
     region: regions[0],
@@ -147,7 +161,11 @@ function me(role) {
   const def = ROLES[role] ?? ROLES.ADMIN;
   const user = role === "ENGINEER" ? users[1] : users[0];
   return {
-    user: { ...user, role, roleLabel: def.label, status: "ACTIVE" },
+    user: {
+      ...user,
+      role: { id: def.id, name: def.label, ticketScope: def.ticketScope },
+      status: "ACTIVE",
+    },
     permissions: def.permissions,
   };
 }
@@ -604,7 +622,7 @@ const server = createServer(async (req, res) => {
   if (path === "/api/v1/regions") return send(res, 200, regions);
   if (path === "/api/v1/users/roles") return send(res, 200, ROLE_OPTIONS);
   if (path === "/api/v1/users" && req.method === "GET") {
-    if (!ROLES[role]?.permissions.includes("users.manage"))
+    if (!ROLES[role]?.permissions.includes("users.read"))
       return fail(res, 403, "FORBIDDEN", "You don't have access to this.");
     const search = (url.searchParams.get("search") ?? "").toLowerCase();
     const data = users.filter(
@@ -624,8 +642,10 @@ const server = createServer(async (req, res) => {
       id: `u-${users.length + 1}`,
       name: input.name,
       email,
-      role: input.role,
-      roleLabel: ROLE_OPTIONS.find((r) => r.value === input.role)?.label ?? input.role,
+      role: {
+        id: input.roleId,
+        name: ROLE_OPTIONS.find((r) => r.value === input.roleId)?.label ?? input.roleId,
+      },
       status: "INVITED",
       locked: false,
       region: regions.find((r) => r.id === input.regionId) ?? null,

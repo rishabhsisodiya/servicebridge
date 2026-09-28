@@ -49,7 +49,7 @@ export function UsersScreen() {
     status: "",
     page: 1,
   });
-  const key = can("users.manage") ? usersKey(filters) : null;
+  const key = can("users.read") ? usersKey(filters) : null;
   const { data, error, isLoading, mutate } = useSWR<Page<UserRow>>(
     key,
     (k: string) => apiFetch<Page<UserRow>>(k),
@@ -79,7 +79,7 @@ export function UsersScreen() {
       const result = await usersApi.invite({
         name: values.name,
         email: values.email,
-        role: values.role,
+        roleId: values.role,
         regionId: values.regionId || undefined,
       });
       setEditing(null);
@@ -88,7 +88,7 @@ export function UsersScreen() {
     } else if (editing) {
       await usersApi.update(editing.id, {
         name: values.name,
-        role: editing.id === me?.user.id ? undefined : values.role,
+        roleId: editing.id === me?.user.id ? undefined : values.role,
         regionId: values.regionId || null,
         version: editing.version,
       });
@@ -126,7 +126,7 @@ export function UsersScreen() {
     }
   };
 
-  if (!can("users.manage") && me) {
+  if (!can("users.read") && me) {
     return (
       <>
         <PageHeader title="Users & roles" />
@@ -265,7 +265,7 @@ export function UsersScreen() {
                         </span>
                       </span>
                     </Td>
-                    <Td className="whitespace-nowrap">{user.roleLabel}</Td>
+                    <Td className="whitespace-nowrap">{user.role.name}</Td>
                     <Td className="whitespace-nowrap">
                       {user.region?.name ?? <span className="text-muted">—</span>}
                     </Td>

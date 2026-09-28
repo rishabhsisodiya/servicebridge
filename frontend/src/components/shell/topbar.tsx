@@ -94,7 +94,7 @@ export function Topbar({ navOpen, onOpenNav, onOpenSearch }: TopbarProps) {
             <div className="border-b border-line px-4 pt-1.5 pb-3">
               <p className="font-semibold">{name}</p>
               <p className="text-xs text-muted">
-                {me?.user.roleLabel}
+                {me?.user.role.name}
                 {me?.user.region ? ` · ${me.user.region.name}` : ""}
               </p>
               <p className="truncate text-xs text-muted">{me?.user.email}</p>

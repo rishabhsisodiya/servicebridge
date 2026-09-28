@@ -1,14 +1,15 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type { DutyStatus, TicketStage } from '@prisma/client';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
-import { hasPermission } from '../auth/permissions';
+import { can } from '../auth/permissions';
 import { AuditService } from '../core/audit/audit.service';
 import { AppException } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { roleGrants, rolesWith } from '../roles/role-filters';
 import type { Candidate } from './assignment';
 
 /** Stages where an engineer is busy with the ticket (counts towards their load). */
-const WORKLOAD_STAGES: TicketStage[] = [
+export const WORKLOAD_STAGES: TicketStage[] = [
   'ASSIGNED',
   'ACCEPTED',
   'ON_SITE',
@@ -32,11 +33,11 @@ export class EngineersService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Every active engineer with duty, load and skills, ready for the assignment rules. */
+  /** Every active engineer (role can work on tickets) with duty, load and skills. */
   async candidates(): Promise<Candidate[]> {
     const [engineers, load, visiting] = await Promise.all([
       this.prisma.user.findMany({
-        where: { role: 'ENGINEER', status: 'ACTIVE' },
+        where: { role: rolesWith('tickets.work'), status: 'ACTIVE' },
         orderBy: { name: 'asc' },
         select: {
           id: true,
@@ -103,23 +104,29 @@ export class EngineersService {
       }));
   }
 
-  /** Engineers change their own status; managers change it for their region (service managers: anyone). */
+  /** Engineers change their own status; managers change it for their region (all-ticket managers: anyone). */
   private canChange(
-    user: Pick<AuthUser, 'id' | 'role' | 'regionId'>,
+    user: Pick<AuthUser, 'id' | 'permissions' | 'ticketScope' | 'regionId'>,
     engineer: { id: string; regionId: string | null },
   ) {
     if (user.id === engineer.id) return true;
-    if (!hasPermission(user.role, 'tickets.assign')) return false;
-    if (hasPermission(user.role, 'tickets.viewAll')) return true;
+    if (!can(user, 'tickets.assign')) return false;
+    if (user.ticketScope === 'ALL') return true;
     return !!user.regionId && user.regionId === engineer.regionId;
   }
 
   async setDuty(actor: AuthUser, engineerId: string, dutyStatus: DutyStatus, client: ClientInfo) {
     const engineer = await this.prisma.user.findUnique({
       where: { id: engineerId },
-      select: { id: true, name: true, role: true, regionId: true, dutyStatus: true },
+      select: {
+        id: true,
+        name: true,
+        role: { select: { isLocked: true, permissions: true } },
+        regionId: true,
+        dutyStatus: true,
+      },
     });
-    if (!engineer || engineer.role !== 'ENGINEER') {
+    if (!engineer || !roleGrants(engineer.role, 'tickets.work')) {
       throw new AppException(
         'ENGINEER_NOT_FOUND',
         'That engineer no longer exists.',

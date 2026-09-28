@@ -54,7 +54,7 @@ export function ErpScreen() {
   const { can, me } = useSession();
   const toast = useToast();
   const stepUp = useStepUp();
-  const allowed = can("erp.manage");
+  const allowed = can("erp.read");
   const connections = useSWR<Connection[]>(allowed ? "/erp/connections" : null, fetcher);
   const purposes = useSWR<PurposesResponse>(allowed ? "/erp/purposes" : null, fetcher);
   const [editing, setEditing] = useState<Connection | "new" | null>(null);

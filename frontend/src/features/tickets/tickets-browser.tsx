@@ -66,7 +66,7 @@ export function TicketsBrowser({
     [apply],
   );
 
-  const allowed = can("tickets.view");
+  const allowed = can("tickets.read");
   const params = new URLSearchParams({ quick, sort, page: String(page), pageSize: "25" });
   if (search) params.set("search", search);
   const { data, error, isLoading, mutate } = useSWR<TicketPage>(

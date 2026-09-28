@@ -78,7 +78,7 @@ const fetcher = <T,>(key: string) => apiFetch<T>(key);
 export function AutomationsScreen() {
   const { can, me } = useSession();
   const toast = useToast();
-  const allowed = can("automations.manage");
+  const allowed = can("automations.read");
   const { data, error, isLoading, mutate } = useSWR<Automation[]>(
     allowed ? "/automations" : null,
     fetcher,

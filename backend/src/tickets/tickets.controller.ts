@@ -35,7 +35,7 @@ import { TicketStatsService } from './ticket-stats.service';
 import { TicketsService } from './tickets.service';
 
 @Controller('tickets')
-@RequirePermissions('tickets.view')
+@RequirePermissions('tickets.read')
 export class TicketsController {
   constructor(
     private readonly tickets: TicketsService,

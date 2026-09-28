@@ -12,7 +12,7 @@ import { TicketTable } from "./ticket-table";
 /** Home-page card: the tickets closest to (or past) their SLA. */
 export function NeedsAttention() {
   const { can } = useSession();
-  const allowed = can("tickets.view");
+  const allowed = can("tickets.read");
   const { data, error, mutate } = useSWR<TicketPage>(
     allowed ? "/tickets?quick=sla-risk&sort=due&pageSize=6" : null,
     fetcher,

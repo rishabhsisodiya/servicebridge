@@ -21,7 +21,7 @@ const KEY = "/skills";
 
 export function SkillsScreen() {
   const { can, me } = useSession();
-  const allowed = can("settings.manage");
+  const allowed = can("rules.read");
   const skills = useSWR<SkillRow[]>(allowed ? KEY : null, (k: string) => apiFetch<SkillRow[]>(k));
   const toast = useToast();
   const [editing, setEditing] = useState<SkillRow | "new" | null>(null);

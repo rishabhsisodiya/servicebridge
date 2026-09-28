@@ -57,7 +57,7 @@ export function SystemScreen() {
   const { can, me } = useSession();
   const [tab, setTab] = useState<"queues" | "requests" | "webhooks" | "connections">("queues");
 
-  if (me && !can("system.monitor")) {
+  if (me && !can("system.read")) {
     return (
       <>
         <PageHeader title="System monitor" />

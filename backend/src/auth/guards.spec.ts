@@ -23,7 +23,14 @@ function context(request: Record<string, unknown>, metadata: Record<string, unkn
 const activeSession = (overrides: Record<string, unknown> = {}) => ({
   id: 's1',
   stepUpAt: null,
-  user: { id: 'u1', email: 'a@b.c', name: 'A', role: 'ENGINEER', regionId: 'r1' },
+  user: {
+    id: 'u1',
+    email: 'a@b.c',
+    name: 'A',
+    roleId: 'role_engineer',
+    role: { isLocked: false, permissions: ['tickets.work'], ticketScope: 'OWN' },
+    regionId: 'r1',
+  },
   ...overrides,
 });
 
@@ -56,8 +63,18 @@ describe('AuthGuard', () => {
   it('attaches the user with permissions from their role', async () => {
     const { run, request } = guard({}, claims, activeSession());
     await expect(run()).resolves.toBe(true);
-    expect(request.user).toMatchObject({ id: 'u1', role: 'ENGINEER', sessionId: 's1' });
-    expect((request.user as { permissions: string[] }).permissions).toContain('tickets.work');
+    expect(request.user).toMatchObject({
+      id: 'u1',
+      roleId: 'role_engineer',
+      isAdmin: false,
+      ticketScope: 'OWN',
+      sessionId: 's1',
+    });
+    // The implied read permission is added to what the role stores.
+    expect((request.user as { permissions: string[] }).permissions).toEqual([
+      'tickets.read',
+      'tickets.work',
+    ]);
   });
 
   it('asks the web app to refresh when the access token expired', async () => {
@@ -75,8 +92,27 @@ describe('AuthGuard', () => {
   });
 
   it('enforces required permissions', async () => {
-    const { run } = guard({ [REQUIRED_PERMISSIONS]: ['users.manage'] }, claims, activeSession());
+    const { run } = guard({ [REQUIRED_PERMISSIONS]: ['users.read'] }, claims, activeSession());
     await expect(run()).rejects.toMatchObject({ code: 'FORBIDDEN' });
+  });
+
+  it('gives the locked Administrator role every permission except engineer and escalation membership', async () => {
+    const { run, request } = guard(
+      { [REQUIRED_PERMISSIONS]: ['roles.delete'] },
+      claims,
+      activeSession({
+        user: {
+          ...activeSession().user,
+          role: { isLocked: true, permissions: [], ticketScope: 'ALL' },
+        },
+      }),
+    );
+    await expect(run()).resolves.toBe(true);
+    const { permissions, isAdmin } = request.user as { permissions: string[]; isAdmin: boolean };
+    expect(isAdmin).toBe(true);
+    expect(permissions).toContain('users.delete');
+    expect(permissions).not.toContain('tickets.work');
+    expect(permissions).not.toContain('tickets.escalations');
   });
 
   it('requires a recent password confirmation when asked', async () => {

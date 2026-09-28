@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable, Logger } from '@nestjs/common';
-import type { Session, User } from '@prisma/client';
+import type { Role, Session, User } from '@prisma/client';
 import { AppConfig } from '../core/config/app-config.service';
 import { AppException } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
@@ -10,7 +10,7 @@ import type { ClientInfo } from './auth.types';
 export const ROTATION_GRACE_MS = 60_000;
 const DAY_MS = 86_400_000;
 
-export type SessionWithUser = Session & { user: User };
+export type SessionWithUser = Session & { user: User & { role: Role } };
 
 export interface RotationResult {
   session: SessionWithUser;
@@ -66,7 +66,7 @@ export class SessionsService {
     const hash = hashToken(presented);
     const session = await this.prisma.session.findFirst({
       where: { OR: [{ tokenHash: hash }, { previousTokenHash: hash }] },
-      include: { user: true },
+      include: { user: { include: { role: true } } },
     });
     if (!session) throw sessionEnded();
     this.assertUsable(session, now);
@@ -94,7 +94,7 @@ export class SessionsService {
       // Another request rotated first; our token is now the previous one.
       const latest = await this.prisma.session.findUnique({
         where: { id: session.id },
-        include: { user: true },
+        include: { user: { include: { role: true } } },
       });
       if (!latest) throw sessionEnded();
       this.assertUsable(latest, now);
@@ -130,7 +130,7 @@ export class SessionsService {
         absoluteExpiresAt: { gt: now },
         user: { status: 'ACTIVE' },
       },
-      include: { user: true },
+      include: { user: { include: { role: true } } },
     });
   }
 

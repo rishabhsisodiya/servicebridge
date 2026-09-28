@@ -63,7 +63,7 @@ export const NAV: NavGroup[] = [
     items: [
       {
         href: "/tickets",
-        permission: "tickets.view",
+        permission: "tickets.read",
         label: "Tickets",
         icon: Ticket,
         summary: "Every service ticket, with filters and SLA status.",
@@ -77,21 +77,21 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/customers",
-        permission: "customers.view",
+        permission: "customers.read",
         label: "Customers",
         icon: Building2,
         summary: "Customers, sites and contacts, synced from your ERP.",
       },
       {
         href: "/equipment",
-        permission: "equipment.view",
+        permission: "equipment.read",
         label: "Equipment",
         icon: Wrench,
         summary: "Machines installed at customer sites, with coverage and history.",
       },
       {
         href: "/amc",
-        permission: "amc.view",
+        permission: "amc.read",
         label: "AMC contracts",
         icon: ShieldCheck,
         plannedSession: 12,
@@ -99,7 +99,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/items",
-        permission: "items.view",
+        permission: "items.read",
         label: "Spares & items",
         icon: Boxes,
         summary: "Spare parts, prices and stock from your ERP.",
@@ -111,7 +111,7 @@ export const NAV: NavGroup[] = [
     items: [
       {
         href: "/reports",
-        permission: "reports.view",
+        permission: "reports.read",
         label: "Reports",
         icon: FileText,
         plannedSession: 14,
@@ -119,7 +119,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/reports/kpi",
-        permission: "reports.view",
+        permission: "reports.read",
         label: "KPI matrix",
         icon: Gauge,
         plannedSession: 14,
@@ -140,42 +140,49 @@ export const NAV: NavGroup[] = [
     items: [
       {
         href: "/settings",
-        permission: ["settings.manage", "users.manage"],
+        permission: [
+          "rules.read",
+          "users.read",
+          "erp.read",
+          "automations.read",
+          "system.read",
+          "company.read",
+        ],
         label: "Settings",
         icon: Cog,
         summary: "Configure users, ERP connections, service rules and more.",
       },
       {
         href: "/settings/users",
-        permission: "users.manage",
+        permission: "users.read",
         label: "Users & roles",
         icon: Users,
         summary: "Invite people and set their role and region.",
       },
       {
         href: "/settings/erp",
-        permission: "erp.manage",
+        permission: "erp.read",
         label: "ERP connections",
         icon: Database,
         summary: "Connect ERPNext, test it, and choose what each connection is used for.",
       },
       {
         href: "/settings/automations",
-        permission: "automations.manage",
+        permission: "automations.read",
         label: "Automations",
         icon: Workflow,
         summary: "Switch SLA alerts, escalations, syncs and write-backs on or off.",
       },
       {
         href: "/settings/system",
-        permission: "system.monitor",
+        permission: "system.read",
         label: "System monitor",
         icon: Activity,
         summary: "Queues, scheduled jobs, ERP requests and webhooks.",
       },
       {
         href: "/settings/audit-log",
-        permission: "audit.view",
+        permission: "audit.read",
         label: "Audit log",
         icon: ScrollText,
         plannedSession: 15,
@@ -183,7 +190,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/settings/service-rules",
-        permission: "settings.manage",
+        permission: "rules.read",
         label: "Service rules",
         icon: Scale,
         hidden: true,
@@ -191,7 +198,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/settings/regions",
-        permission: "settings.manage",
+        permission: "rules.read",
         label: "Regions",
         icon: MapPin,
         hidden: true,
@@ -199,7 +206,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/settings/skills",
-        permission: "settings.manage",
+        permission: "rules.read",
         label: "Skill tags",
         icon: Tags,
         hidden: true,
@@ -207,7 +214,7 @@ export const NAV: NavGroup[] = [
       },
       {
         href: "/settings/company",
-        permission: "settings.manage",
+        permission: "company.read",
         label: "Company & demo data",
         icon: Building2,
         hidden: true,

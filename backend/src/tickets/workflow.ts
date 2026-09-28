@@ -1,5 +1,5 @@
-import type { Role, TicketStage } from '@prisma/client';
-import { hasPermission } from '../auth/permissions';
+import type { TicketStage } from '@prisma/client';
+import { can, type Permission } from '../auth/permissions';
 
 /**
  * The ticket workflow:
@@ -93,7 +93,7 @@ export const ACTIONS: Record<TicketAction, ActionRule> = {
 
 export interface WorkflowUser {
   id: string;
-  role: Role;
+  permissions: readonly Permission[];
 }
 
 export interface WorkflowTicket {
@@ -104,8 +104,8 @@ export interface WorkflowTicket {
 }
 
 function actorAllowed(actor: Actor, user: WorkflowUser, ticket: WorkflowTicket): boolean {
-  const isEngineer = ticket.engineerId === user.id && hasPermission(user.role, 'tickets.work');
-  const isManager = hasPermission(user.role, 'tickets.assign');
+  const isEngineer = ticket.engineerId === user.id && can(user, 'tickets.work');
+  const isManager = can(user, 'tickets.assign');
   switch (actor) {
     case 'engineer':
       return isEngineer;
@@ -114,11 +114,9 @@ function actorAllowed(actor: Actor, user: WorkflowUser, ticket: WorkflowTicket):
     case 'either':
       return isEngineer || isManager;
     case 'verifier':
-      return hasPermission(user.role, 'tickets.verify');
+      return can(user, 'tickets.verify');
     case 'desk':
-      return (
-        hasPermission(user.role, 'tickets.create') || hasPermission(user.role, 'tickets.verify')
-      );
+      return can(user, 'tickets.create') || can(user, 'tickets.verify');
   }
 }
 

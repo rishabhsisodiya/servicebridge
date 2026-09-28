@@ -39,7 +39,7 @@ function UserForm({ user, isSelf, open, onClose, onSubmit }: UserFormDrawerProps
   const [values, setValues] = useState<UserFormValues>({
     name: user?.name ?? "",
     email: user?.email ?? "",
-    role: user?.role ?? "",
+    role: user?.role.id ?? "",
     regionId: user?.region?.id ?? "",
   });
   const [errors, setErrors] = useState<Errors>({});
@@ -66,7 +66,8 @@ function UserForm({ user, isSelf, open, onClose, onSubmit }: UserFormDrawerProps
       const apiError = caught instanceof ApiError ? caught : undefined;
       const fieldErrors: Errors = {};
       for (const field of ["name", "email", "role", "regionId"] as const) {
-        const message = apiError?.fieldMessage(field);
+        // The API calls the role field roleId.
+        const message = apiError?.fieldMessage(field === "role" ? "roleId" : field);
         if (message) fieldErrors[field] = message;
       }
       if (!Object.keys(fieldErrors).length)

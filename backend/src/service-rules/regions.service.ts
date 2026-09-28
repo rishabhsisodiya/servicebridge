@@ -4,6 +4,7 @@ import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { AuditService, diffFields } from '../core/audit/audit.service';
 import { AppException, validationFailed } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { roleGrants, rolesWith } from '../roles/role-filters';
 import { assertVersion, notFound, rethrowUnique } from './common';
 import type { RegionDto, UpdateRegionDto } from './dto';
 import { matchPincode, normalisePrefixes } from './region-match';
@@ -11,7 +12,6 @@ import { matchPincode, normalisePrefixes } from './region-match';
 type Actor = { actor: AuthUser; client: ClientInfo };
 
 /** Roles that can receive a region's new tickets. */
-const MANAGER_ROLES = ['AREA_MANAGER', 'SERVICE_MANAGER', 'ADMIN'] as const;
 
 const regionExists = (error: unknown) =>
   rethrowUnique(error, 'REGION_EXISTS', 'name', 'A region with that name already exists.');
@@ -75,13 +75,14 @@ export class RegionsService {
     };
   }
 
-  /** People who can be a region's area manager. */
-  managers() {
-    return this.prisma.user.findMany({
-      where: { role: { in: [...MANAGER_ROLES] }, status: { not: 'DEACTIVATED' } },
+  /** People who can be a region's area manager: anyone whose role can assign tickets. */
+  async managers() {
+    const users = await this.prisma.user.findMany({
+      where: { role: rolesWith('tickets.assign'), status: { not: 'DEACTIVATED' } },
       orderBy: { name: 'asc' },
-      select: { id: true, name: true, role: true },
+      select: { id: true, name: true, role: { select: { name: true } } },
     });
+    return users.map((u) => ({ id: u.id, name: u.name, role: u.role.name }));
   }
 
   async resolve(pincode: string) {
@@ -127,11 +128,14 @@ export class RegionsService {
       });
     }
     if (dto.areaManagerId) {
-      const manager = await tx.user.findUnique({ where: { id: dto.areaManagerId } });
+      const manager = await tx.user.findUnique({
+        where: { id: dto.areaManagerId },
+        include: { role: true },
+      });
       if (
         !manager ||
         manager.status === 'DEACTIVATED' ||
-        !(MANAGER_ROLES as readonly string[]).includes(manager.role)
+        !roleGrants(manager.role, 'tickets.assign')
       ) {
         problems.push({ field: 'areaManagerId', message: 'Choose a manager from the list.' });
       }

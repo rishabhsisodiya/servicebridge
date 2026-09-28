@@ -40,7 +40,7 @@ class RunsQuery {
 }
 
 @Controller('automations')
-@RequirePermissions('automations.manage')
+@RequirePermissions('automations.read')
 export class AutomationsController {
   constructor(private readonly automations: AutomationsService) {}
 
@@ -50,6 +50,7 @@ export class AutomationsController {
   }
 
   @Patch(':key')
+  @RequirePermissions('automations.edit')
   update(
     @CurrentUser() actor: AuthUser,
     @Param('key') key: string,
@@ -60,6 +61,7 @@ export class AutomationsController {
   }
 
   @Post(':key/run')
+  @RequirePermissions('automations.edit')
   @HttpCode(HttpStatus.ACCEPTED)
   run(@CurrentUser() actor: AuthUser, @Param('key') key: string, @Client() client: ClientInfo) {
     return this.automations.runNow(actor, key, client);

@@ -22,7 +22,7 @@ export function ServiceRulesScreen({ initialTab }: { initialTab: RuleTab }) {
   const pathname = usePathname();
   const [tab, setTab] = useState<RuleTab>(initialTab);
 
-  if (me && !can("settings.manage")) {
+  if (me && !can("rules.read")) {
     return (
       <>
         <PageHeader title="Service rules" />

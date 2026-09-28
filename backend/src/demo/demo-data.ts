@@ -1,4 +1,4 @@
-import { type DutyStatus, Prisma, type Role } from '@prisma/client';
+import { type DutyStatus, Prisma } from '@prisma/client';
 
 /**
  * Fictional demo company. Every name, email, phone number and GSTIN here is
@@ -16,7 +16,8 @@ export const DEMO_COMPANY = {
 export const DEMO_EMAIL_DOMAIN = 'apex-demo.example';
 export const DEMO_REGIONS = ['North', 'South', 'East', 'West', 'Central'];
 
-export const DEMO_USERS: { name: string; role: Role; region?: string; duty?: DutyStatus }[] = [
+/** `role` is the key of a built-in role (see BUILT_IN_ROLES). */
+export const DEMO_USERS: { name: string; role: string; region?: string; duty?: DutyStatus }[] = [
   { name: 'Meera Iyer', role: 'SERVICE_MANAGER' },
   { name: 'Rohan Deshpande', role: 'AREA_MANAGER', region: 'South' },
   { name: 'Anita Verghese', role: 'AREA_MANAGER', region: 'Central' },

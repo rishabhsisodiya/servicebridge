@@ -40,7 +40,7 @@ const parsePrefixes = (text: string) => text.split(/[\s,;]+/).filter(Boolean);
 
 export function RegionsScreen() {
   const { can, me } = useSession();
-  const allowed = can("settings.manage");
+  const allowed = can("rules.read");
   const regions = useSWR<RegionsData>(allowed ? KEY : null, (k: string) =>
     apiFetch<RegionsData>(k),
   );

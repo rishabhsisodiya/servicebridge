@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import type { AuthUser } from '../auth/auth.types';
-import { hasPermission } from '../auth/permissions';
+import { can } from '../auth/permissions';
 import { AppException } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { detectFileType, StorageService } from '../core/storage/storage.service';
@@ -125,7 +125,7 @@ export class TicketAttachmentsService {
     if (!attachment) {
       throw new AppException('FILE_NOT_FOUND', 'That file no longer exists.', HttpStatus.NOT_FOUND);
     }
-    if (attachment.uploadedById !== user.id && !hasPermission(user.role, 'tickets.assign')) {
+    if (attachment.uploadedById !== user.id && !can(user, 'tickets.assign')) {
       throw new AppException(
         'FORBIDDEN',
         'Only the person who added a file, or a manager, can remove it.',

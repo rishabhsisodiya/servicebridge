@@ -1,27 +1,31 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import type { AuthUser, ClientInfo } from '../auth/auth.types';
 import { Client, CurrentUser, RequirePermissions, RequireRecentAuth } from '../auth/decorators';
-import { ROLE_LABELS } from '../auth/permissions';
+import { RolesService } from '../roles/roles.service';
 import { InviteUserDto, ListUsersQuery, UpdateUserDto } from './dto';
 import { UsersService } from './users.service';
 
 @Controller('users')
-@RequirePermissions('users.manage')
+@RequirePermissions('users.read')
 export class UsersController {
-  constructor(private readonly users: UsersService) {}
+  constructor(
+    private readonly users: UsersService,
+    private readonly roles: RolesService,
+  ) {}
 
   @Get()
   list(@Query() query: ListUsersQuery) {
     return this.users.list(query);
   }
 
-  /** Roles and their labels, for the invite and edit forms. */
+  /** Role names for the invite and edit forms (people managing users may not see the Roles screen). */
   @Get('roles')
-  roles() {
-    return Object.entries(ROLE_LABELS).map(([value, label]) => ({ value, label }));
+  roleOptions() {
+    return this.roles.options();
   }
 
   @Post('invite')
+  @RequirePermissions('users.create')
   invite(
     @CurrentUser() actor: AuthUser,
     @Body() body: InviteUserDto,
@@ -31,6 +35,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @RequirePermissions('users.edit')
   update(
     @CurrentUser() actor: AuthUser,
     @Param('id') id: string,
@@ -41,6 +46,7 @@ export class UsersController {
   }
 
   @Post(':id/deactivate')
+  @RequirePermissions('users.delete')
   deactivate(
     @CurrentUser() actor: AuthUser,
     @Param('id') id: string,
@@ -50,6 +56,7 @@ export class UsersController {
   }
 
   @Post(':id/reactivate')
+  @RequirePermissions('users.edit')
   reactivate(
     @CurrentUser() actor: AuthUser,
     @Param('id') id: string,
@@ -59,6 +66,7 @@ export class UsersController {
   }
 
   @Post(':id/invite-link')
+  @RequirePermissions('users.create')
   reissueInvite(
     @CurrentUser() actor: AuthUser,
     @Param('id') id: string,
@@ -69,6 +77,7 @@ export class UsersController {
 
   /** A reset link lets whoever holds it take over the account, so it needs a fresh password check. */
   @Post(':id/reset-link')
+  @RequirePermissions('users.edit')
   @RequireRecentAuth()
   resetLink(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Client() client: ClientInfo) {
     return this.users.issueResetLink(actor, id, client);

@@ -125,7 +125,7 @@ test.describe("users and roles", () => {
 
     await drawer.getByLabel("Full name").fill("Priya Nair");
     await drawer.getByLabel("Work email").fill("priya@example.com");
-    await drawer.getByLabel("Role").selectOption("SERVICE_MANAGER");
+    await drawer.getByLabel("Role").selectOption({ label: "Service manager" });
     await drawer.getByLabel("Region").selectOption("r-central");
     await drawer.getByRole("button", { name: "Create invite link" }).click();
 
@@ -150,7 +150,7 @@ test.describe("users and roles", () => {
     const drawer = page.getByRole("dialog", { name: "Invite a user" });
     await drawer.getByLabel("Full name").fill("Kiran Again");
     await drawer.getByLabel("Work email").fill("kiran@example.com");
-    await drawer.getByLabel("Role").selectOption("ENGINEER");
+    await drawer.getByLabel("Role").selectOption({ label: "Service engineer" });
     await drawer.getByRole("button", { name: "Create invite link" }).click();
     await expect(drawer.getByText("Someone with that email already has an account.")).toBeVisible();
   });

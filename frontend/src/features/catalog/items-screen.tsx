@@ -45,7 +45,7 @@ export function ItemsScreen() {
   const params = new URLSearchParams({ page: String(page), pageSize: "25" });
   if (search) params.set("search", search);
   if (group) params.set("group", group);
-  const allowed = can("items.view");
+  const allowed = can("items.read");
   const { data, error, isLoading, mutate } = useSWR<Page>(
     allowed ? `/items?${params}` : null,
     (k: string) => apiFetch<Page>(k),

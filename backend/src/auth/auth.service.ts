@@ -1,6 +1,6 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import type { Region, User } from '@prisma/client';
+import type { Region, Role, User } from '@prisma/client';
 import { AuditService } from '../core/audit/audit.service';
 import { AppConfig } from '../core/config/app-config.service';
 import { AppException, validationFailed } from '../core/http/app.exception';
@@ -13,7 +13,7 @@ import {
   verifyPassword,
 } from '../core/security/password';
 import type { AccessTokenClaims, AuthUser, ClientInfo, MeResponse } from './auth.types';
-import { permissionsFor, ROLE_LABELS } from './permissions';
+import { permissionsOf } from './permissions';
 import { SessionsService } from './sessions.service';
 import { UserTokensService } from './user-tokens.service';
 
@@ -36,18 +36,17 @@ const invalidCredentials = () =>
     HttpStatus.UNAUTHORIZED,
   );
 
-export function toMe(user: User & { region?: Region | null }): MeResponse {
+export function toMe(user: User & { role: Role; region?: Region | null }): MeResponse {
   return {
     user: {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
-      roleLabel: ROLE_LABELS[user.role],
+      role: { id: user.role.id, name: user.role.name, ticketScope: user.role.ticketScope },
       status: user.status,
       region: user.region ? { id: user.region.id, name: user.region.name } : null,
     },
-    permissions: permissionsFor(user.role),
+    permissions: permissionsOf(user.role),
   };
 }
 
@@ -68,7 +67,10 @@ export class AuthService {
     await this.rateLimit.enforce(`login:ip:${client.ip ?? 'unknown'}`, 30, 15 * 60);
     await this.rateLimit.enforce(`login:email:${email}`, 10, 15 * 60);
 
-    const user = await this.prisma.user.findUnique({ where: { email }, include: { region: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { region: true, role: true },
+    });
     if (!user?.passwordHash) {
       await burnPasswordCheck(password);
       throw invalidCredentials();
@@ -99,7 +101,7 @@ export class AuthService {
     const updated = await this.prisma.user.update({
       where: { id: user.id },
       data: { failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() },
-      include: { region: true },
+      include: { region: true, role: true },
     });
     await this.rateLimit.reset(`login:email:${email}`);
     const signedIn = await this.startSession(updated, client);
@@ -139,7 +141,7 @@ export class AuthService {
   }
 
   private async startSession(
-    user: User & { region?: Region | null },
+    user: User & { role: Role; region?: Region | null },
     client: ClientInfo,
   ): Promise<SignedIn> {
     const { session, refreshToken } = await this.sessions.create(user.id, client);
@@ -167,7 +169,7 @@ export class AuthService {
     }
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: session.userId },
-      include: { region: true },
+      include: { region: true, role: true },
     });
     return {
       me: toMe(user),
@@ -185,7 +187,7 @@ export class AuthService {
   async me(userId: string): Promise<MeResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      include: { region: true },
+      include: { region: true, role: true },
     });
     return toMe(user);
   }
@@ -196,7 +198,7 @@ export class AuthService {
       const updated = await tx.user.update({
         where: { id: actor.id },
         data: { name: trimmed, version: { increment: 1 } },
-        include: { region: true },
+        include: { region: true, role: true },
       });
       if (trimmed !== actor.name) {
         await this.audit.record(
@@ -315,7 +317,7 @@ export class AuthService {
           lockedUntil: null,
           lastLoginAt: new Date(),
         },
-        include: { region: true },
+        include: { region: true, role: true },
       });
       await this.audit.record(
         {

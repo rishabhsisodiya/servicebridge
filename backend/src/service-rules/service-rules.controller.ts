@@ -36,7 +36,7 @@ import { ServiceRulesService } from './service-rules.service';
 import { SkillsService } from './skills.service';
 
 @Controller('service-rules')
-@RequirePermissions('settings.manage')
+@RequirePermissions('rules.read')
 export class ServiceRulesController {
   constructor(private readonly rules: ServiceRulesService) {}
 
@@ -46,6 +46,7 @@ export class ServiceRulesController {
   }
 
   @Patch('priorities/:priority')
+  @RequirePermissions('rules.edit')
   updatePriority(
     @Param('priority', new ParseEnumPipe(TicketPriority)) priority: TicketPriority,
     @Body() body: UpdateLabelDto,
@@ -61,6 +62,7 @@ export class ServiceRulesController {
   }
 
   @Patch('stages/:stage')
+  @RequirePermissions('rules.edit')
   updateStage(
     @Param('stage', new ParseEnumPipe(TicketStage)) stage: TicketStage,
     @Body() body: UpdateLabelDto,
@@ -76,6 +78,7 @@ export class ServiceRulesController {
   }
 
   @Post('service-types')
+  @RequirePermissions('rules.edit')
   createServiceType(
     @Body() body: CreateServiceTypeDto,
     @CurrentUser() actor: AuthUser,
@@ -85,6 +88,7 @@ export class ServiceRulesController {
   }
 
   @Patch('service-types/:id')
+  @RequirePermissions('rules.edit')
   updateServiceType(
     @Param('id') id: string,
     @Body() body: UpdateServiceTypeDto,
@@ -100,6 +104,7 @@ export class ServiceRulesController {
   }
 
   @Patch('sla/:id')
+  @RequirePermissions('rules.edit')
   updateSla(
     @Param('id') id: string,
     @Body() body: UpdateSlaPolicyDto,
@@ -110,6 +115,7 @@ export class ServiceRulesController {
   }
 
   @Post('calendars')
+  @RequirePermissions('rules.edit')
   createCalendar(
     @Body() body: CalendarDto,
     @CurrentUser() actor: AuthUser,
@@ -119,6 +125,7 @@ export class ServiceRulesController {
   }
 
   @Patch('calendars/:id')
+  @RequirePermissions('rules.edit')
   updateCalendar(
     @Param('id') id: string,
     @Body() body: UpdateCalendarDto,
@@ -129,6 +136,7 @@ export class ServiceRulesController {
   }
 
   @Delete('calendars/:id')
+  @RequirePermissions('rules.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   deleteCalendar(
     @Param('id') id: string,
@@ -144,6 +152,7 @@ export class ServiceRulesController {
   }
 
   @Put('billing/price-lists')
+  @RequirePermissions('rules.edit')
   setPriceLists(
     @Body() body: PriceListsDto,
     @CurrentUser() actor: AuthUser,
@@ -153,6 +162,7 @@ export class ServiceRulesController {
   }
 
   @Post('billing/rates')
+  @RequirePermissions('rules.edit')
   createRate(
     @Body() body: BillingRateDto,
     @CurrentUser() actor: AuthUser,
@@ -162,6 +172,7 @@ export class ServiceRulesController {
   }
 
   @Patch('billing/rates/:id')
+  @RequirePermissions('rules.edit')
   updateRate(
     @Param('id') id: string,
     @Body() body: UpdateBillingRateDto,
@@ -183,31 +194,31 @@ export class RegionsController {
   }
 
   @Get('manage')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('rules.read')
   list() {
     return this.regions.list();
   }
 
   @Get('managers')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('rules.read')
   managers() {
     return this.regions.managers();
   }
 
   @Get('resolve')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('rules.read')
   resolve(@Query() query: ResolvePincodeQuery) {
     return this.regions.resolve(query.pincode);
   }
 
   @Post()
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('rules.edit')
   create(@Body() body: RegionDto, @CurrentUser() actor: AuthUser, @Client() client: ClientInfo) {
     return this.regions.create(body, { actor, client });
   }
 
   @Patch(':id')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('rules.edit')
   update(
     @Param('id') id: string,
     @Body() body: UpdateRegionDto,
@@ -218,7 +229,7 @@ export class RegionsController {
   }
 
   @Delete(':id')
-  @RequirePermissions('settings.manage')
+  @RequirePermissions('rules.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string, @CurrentUser() actor: AuthUser, @Client() client: ClientInfo) {
     return this.regions.remove(id, { actor, client });
@@ -226,7 +237,7 @@ export class RegionsController {
 }
 
 @Controller('skills')
-@RequirePermissions('settings.manage')
+@RequirePermissions('rules.read')
 export class SkillsController {
   constructor(private readonly skills: SkillsService) {}
 
@@ -241,11 +252,13 @@ export class SkillsController {
   }
 
   @Post()
+  @RequirePermissions('rules.edit')
   create(@Body() body: SkillDto, @CurrentUser() actor: AuthUser, @Client() client: ClientInfo) {
     return this.skills.create(body, { actor, client });
   }
 
   @Patch(':id')
+  @RequirePermissions('rules.edit')
   update(
     @Param('id') id: string,
     @Body() body: UpdateSkillDto,
@@ -256,6 +269,7 @@ export class SkillsController {
   }
 
   @Delete(':id')
+  @RequirePermissions('rules.edit')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string, @CurrentUser() actor: AuthUser, @Client() client: ClientInfo) {
     return this.skills.remove(id, { actor, client });

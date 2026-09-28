@@ -53,7 +53,7 @@ export function EquipmentScreen({ initialSearch = "" }: { initialSearch?: string
   const params = new URLSearchParams({ page: String(page), pageSize: "25" });
   if (search) params.set("search", search);
   if (coverage) params.set("coverage", coverage);
-  const allowed = can("equipment.view");
+  const allowed = can("equipment.read");
   const { data, error, isLoading, mutate } = useSWR<Page>(
     allowed ? `/equipment?${params}` : null,
     (k: string) => apiFetch<Page>(k),
