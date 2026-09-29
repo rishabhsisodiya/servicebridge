@@ -25,14 +25,19 @@ export interface AuditEntry {
   action: string;
   entityType: string | null;
   entityId: string | null;
-  actor: { type: "user" | "partner-key" | "system"; name: string } | null;
+  summary: string;
   changes: unknown;
-  partnerKeyId: string | null;
+  ip: string | null;
+  requestId: string | null;
   createdAt: string;
+  /** The signed-in user who made the change; null for partner keys and the system. */
+  actor: { id: string; name: string } | null;
+  /** Set when the change came through the partner API. */
+  partnerKey: { id: string; name: string } | null;
 }
 
 export interface AuditPage {
-  items: AuditEntry[];
+  rows: AuditEntry[];
   total: number;
   page: number;
   pageSize: number;
@@ -52,10 +57,12 @@ const ACTION_GROUPS: { value: string; label: string }[] = [
   { value: "automation.", label: "Automations" },
 ];
 
-export function actorTone(actor: AuditEntry["actor"]): { label: string; tone: Tone } {
-  if (!actor) return { label: "System", tone: "neutral" };
-  if (actor.type === "partner-key") return { label: `Key: ${actor.name}`, tone: "info" };
-  return { label: actor.name, tone: "neutral" };
+export function actorTone(
+  entry: Pick<AuditEntry, "actor" | "partnerKey">,
+): { label: string; tone: Tone } {
+  if (entry.partnerKey) return { label: `Key: ${entry.partnerKey.name}`, tone: "info" };
+  if (entry.actor) return { label: entry.actor.name, tone: "neutral" };
+  return { label: "System", tone: "neutral" };
 }
 
 /** Short, readable summary of a changes payload. Pure — unit tested. */
@@ -171,7 +178,7 @@ export function AuditLogScreen() {
             <TableSkeleton rows={8} />
           ) : error ? (
             <ErrorState title="Could not load the audit log." onRetry={() => void mutate()} />
-          ) : !data?.items.length ? (
+          ) : !data?.rows.length ? (
             <EmptyState
               icon={<History className="size-6" aria-hidden />}
               title="No entries match"
@@ -191,8 +198,8 @@ export function AuditLogScreen() {
                     </Tr>
                   </thead>
                   <tbody>
-                    {data.items.map((entry) => {
-                      const actor = actorTone(entry.actor);
+                    {data.rows.map((entry) => {
+                      const actor = actorTone(entry);
                       const isOpen = expanded === entry.id;
                       return (
                         <Tr key={entry.id}>

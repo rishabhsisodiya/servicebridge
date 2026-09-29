@@ -241,6 +241,7 @@ export class AutomationsService implements OnApplicationBootstrap {
           enabled: setting?.enabled ?? definition.defaultEnabled,
           cron: setting?.cron ?? definition.defaultCron ?? null,
           timezone: setting?.timezone ?? DEFAULT_TIMEZONE,
+          params: (setting?.params as Record<string, unknown> | null) ?? {},
           nextRunAt,
           lastRun: lastByKey.get(definition.key) ?? null,
         };

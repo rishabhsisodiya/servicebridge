@@ -3,15 +3,15 @@ import { actorTone, summarizeChanges } from "./audit-log-screen";
 
 describe("actorTone", () => {
   it("labels a missing actor as System", () => {
-    expect(actorTone(null)).toEqual({ label: "System", tone: "neutral" });
+    expect(actorTone({ actor: null, partnerKey: null })).toEqual({ label: "System", tone: "neutral" });
   });
 
   it("labels a partner key actor with its key name", () => {
-    expect(actorTone({ type: "partner-key", name: "Acme" }).label).toBe("Key: Acme");
+    expect(actorTone({ actor: null, partnerKey: { id: "k1", name: "Acme" } }).label).toBe("Key: Acme");
   });
 
   it("labels a user actor by name", () => {
-    expect(actorTone({ type: "user", name: "Asha" }).label).toBe("Asha");
+    expect(actorTone({ actor: { id: "u1", name: "Asha" }, partnerKey: null }).label).toBe("Asha");
   });
 });
 

@@ -17,6 +17,7 @@ import { Button, ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Input, Select } from "@/components/ui/field";
+import { Pager } from "@/components/ui/list-controls";
 import { EmptyState, ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Switch } from "@/components/ui/switch";
 import { Table, Td, Th, Tr, Sub } from "@/components/ui/table";
@@ -150,6 +151,9 @@ const WAREHOUSE_SOURCE_LABEL: Record<string, string> = {
   LOCAL: "Local",
   ERP: "Synced from ERP",
 };
+
+/** Rows per page in the warehouses card. The full list is already loaded for the default picker. */
+const WAREHOUSES_PAGE_SIZE = 10;
 
 /** Only locally created warehouses can be renamed or deactivated. */
 export const isLocalWarehouse = (warehouse: WritebackWarehouse) =>
@@ -535,6 +539,14 @@ function WarehousesCard({
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string>();
   const [editing, setEditing] = useState<WritebackWarehouse | null>(null);
+  const [page, setPage] = useState(1);
+  // Clamp so the last page never goes empty when the list shrinks.
+  const pageCount = Math.max(1, Math.ceil(warehouses.length / WAREHOUSES_PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const visible = warehouses.slice(
+    (currentPage - 1) * WAREHOUSES_PAGE_SIZE,
+    currentPage * WAREHOUSES_PAGE_SIZE,
+  );
 
   const add = async (event: FormEvent) => {
     event.preventDefault();
@@ -583,7 +595,7 @@ function WarehousesCard({
             </Tr>
           </thead>
           <tbody>
-            {warehouses.map((warehouse) => (
+            {visible.map((warehouse) => (
               <Tr key={warehouse.id}>
                 <Td>
                   <span className="font-medium">{warehouse.name}</span>
@@ -614,6 +626,15 @@ function WarehousesCard({
             ))}
           </tbody>
         </Table>
+      )}
+      {warehouses.length > WAREHOUSES_PAGE_SIZE && (
+        <Pager
+          page={currentPage}
+          pageSize={WAREHOUSES_PAGE_SIZE}
+          total={warehouses.length}
+          noun="warehouses"
+          onPage={setPage}
+        />
       )}
       {canEdit && (
         <div className="border-t border-line px-4 py-3.5">

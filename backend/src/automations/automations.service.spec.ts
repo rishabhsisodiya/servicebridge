@@ -166,3 +166,41 @@ describe('AutomationsService.update params', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 });
+
+describe('AutomationsService.list params', () => {
+  function build(settings: unknown[]) {
+    const prisma = {
+      automationSetting: { findMany: jest.fn().mockResolvedValue(settings) },
+      jobRun: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new AutomationsService(
+      prisma as unknown as PrismaService,
+      { register: jest.fn() } as unknown as QueueService,
+      { record: jest.fn() } as unknown as AuditService,
+    );
+    service.define(
+      {
+        key: 'esc',
+        name: 'Esc',
+        description: '',
+        category: 'Service',
+        queue: 'escalations',
+        kind: 'event',
+        defaultEnabled: false,
+      },
+      jest.fn(),
+    );
+    return service;
+  }
+
+  it('returns the stored params', async () => {
+    const service = build([{ key: 'esc', enabled: true, params: { afterMinutes: 90 } }]);
+    const [automation] = await service.list();
+    expect(automation.params).toEqual({ afterMinutes: 90 });
+  });
+
+  it('returns empty params when nothing is stored, so the screen can fall back to defaults', async () => {
+    const [automation] = await build([]).list();
+    expect(automation.params).toEqual({});
+  });
+});

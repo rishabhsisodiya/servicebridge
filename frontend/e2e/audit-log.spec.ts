@@ -22,26 +22,32 @@ async function withExtraPermissions(page: Page, extra: string[]) {
 }
 
 const ENTRIES = {
-  items: [
+  rows: [
     {
       id: "a1",
       action: "partner.ticket_created",
       entityType: "Ticket",
       entityId: "t1",
-      actor: { type: "partner-key", name: "Acme Industries" },
+      summary: "Partner key “Acme Industries” logged ticket T-1042",
       changes: { number: "T-1042", summary: "Pump not priming" },
-      partnerKeyId: "key-1",
+      ip: null,
+      requestId: "r1",
       createdAt: "2026-09-28T10:00:00.000Z",
+      actor: null,
+      partnerKey: { id: "key-1", name: "Acme Industries" },
     },
     {
       id: "a2",
       action: "ticket.stage_changed",
       entityType: "Ticket",
       entityId: "t1",
-      actor: { type: "user", name: "Asha" },
+      summary: "Asha moved T-1042 to In progress",
       changes: { from: "OPEN", to: "IN_PROGRESS" },
-      partnerKeyId: null,
+      ip: "127.0.0.1",
+      requestId: "r2",
       createdAt: "2026-09-28T11:00:00.000Z",
+      actor: { id: "u1", name: "Asha" },
+      partnerKey: null,
     },
   ],
   total: 2,
@@ -106,7 +112,8 @@ test.describe("audit log", () => {
     await page.getByLabel("Keep entries for (days)").fill("730");
     await page.getByRole("button", { name: "Save" }).click();
 
-    // No step-up challenge from the mock: saves directly.
-    await expect(page.getByText("Entries older than")).toBeVisible();
+    // No step-up challenge from the mock: saves directly and closes the dialog.
+    await expect(page.getByText("Retention set to 730 days.")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Audit retention" })).toBeHidden();
   });
 });
