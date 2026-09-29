@@ -14,19 +14,27 @@ import { cn } from "@/lib/cn";
 
 type ToastKind = "success" | "error";
 
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ToastItem {
   id: number;
   kind: ToastKind;
   message: string;
+  action?: ToastAction;
 }
 
 interface ToastApi {
-  success: (message: string) => void;
+  success: (message: string, options?: { action?: ToastAction }) => void;
   error: (message: string) => void;
 }
 
 const ToastContext = createContext<ToastApi | null>(null);
 const AUTO_DISMISS_MS = 4_000;
+/** Toasts with an action (e.g. Undo) stay up a little longer. */
+const ACTION_DISMISS_MS = 5_000;
 
 /**
  * Toasts announce politely (they never steal focus) and dismiss after 4 s.
@@ -42,16 +50,20 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 
   const push = useCallback(
-    (kind: ToastKind, message: string) => {
+    (kind: ToastKind, message: string, action?: ToastAction) => {
       const id = nextId.current++;
-      setToasts((all) => [...all.slice(-3), { id, kind, message }]);
-      if (kind === "success") setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+      setToasts((all) => [...all.slice(-3), { id, kind, message, action }]);
+      if (kind === "success")
+        setTimeout(() => dismiss(id), action ? ACTION_DISMISS_MS : AUTO_DISMISS_MS);
     },
     [dismiss],
   );
 
   const api = useMemo<ToastApi>(
-    () => ({ success: (m) => push("success", m), error: (m) => push("error", m) }),
+    () => ({
+      success: (m, options) => push("success", m, options?.action),
+      error: (m) => push("error", m),
+    }),
     [push],
   );
 
@@ -80,6 +92,18 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               <CheckCircle2 className="mt-0.5 size-4 shrink-0" aria-hidden />
             )}
             <span className="flex-1">{toast.message}</span>
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.action!.onClick();
+                  dismiss(toast.id);
+                }}
+                className="shrink-0 cursor-pointer font-semibold underline underline-offset-2 hover:opacity-90"
+              >
+                {toast.action.label}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => dismiss(toast.id)}

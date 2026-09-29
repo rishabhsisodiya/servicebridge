@@ -237,12 +237,18 @@ export class ErpSyncService {
         });
       return `${doctype} ${name} was deleted in ERPNext; marked inactive.`;
     };
-    if (event === 'on_trash') return deactivate();
 
     const client = await this.client(connection);
     try {
+      // SB-H5: never trust a delete notice on its own. Re-read the record —
+      // exactly like on_update does — and only deactivate when it is really
+      // gone. A forged or replayed on_trash for a record that still exists is
+      // ignored; the next on_update or the nightly catch-up keeps it in sync.
       const doc = await client.getDoc<ErpDoc>(doctype, name);
       if (!doc) return await deactivate();
+      if (event === 'on_trash') {
+        return `Ignored: ${doctype} ${name} still exists in ERPNext; the delete notice was not applied.`;
+      }
       const links = spec.customerLinked
         ? await this.customerLinks(client, doctype, [name])
         : new Map<string, string>();

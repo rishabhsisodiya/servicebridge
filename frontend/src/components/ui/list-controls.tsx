@@ -10,13 +10,17 @@ export function SearchInput({
   placeholder,
   onChange,
   initial = "",
+  id: providedId,
 }: {
   label: string;
   placeholder: string;
   onChange: (value: string) => void;
   initial?: string;
+  /** When given, the caller renders the visible <label htmlFor={id}>. */
+  id?: string;
 }) {
-  const id = useId();
+  const autoId = useId();
+  const id = providedId ?? autoId;
   const [value, setValue] = useState(initial);
 
   useEffect(() => {
@@ -30,16 +34,18 @@ export function SearchInput({
         className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted"
         aria-hidden
       />
-      <label htmlFor={id} className="sr-only">
-        {label}
-      </label>
+      {!providedId && (
+        <label htmlFor={id} className="sr-only">
+          {label}
+        </label>
+      )}
       <input
         id={id}
         type="search"
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder={placeholder}
-        className="min-h-9 w-full rounded-lg border border-line-strong bg-surface pr-3 pl-8 placeholder:text-faint focus:border-accent focus:outline-2 focus:outline-offset-0 focus:outline-accent/50 max-sm:text-base"
+        className="min-h-9 w-full rounded-lg border border-control-border bg-surface pr-3 pl-8 placeholder:text-faint focus:border-accent focus:outline-2 focus:outline-offset-0 focus:outline-accent/50 max-sm:text-base"
       />
     </div>
   );

@@ -211,6 +211,7 @@ export function QuotationActionBar({
       <Dialog
         open={open === "po"}
         onClose={() => setOpen(null)}
+        dirty={poNumber.trim() !== "" || poDate !== ""}
         title={`Record the purchase order for ${quotation.number}`}
         description="Recording the PO closes the offer and, when the PO gate is on, lets work start on the ticket."
         footer={

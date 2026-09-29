@@ -8,7 +8,13 @@ import { DemoService } from '../demo/demo.service';
 async function main(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, { logger: ['error'] });
   try {
-    const result = await app.get(DemoService).load({ id: null, name: 'Command line' });
+    // Running this command is itself the explicit confirmation: the CLI
+    // operator may seed a non-empty install on purpose.
+    const result = await app.get(DemoService).load(
+      { id: null, name: 'Command line' },
+      null,
+      { confirmed: true },
+    );
     const c = result.counts;
     console.log(
       `\nDemo data loaded: ${c.customers} customers, ${c.sites} sites, ${c.contacts} contacts, ${c.machines} machines, ${c.items} items, ${c.users} demo users.`,

@@ -698,6 +698,7 @@ function WarehouseDialog({
     <Dialog
       open
       onClose={onClose}
+      dirty={changed}
       title={`Edit “${warehouse.name}”`}
       description="Only warehouses created here can be changed. ERP-synced warehouses are read-only."
       footer={

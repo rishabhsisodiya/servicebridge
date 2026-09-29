@@ -88,7 +88,15 @@ export class PartnerService {
 
     let created: { id: string; number: string };
     try {
-      created = await this.tickets.create(actor, createDto, { createdById: null });
+      // partnerKeyId/externalRef are stamped AT INSERT (via opts) so the
+      // @@unique([partnerKeyId, externalRef]) constraint actually guards the
+      // create — a follow-up update could never violate it and left the
+      // loser's ticket an orphan with NULL fields on P2002.
+      created = await this.tickets.create(actor, createDto, {
+        createdById: null,
+        partnerKeyId: partner.keyId,
+        externalRef,
+      });
     } catch (error) {
       // A concurrent repeat POST slipped past the pre-check; the unique
       // constraint on (partnerKeyId, externalRef) makes the second one safe.
@@ -101,11 +109,6 @@ export class PartnerService {
       }
       throw error;
     }
-
-    await this.prisma.ticket.update({
-      where: { id: created.id },
-      data: { partnerKeyId: partner.keyId, externalRef },
-    });
 
     await this.audit.record({
       actorId: null,

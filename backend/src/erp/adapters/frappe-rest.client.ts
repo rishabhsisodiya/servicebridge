@@ -1,4 +1,4 @@
-import { Agent, fetch, type Dispatcher } from 'undici';
+import { Agent, fetch, type Dispatcher, type Response } from 'undici';
 import { stripUrlCredentials } from '../../core/logging/redact';
 import { assertHostAllowed, createGuardedLookup } from '../../core/security/network-guard';
 import { type ErpCallRecorder, type ErpCredentials, ErpError } from '../erp.types';
@@ -20,6 +20,48 @@ interface RequestOptions {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Largest ERP response body we will buffer (10 MiB); larger answers are rejected unread. */
+export const MAX_ERP_RESPONSE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Reads a response body with a hard cap, so a malicious ERP can't exhaust API
+ * memory with a multi-GB answer. Fails fast on a declared Content-Length, and
+ * streams with a running total for chunked answers that declare nothing.
+ */
+async function readCappedBody(response: Response): Promise<string> {
+  const tooBig = () =>
+    new ErpError(
+      'bad_response',
+      'The ERP answered with a body larger than 10 MB; the response was rejected without being read.',
+      response.status,
+    );
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_ERP_RESPONSE_BYTES) {
+    await response.body?.cancel().catch(() => undefined);
+    throw tooBig();
+  }
+  const body = response.body;
+  if (!body) return '';
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_ERP_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        throw tooBig();
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
 
 /** Turns a Frappe error response into a message an administrator can act on. */
 function describeHttpError(status: number, body: unknown): ErpError {
@@ -147,6 +189,10 @@ export class FrappeRestClient {
           const response = await fetch(url, {
             method,
             dispatcher: this.dispatcher,
+            // Never follow redirects: the guards above only checked the
+            // original host, and a 302 to an internal address would bypass
+            // them. 3xx answers fail closed just below.
+            redirect: 'manual',
             signal: AbortSignal.timeout(this.timeoutMs),
             headers: {
               Accept: 'application/json',
@@ -156,31 +202,41 @@ export class FrappeRestClient {
             body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
           });
           status = response.status;
-          const text = await response.text();
+          const text = await readCappedBody(response);
           let body: unknown;
           try {
             body = text ? JSON.parse(text) : undefined;
           } catch {
             body = undefined;
           }
-          if (response.ok && body !== undefined) {
+          if (status >= 300 && status < 400) {
+            lastError = new ErpError(
+              'bad_response',
+              `The ERP answered with a redirect (HTTP ${status}); ServiceBridge does not follow redirects. Check the connection's base URL.`,
+              status,
+            );
+          } else if (response.ok && body !== undefined) {
             this.log(method, url, options.doctype, status, true, started);
             return body as T;
+          } else {
+            lastError = response.ok
+              ? new ErpError(
+                  'bad_response',
+                  'The address answered, but not like an ERPNext site.',
+                  status,
+                )
+              : describeHttpError(status, body);
           }
-          lastError = response.ok
-            ? new ErpError(
-                'bad_response',
-                'The address answered, but not like an ERPNext site.',
-                status,
-              )
-            : describeHttpError(status, body);
           if (status === 429) {
             const retryAfter = Number(response.headers.get('retry-after'));
             if (attempt < attempts)
               await sleep(Math.min(Number.isFinite(retryAfter) ? retryAfter * 1000 : 1000, 5000));
           }
         } catch (error) {
-          lastError = describeNetworkError(error);
+          // readCappedBody throws ErpError('bad_response') for oversized
+          // bodies; keep it as-is instead of reclassifying it as a network
+          // error (and never retry it).
+          lastError = error instanceof ErpError ? error : describeNetworkError(error);
         }
         this.log(method, url, options.doctype, status, false, started, lastError.message);
         const retryable = ['network', 'timeout', 'server', 'rate_limited'].includes(lastError.kind);

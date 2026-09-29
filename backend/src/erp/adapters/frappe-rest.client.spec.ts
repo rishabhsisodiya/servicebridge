@@ -131,4 +131,52 @@ describe('FrappeRestClient', () => {
     });
     await instance.close();
   });
+
+  it('does not follow redirects: a 302 is a failed call, not a followed one', async () => {
+    handler = (req, res) => {
+      if (req.url === '/followed') return json(res, 200, { message: 'reached' });
+      res.statusCode = 302;
+      res.setHeader('location', '/followed');
+      res.end();
+    };
+    const { instance, records } = client();
+    await expect(instance.loggedUser()).rejects.toMatchObject({
+      kind: 'bad_response',
+      httpStatus: 302,
+    });
+    // The redirect target was never requested.
+    expect(seen).toHaveLength(1);
+    expect(records[0]).toMatchObject({ ok: false, httpStatus: 302 });
+    await instance.close();
+  });
+
+  it('rejects a response whose declared Content-Length exceeds 10 MB', async () => {
+    handler = (_req, res) => {
+      res.setHeader('content-type', 'application/json');
+      res.setHeader('content-length', String(11 * 1024 * 1024));
+      res.end(); // the body is never read
+    };
+    const { instance } = client();
+    await expect(instance.loggedUser()).rejects.toMatchObject({ kind: 'bad_response' });
+    await instance.close();
+  });
+
+  it('aborts a chunked response that grows past 10 MB', async () => {
+    handler = (_req, res) => {
+      res.setHeader('content-type', 'application/json');
+      // No content-length: chunked encoding. 11 MB in 1 MB chunks.
+      let sent = 0;
+      const chunk = Buffer.alloc(1024 * 1024, 'a');
+      const tick = () => {
+        sent += 1;
+        if (sent > 11) return res.end();
+        if (!res.write(chunk)) return res.once('drain', tick);
+        setImmediate(tick);
+      };
+      tick();
+    };
+    const { instance } = client();
+    await expect(instance.loggedUser()).rejects.toMatchObject({ kind: 'bad_response' });
+    await instance.close();
+  });
 });

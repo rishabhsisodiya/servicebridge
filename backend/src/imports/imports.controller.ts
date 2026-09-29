@@ -33,9 +33,12 @@ export class ImportsController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_CSV_BYTES, files: 1 } }))
   validate(
     @Param('entity') entity: string,
+    @CurrentUser() user: AuthUser,
     @UploadedFile() file: UploadedFileLike | undefined,
   ) {
-    return this.imports.validate(this.imports.assertEntity(entity), file);
+    // The validating user is bound to the held validation so only they can
+    // confirm it.
+    return this.imports.validate(this.imports.assertEntity(entity), file, user);
   }
 
   @Post(':entity/confirm')

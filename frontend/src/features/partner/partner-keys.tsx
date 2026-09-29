@@ -262,6 +262,7 @@ function CreateKeyDialog({
     <Dialog
       open
       onClose={onClose}
+      dirty={name.trim() !== "" || expiresAt !== ""}
       title="New partner API key"
       description="The key is shown once after creation. Grant only the scopes the partner needs."
       footer={

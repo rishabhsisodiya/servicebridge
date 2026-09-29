@@ -1,4 +1,4 @@
-import { visibleTo } from './tickets.service';
+import { visibleTo } from './visibility';
 
 describe('visibleTo (ticket scope of the role)', () => {
   it('shows everything for All', () => {

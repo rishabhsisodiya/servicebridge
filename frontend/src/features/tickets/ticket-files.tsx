@@ -1,7 +1,7 @@
 "use client";
 
 import { FileText, Paperclip, Trash2 } from "lucide-react";
-import { useRef, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { Button, IconButton } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
@@ -32,6 +32,57 @@ export function TicketFiles({
   const finished = ticket.stage === "CLOSED" || ticket.stage === "CANCELLED";
   const fileUrl = (id: string) => `${API_BASE}/tickets/${ticket.id}/attachments/${id}`;
 
+  // Remove is undoable: the file hides at once, the real delete runs 5 s
+  // later. Navigating away cancels the pending delete (safe direction).
+  const UNDO_MS = 5_000;
+  const pending = useRef<{ id: string; name: string } | null>(null);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearTimer = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+  useEffect(() => clearTimer, []);
+
+  const commitDelete = useCallback(
+    async (id: string) => {
+      clearTimer();
+      pending.current = null;
+      setPendingId(null);
+      try {
+        await apiFetch(`/tickets/${ticket.id}/attachments/${id}`, { method: "DELETE" });
+        await onUploaded();
+      } catch (caught) {
+        toast.error(
+          caught instanceof ApiError ? caught.message : "Something went wrong. Try again.",
+        );
+        await onUploaded();
+      }
+    },
+    [ticket.id, onUploaded, toast],
+  );
+
+  const remove = (id: string, name: string) => {
+    // One undo window at a time: removing another file commits the pending one.
+    if (pending.current && pending.current.id !== id) void commitDelete(pending.current.id);
+    clearTimer();
+    pending.current = { id, name };
+    setPendingId(id);
+    timer.current = setTimeout(() => void commitDelete(id), UNDO_MS);
+    toast.success(`${name} removed.`, {
+      action: {
+        label: "Undo",
+        onClick: () => {
+          clearTimer();
+          pending.current = null;
+          setPendingId(null);
+        },
+      },
+    });
+  };
+
   const upload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -48,16 +99,6 @@ export function TicketFiles({
       toast.error(caught instanceof ApiError ? caught.message : "Upload failed. Try again.");
     } finally {
       setUploading(false);
-    }
-  };
-
-  const remove = async (id: string, name: string) => {
-    try {
-      await apiFetch(`/tickets/${ticket.id}/attachments/${id}`, { method: "DELETE" });
-      await onUploaded();
-      toast.success(`${name} removed.`);
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : "Something went wrong. Try again.");
     }
   };
 
@@ -98,7 +139,9 @@ export function TicketFiles({
           </p>
         ) : (
           <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3 lg:grid-cols-4">
-            {ticket.attachments.map((a) => {
+            {ticket.attachments
+              .filter((a) => a.id !== pendingId)
+              .map((a) => {
               const canRemove =
                 !finished && (a.uploadedBy?.id === me?.user.id || can("tickets.assign"));
               return (

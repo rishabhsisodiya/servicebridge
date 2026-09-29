@@ -45,7 +45,8 @@ function mocks() {  const visit = {
     count: jest.fn(),
   };
   // The service runs everything through $transaction; run the callback inline.
-  const tx = { visit, visitSpare, visitPhoto };
+  // $executeRaw is the advisory lock for the one-draft-per-ticket invariant.
+  const tx = { visit, visitSpare, visitPhoto, $executeRaw: jest.fn() };
   const prisma = {
     visit,
     visitSpare,
@@ -70,7 +71,7 @@ function mocks() {  const visit = {
     audit as never,
     writebacks as never,
   );
-  return { prisma, tickets, notifier, events, storage, audit, writebacks, service };
+  return { prisma, tx, tickets, notifier, events, storage, audit, writebacks, service };
 }
 
 const ticketOnSite = {
@@ -157,6 +158,26 @@ describe('VisitsService', () => {
       await expect(service.create(manager, { ticketId: 'ticket-1' })).resolves.toMatchObject({
         visitNumber: 1,
       });
+    });
+
+    it('SB-L5: takes the per-ticket advisory lock before the draft check', async () => {
+      const { prisma, tx, service } = mocks();
+      prisma.ticket.findUniqueOrThrow.mockResolvedValue(ticketOnSite);
+      prisma.visit.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+      prisma.visit.create.mockResolvedValue({ id: 'visit-1', visitNumber: 1 });
+
+      await service.create(engineer, { ticketId: 'ticket-1' });
+
+      const lockSql = String((tx.$executeRaw as jest.Mock).mock.calls[0][0][0]);
+      expect(lockSql).toContain('pg_advisory_xact_lock');
+      expect(lockSql).toContain('visit-draft:');
+      // The ticket id is bound as a parameter, not interpolated into the SQL.
+      expect((tx.$executeRaw as jest.Mock).mock.calls[0][1]).toBe('ticket-1');
+      // Lock first, then the one-draft check: a concurrent create blocks on
+      // the lock and sees the first create's draft after it commits.
+      const lockOrder = (tx.$executeRaw as jest.Mock).mock.invocationCallOrder[0];
+      const checkOrder = (prisma.visit.findFirst as jest.Mock).mock.invocationCallOrder[0];
+      expect(lockOrder).toBeLessThan(checkOrder);
     });
   });
 
@@ -284,6 +305,32 @@ describe('VisitsService', () => {
         status: 'SUBMITTED',
       });
       expect(events.emitSubmitted).toHaveBeenCalled();
+    });
+
+    it('guards the status transition in the update where clause', async () => {
+      const { prisma, service } = mocks();
+      prisma.visit.findUnique.mockResolvedValue(submittable);
+      prisma.visit.update.mockResolvedValue({ ...submittable, status: 'SUBMITTED' });
+
+      await service.submit(engineer, 'visit-1');
+
+      expect(prisma.visit.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'visit-1', status: 'DRAFT' } }),
+      );
+    });
+
+    it('SB-L6: a submit racing another submit fails cleanly, no duplicate side-effects', async () => {
+      const { prisma, notifier, events, service } = mocks();
+      // Both reads saw DRAFT; the guarded write finds no DRAFT row -> P2025.
+      prisma.visit.findUnique.mockResolvedValue(submittable);
+      const p2025 = Object.assign(new Error('Record not found'), { code: 'P2025' });
+      prisma.visit.update.mockRejectedValue(p2025);
+
+      const err = await appError(service.submit(engineer, 'visit-1'));
+      expect(err.code).toBe('VISIT_ALREADY_SUBMITTED');
+      expect(err.getStatus()).toBe(HttpStatus.CONFLICT);
+      expect(events.emitSubmitted).not.toHaveBeenCalled();
+      expect(notifier.visitSubmitted).not.toHaveBeenCalled();
     });
   });
 

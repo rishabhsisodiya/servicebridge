@@ -184,8 +184,8 @@ export class ReportSchedulesController {
   constructor(private readonly reports: ReportsService) {}
 
   @Get()
-  list() {
-    return this.reports.listSchedules();
+  list(@CurrentUser() actor: AuthUser) {
+    return this.reports.listSchedules(actor);
   }
 
   @Post()
@@ -198,8 +198,8 @@ export class ReportSchedulesController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.reports.getSchedule(id);
+  get(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
+    return this.reports.getSchedule(actor, id);
   }
 
   @Patch(':id')
@@ -224,19 +224,19 @@ export class ReportSchedulesController {
 
   @Post(':id/activate')
   @HttpCode(HttpStatus.OK)
-  activate(@Param('id') id: string) {
-    return this.reports.activate(id).then(() => ({ ok: true }));
+  activate(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
+    return this.reports.activate(actor, id).then(() => ({ ok: true }));
   }
 
   @Post(':id/deactivate')
   @HttpCode(HttpStatus.OK)
-  deactivate(@Param('id') id: string) {
-    return this.reports.deactivate(id).then(() => ({ ok: true }));
+  deactivate(@CurrentUser() actor: AuthUser, @Param('id') id: string) {
+    return this.reports.deactivate(actor, id).then(() => ({ ok: true }));
   }
 
   @Get(':id/runs')
-  runs(@Param('id') id: string, @Query() query: RunsQuery) {
-    return this.reports.listRuns(id, query.page);
+  runs(@CurrentUser() actor: AuthUser, @Param('id') id: string, @Query() query: RunsQuery) {
+    return this.reports.listRuns(actor, id, query.page);
   }
 }
 
@@ -248,8 +248,12 @@ export class ReportRunsController {
   /** Downloads the CSV stored for a run (scheduled runs keep their file). */
   @Get(':id/download')
   @Header('Content-Type', 'text/csv; charset=utf-8')
-  async download(@Param('id') id: string, @Res({ passthrough: true }) res: Response) {
-    const { stream, filename } = await this.reports.readRunCsv(id);
+  async download(
+    @CurrentUser() actor: AuthUser,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { stream, filename } = await this.reports.readRunCsv(actor, id);
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     return new StreamableFile(stream);
   }

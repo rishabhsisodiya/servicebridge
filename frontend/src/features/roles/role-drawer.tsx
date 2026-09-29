@@ -43,6 +43,15 @@ export function RoleDrawer({ role, roles, catalog, canSave, onClose, onSave }: R
 
   const flip = (permission: string) => setSelected((s) => toggle(s, permission, catalog));
 
+  // Unsaved edits: Escape / backdrop / close asks "Discard changes?" first.
+  const initialPermissions = new Set<string>(existing?.permissions ?? []);
+  const dirty =
+    name !== (existing?.name ?? "") ||
+    description !== (existing?.description ?? "") ||
+    scope !== (existing?.ticketScope ?? "") ||
+    selected.size !== initialPermissions.size ||
+    [...selected].some((p) => !initialPermissions.has(p));
+
   const copy = (id: string) => {
     setCopyFrom(id);
     const source = roles.find((r) => r.id === id);
@@ -86,6 +95,7 @@ export function RoleDrawer({ role, roles, catalog, canSave, onClose, onSave }: R
     <Drawer
       open={!!role}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       className="w-[min(640px,100vw)]"
       title={title}
       description={
@@ -161,7 +171,10 @@ export function RoleDrawer({ role, roles, catalog, canSave, onClose, onSave }: R
 
         <fieldset className="flex flex-col gap-1.5" aria-describedby="scope-error">
           <legend className="mb-1 text-[13px] font-semibold">
-            Which tickets can they see? <span className="text-bad">*</span>
+            Which tickets can they see?{" "}
+            <span className="text-bad" aria-hidden>
+              *
+            </span>
           </legend>
           <div className="flex flex-col rounded-lg border border-line">
             {catalog.scopes.map((option) => (
@@ -198,7 +211,7 @@ export function RoleDrawer({ role, roles, catalog, canSave, onClose, onSave }: R
           <p className="text-[13px] text-muted">
             Anything beyond Read also turns on Read. Dashes mean the action doesn&apos;t apply.
           </p>
-          <div className="overflow-x-auto rounded-lg border border-line">
+          <div className="relative overflow-x-auto rounded-lg border border-line">
             <table aria-labelledby="records-heading" className="w-full border-collapse text-[13px]">
               <thead className="bg-surface-2 text-xs text-muted">
                 <tr>

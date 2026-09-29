@@ -16,6 +16,7 @@ import {
 } from '../../demo/app-settings.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { rolesWith } from '../../roles/role-filters';
+import { visibleTo } from '../../tickets/visibility';
 import { FrappeRestClient } from '../adapters/frappe-rest.client';
 import { SB_REF_DOCTYPES, SB_REF_FIELD } from '../connection-tester';
 import { ErpConnectionsService } from '../connections/erp-connections.service';
@@ -488,7 +489,9 @@ export class WritebacksService implements OnModuleInit {
     return this.settings.updateWritebackSettings(actor, input, client);
   }
 
-  async overview(): Promise<{
+  async overview(
+    actor: Pick<AuthUser, 'id' | 'ticketScope' | 'regionId'>,
+  ): Promise<{
     settings: WritebackSettings;
     automations: { key: string; name: string; description: string; enabled: boolean }[];
     setup: SetupCheckResult;
@@ -507,6 +510,7 @@ export class WritebacksService implements OnModuleInit {
       this.setupCheck(),
       this.warehouses(),
       this.prisma.erpWriteback.findMany({
+        where: this.scopeFilter(actor),
         orderBy: { createdAt: 'desc' },
         take: 20,
         include: { ticket: { select: { number: true } } },
@@ -560,13 +564,30 @@ export class WritebacksService implements OnModuleInit {
     };
   }
 
-  async list(ticketId?: string): Promise<ErpWriteback[]> {
+  async list(
+    actor: Pick<AuthUser, 'id' | 'ticketScope' | 'regionId'>,
+    ticketId?: string,
+  ): Promise<ErpWriteback[]> {
     return this.prisma.erpWriteback.findMany({
-      where: ticketId ? { ticketId } : undefined,
+      where: {
+        AND: [ticketId ? { ticketId } : {}, this.scopeFilter(actor)],
+      },
       orderBy: { createdAt: 'desc' },
       take: 100,
       include: { ticket: { select: { number: true } } },
     });
+  }
+
+  /**
+   * Write-back rows inherit ticket visibility: a narrower-scoped user only
+   * sees write-backs for tickets they could open in the tickets API. Rows
+   * with no ticket at all are unscoped.
+   */
+  private scopeFilter(
+    actor: Pick<AuthUser, 'id' | 'ticketScope' | 'regionId'>,
+  ): Prisma.ErpWritebackWhereInput {
+    if (actor.ticketScope === 'ALL') return {};
+    return { OR: [{ ticketId: null }, { ticket: visibleTo(actor) }] };
   }
 
   async retry(actor: AuthUser, id: string, client: ClientInfo): Promise<ErpWriteback> {

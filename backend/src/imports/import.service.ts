@@ -52,6 +52,8 @@ interface HeldValidation {
   entity: ImportEntity;
   rows: PreviewRow[];
   expiresAt: number;
+  /** The user who ran validate(): only they may confirm this validation. */
+  userId: string;
 }
 
 const CUSTOMER_COLUMNS = ['name', 'customer_group', 'territory', 'tax_id', 'mobile', 'email'];
@@ -105,7 +107,11 @@ export class ImportService {
     throw new AppException('NOT_FOUND', 'Unknown import entity.', HttpStatus.NOT_FOUND);
   }
 
-  async validate(entity: ImportEntity, file: UploadedFileLike | undefined): Promise<ValidationPreview> {
+  async validate(
+    entity: ImportEntity,
+    file: UploadedFileLike | undefined,
+    user: AuthUser,
+  ): Promise<ValidationPreview> {
     this.sweepExpired();
     if (!file) {
       throw validationFailed([{ field: 'file', message: 'Attach a CSV file.' }]);
@@ -150,7 +156,12 @@ export class ImportService {
       entity === 'customers' ? await this.validateCustomers(records) : await this.validateMachines(records);
 
     const validationId = `imp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-    this.held.set(validationId, { entity, rows, expiresAt: Date.now() + VALIDATION_TTL_MS });
+    this.held.set(validationId, {
+      entity,
+      rows,
+      expiresAt: Date.now() + VALIDATION_TTL_MS,
+      userId: user.id,
+    });
     this.logger.log({ entity, rows: rows.length }, 'Import validated');
     return {
       validationId,
@@ -173,12 +184,26 @@ export class ImportService {
     client: ClientInfo,
   ): Promise<ImportReport> {
     this.sweepExpired();
+    // Claim the validation atomically BEFORE the first await: get + delete run
+    // synchronously, so a concurrent second confirm with the same id finds
+    // nothing held and fails instead of applying the rows twice. NOTE: a
+    // failed processing run consumes the validation — re-validate to retry.
     const held = this.held.get(dto.validationId);
+    this.held.delete(dto.validationId);
     if (!held || held.entity !== entity) {
       throw new AppException(
         'VALIDATION_EXPIRED',
         'That validation has expired. Upload the file again.',
         HttpStatus.GONE,
+      );
+    }
+    // The validation belongs to whoever ran validate(); a different user
+    // confirming it could apply their own destructive row dispositions.
+    if (held.userId !== actor.id) {
+      throw new AppException(
+        'IMPORT_USER_MISMATCH',
+        'Only the user who validated this file can confirm the import.',
+        HttpStatus.FORBIDDEN,
       );
     }
     const overrides = new Map((dto.rows ?? []).map((r) => [r.index, r.mode]));
@@ -214,7 +239,6 @@ export class ImportService {
       ip: client.ip,
       requestId: client.requestId,
     });
-    this.held.delete(dto.validationId);
     this.logger.log({ entity, ...report }, 'Import confirmed');
     return report;
   }

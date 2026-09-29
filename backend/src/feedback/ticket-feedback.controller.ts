@@ -14,3 +14,19 @@ export class TicketFeedbackController {
     return this.csat.forTicket(ticketId, actor);
   }
 }
+
+/**
+ * Hands staff the raw token-bearing survey link (SB-M7). The link is the only
+ * credential on the public page, so it needs tickets.edit on top of ticket
+ * visibility — it never appears in list/detail responses.
+ */
+@Controller('tickets/:ticketId/survey-link')
+export class TicketSurveyLinkController {
+  constructor(private readonly csat: CsatService) {}
+
+  @Get()
+  @RequirePermissions('tickets.edit')
+  link(@CurrentUser() actor: AuthUser, @Param('ticketId') ticketId: string) {
+    return this.csat.surveyLink(ticketId, actor);
+  }
+}

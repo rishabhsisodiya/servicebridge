@@ -72,7 +72,7 @@ export function FilterChip({ pressed, onClick, children, count }: FilterChipProp
         "inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-full border px-3 text-[13px] font-semibold transition-colors",
         pressed
           ? "border-primary bg-primary text-on-primary"
-          : "border-line-strong bg-surface text-text hover:bg-surface-2",
+          : "border-control-border bg-surface text-text hover:bg-surface-2",
       )}
     >
       {children}

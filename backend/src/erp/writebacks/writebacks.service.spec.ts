@@ -484,6 +484,53 @@ describe('retry', () => {
   });
 });
 
+describe('WritebacksService ticket visibility', () => {
+  const regionActor = { id: 'area-1', ticketScope: 'REGION', regionId: 'region-north' } as never;
+  const adminActor = { id: 'admin-1', ticketScope: 'ALL', regionId: null } as never;
+
+  it('scopes the log to tickets a REGION user can see', async () => {
+    const { service, prisma } = mocks();
+    await service.list(regionActor);
+    const where = prisma.erpWriteback.findMany.mock.calls[0][0].where;
+    // Write-backs for other regions' tickets must not leak; unscoped rows stay.
+    expect(where.AND[1]).toEqual({
+      OR: [
+        { ticketId: null },
+        { ticket: { OR: expect.arrayContaining([{ regionId: 'region-north' }]) } },
+      ],
+    });
+  });
+
+  it('does not filter for an ALL-scope user', async () => {
+    const { service, prisma } = mocks();
+    await service.list(adminActor);
+    expect(prisma.erpWriteback.findMany.mock.calls[0][0].where.AND).toContainEqual({});
+    await service.overview(adminActor);
+    expect(prisma.erpWriteback.findMany.mock.calls[1][0].where).toEqual({});
+  });
+
+  it('keeps the ticketId filter and adds the visibility filter', async () => {
+    const { service, prisma } = mocks();
+    await service.list(regionActor, 'ticket-9');
+    const where = prisma.erpWriteback.findMany.mock.calls[0][0].where;
+    expect(where.AND[0]).toEqual({ ticketId: 'ticket-9' });
+    expect(where.AND[1]).toEqual(
+      expect.objectContaining({ OR: expect.any(Array) }),
+    );
+  });
+
+  it('scopes the overview recent list the same way', async () => {
+    const { service, prisma } = mocks();
+    await service.overview(regionActor);
+    expect(prisma.erpWriteback.findMany.mock.calls[0][0].where).toEqual({
+      OR: [
+        { ticketId: null },
+        { ticket: { OR: expect.arrayContaining([{ regionId: 'region-north' }]) } },
+      ],
+    });
+  });
+});
+
 describe('warehouses', () => {
   it('rejects a blank name and duplicates', async () => {
     const { service, prisma } = mocks();

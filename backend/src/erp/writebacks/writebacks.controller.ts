@@ -16,14 +16,14 @@ export class WritebacksController {
 
   /** Everything the admin UI needs on one screen. */
   @Get('overview')
-  overview() {
-    return this.writebacks.overview();
+  overview(@CurrentUser() user: AuthUser) {
+    return this.writebacks.overview(user);
   }
 
   /** Write-back log, newest first (optionally for one ticket). */
   @Get()
-  list(@Query('ticketId') ticketId?: string) {
-    return this.writebacks.list(ticketId || undefined).then((data) => ({ data }));
+  list(@CurrentUser() user: AuthUser, @Query('ticketId') ticketId?: string) {
+    return this.writebacks.list(user, ticketId || undefined).then((data) => ({ data }));
   }
 
   /** Runs the read-only setup probe against the WRITEBACK connection. */

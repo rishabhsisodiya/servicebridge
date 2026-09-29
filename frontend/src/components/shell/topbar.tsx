@@ -59,7 +59,7 @@ export function Topbar({ navOpen, onOpenNav, onOpenSearch }: TopbarProps) {
         onClick={onOpenSearch}
         aria-label="Search (Ctrl K)"
         aria-keyshortcuts="Control+K Meta+K"
-        className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-2.5 text-muted hover:border-line-strong max-md:size-10 max-md:justify-center max-md:border-transparent max-md:bg-transparent md:min-w-64"
+        className="flex min-h-9 cursor-pointer items-center gap-2 rounded-lg border border-control-border bg-surface px-2.5 text-muted hover:border-line-strong max-md:size-10 max-md:justify-center max-md:border-transparent max-md:bg-transparent md:min-w-64"
       >
         <Search className="size-4 shrink-0" aria-hidden />
         <span className="max-md:hidden">Search screens, tickets…</span>

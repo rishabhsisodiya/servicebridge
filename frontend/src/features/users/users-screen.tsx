@@ -192,7 +192,7 @@ export function UsersScreen() {
               placeholder="Name or email"
               value={filters.search}
               onChange={(event) => update({ search: event.target.value })}
-              className="min-h-9 w-full rounded-lg border border-line-strong bg-surface pr-3 pl-8 placeholder:text-faint focus:border-accent focus:outline-2 focus:outline-offset-0 focus:outline-accent/50 max-sm:text-base"
+              className="min-h-9 w-full rounded-lg border border-control-border bg-surface pr-3 pl-8 placeholder:text-faint focus:border-accent focus:outline-2 focus:outline-offset-0 focus:outline-accent/50 max-sm:text-base"
             />
           </div>
           <Select

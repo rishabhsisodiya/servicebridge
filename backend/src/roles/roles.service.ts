@@ -189,10 +189,13 @@ export class RolesService {
       const permissions = dto.permissions ? normalizePermissions(dto.permissions) : before;
       const added = permissions.filter((p) => !before.includes(p));
       const removed = before.filter((p) => !permissions.includes(p));
-      // Only what's being added is checked, so people can still rename a role
-      // or remove access from it without holding everything it grants.
-      const scopeWidened = dto.ticketScope && dto.ticketScope !== role.ticketScope;
-      this.assertGrantable(actor, added, scopeWidened ? dto.ticketScope : undefined);
+      // The actor must be able to grant the role's COMPLETE post-update access.
+      // Checking only added permissions (and only scope widening) let a
+      // narrower-scoped role admin widen third parties' access through a wider
+      // role: e.g. adding a permission they hold to an ALL-scope role they
+      // could never grant directly.
+      const finalScope = dto.ticketScope ?? role.ticketScope;
+      this.assertGrantable(actor, permissions, finalScope);
 
       const name = dto.name?.trim();
       if (name && name !== role.name) await this.assertNameFree(name, id, tx);

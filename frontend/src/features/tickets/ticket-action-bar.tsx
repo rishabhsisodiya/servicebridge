@@ -1,10 +1,11 @@
 "use client";
 
-import { Clock } from "lucide-react";
+import { ChevronDown, Clock } from "lucide-react";
 import { useState, type FormEvent } from "react";
 import { Button, type ButtonVariant } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Field, Textarea } from "@/components/ui/field";
+import { Popover } from "@/components/ui/popover";
 import { useToast } from "@/components/ui/toast";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import type { TicketAction, TicketDetail } from "./api";
@@ -171,6 +172,13 @@ export function TicketActionBar({ ticket, onChanged }: TicketActionBarProps) {
   const dialog = open ? DIALOGS[open] : undefined;
   const clock = ticket.sla.state === "none" ? null : slaText(ticket.sla);
 
+  // The bar stays one row: the main next step plus one more stay visible,
+  // everything else moves into the "More" menu.
+  const visible = actions.slice(0, 2);
+  const rest = actions.slice(2);
+  const variantOf = (action: TicketAction, index: number): ButtonVariant =>
+    index === 0 && action !== "cancel" ? "primary" : action === "cancel" ? "ghost" : "secondary";
+
   return (
     <>
       <div className="sticky bottom-0 z-20 -mx-4 -mb-12 flex flex-wrap items-center gap-2 border-t border-line bg-surface px-4 pt-3 pb-[calc(12px+env(safe-area-inset-bottom))] lg:-mx-7 lg:px-7">
@@ -181,16 +189,10 @@ export function TicketActionBar({ ticket, onChanged }: TicketActionBarProps) {
           </span>
         )}
         <div className="flex flex-wrap gap-2 max-sm:w-full sm:ml-auto [&>*]:max-sm:flex-1">
-          {actions.map((action, index) => (
+          {visible.map((action, index) => (
             <Button
               key={action}
-              variant={
-                index === 0 && action !== "cancel"
-                  ? "primary"
-                  : action === "cancel"
-                    ? "ghost"
-                    : "secondary"
-              }
+              variant={variantOf(action, index)}
               loading={busy === action && !open}
               disabled={!!busy}
               onClick={() => start(action)}
@@ -198,6 +200,42 @@ export function TicketActionBar({ ticket, onChanged }: TicketActionBarProps) {
               {label(action)}
             </Button>
           ))}
+          {rest.length > 0 && (
+            <Popover
+              side="up"
+              trigger={(props) => (
+                <Button
+                  variant="secondary"
+                  className="max-sm:w-full"
+                  icon={<ChevronDown className="size-4" aria-hidden />}
+                  disabled={!!busy}
+                  {...props}
+                >
+                  More
+                </Button>
+              )}
+            >
+              {(close) => (
+                <div role="menu" aria-label="More ticket actions" className="flex flex-col gap-0.5 p-1.5">
+                  {rest.map((action) => (
+                    <Button
+                      key={action}
+                      variant="ghost"
+                      role="menuitem"
+                      className="justify-start"
+                      disabled={!!busy}
+                      onClick={() => {
+                        close();
+                        start(action);
+                      }}
+                    >
+                      {label(action)}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </Popover>
+          )}
         </div>
       </div>
 

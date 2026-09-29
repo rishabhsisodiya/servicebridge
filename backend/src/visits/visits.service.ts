@@ -130,6 +130,11 @@ export class VisitsService {
       );
     }
     const visit = await this.prisma.$transaction(async (tx) => {
+      // One-draft-per-ticket can't be a partial unique index in Prisma, so a
+      // transaction-scoped Postgres advisory lock (per ticket) serializes
+      // concurrent creates: the second create blocks until the first commits,
+      // then sees the draft via the check below. Released at tx end.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('visit-draft:' || ${ticket.id})::bigint)`;
       const open = await tx.visit.findFirst({
         where: { ticketId: ticket.id, status: 'DRAFT' },
         select: { id: true },
@@ -603,15 +608,30 @@ export class VisitsService {
           HttpStatus.UNPROCESSABLE_ENTITY,
         );
       }
-      const next = await tx.visit.update({
-        where: { id },
-        data: {
-          status: 'SUBMITTED',
-          submittedAt: new Date(),
-          submittedById: user.id,
-          version: { increment: 1 },
-        },
-      });
+      // The DRAFT guard in the where clause makes the submit exactly-once: two
+      // overlapping submits both pass the pre-transaction read, but only one
+      // write wins; the loser gets P2025 and a clean 409 instead of duplicate
+      // notifications/audit rows.
+      const next = await tx.visit
+        .update({
+          where: { id, status: 'DRAFT' },
+          data: {
+            status: 'SUBMITTED',
+            submittedAt: new Date(),
+            submittedById: user.id,
+            version: { increment: 1 },
+          },
+        })
+        .catch((error: { code?: string }) => {
+          if (error?.code === 'P2025') {
+            throw new AppException(
+              'VISIT_ALREADY_SUBMITTED',
+              'This visit is already submitted.',
+              HttpStatus.CONFLICT,
+            );
+          }
+          throw error;
+        });
       await this.audit.record(
         {
           actorId: user.id,

@@ -88,7 +88,7 @@ export function SlaTab() {
                           Respond <b>{formatMinutes(policy.responseMinutes)}</b>
                         </span>
                         <Pencil
-                          className="size-3.5 text-muted opacity-0 group-hover:opacity-100"
+                          className="size-3.5 shrink-0 text-muted"
                           aria-hidden
                         />
                       </span>
@@ -146,6 +146,11 @@ function SlaDrawer({
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
 
+  const dirty =
+    JSON.stringify(response) !== JSON.stringify(splitMinutes(policy?.responseMinutes ?? 60)) ||
+    JSON.stringify(resolution) !== JSON.stringify(splitMinutes(policy?.resolutionMinutes ?? 480)) ||
+    calendarId !== (policy?.calendarId ?? "");
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!policy) return;
@@ -177,6 +182,7 @@ function SlaDrawer({
     <Drawer
       open={!!policy}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       title={title}
       description="Applies to tickets logged after you save. Open tickets keep their due times."
       footer={

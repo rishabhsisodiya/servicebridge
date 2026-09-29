@@ -195,24 +195,24 @@ model UserToken {
 
 /// Append-only record of changes. Secrets are never written here.
 model AuditLog {
-  id         String   @id @default(cuid())
+  id           String         @id @default(cuid())
   /// Null for changes made by the system itself.
-  actorId    String?
-  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actorId      String?
+  actor        User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
   /// Dotted verb, e.g. "user.invited", "auth.password_changed".
-  action     String
-  entityType String
-  entityId   String?
+  action       String
+  entityType   String
+  entityId     String?
   /// Plain-English line shown in the audit log screen.
-  summary    String
+  summary      String
   /// Field-level before/after for updates.
-  changes    Json?
-  ip         String?
-  requestId  String?
+  changes      Json?
+  ip           String?
+  requestId    String?
   /// Partner API key behind this change, if any.
   partnerKeyId String?
   partnerKey   PartnerApiKey? @relation(fields: [partnerKeyId], references: [id], onDelete: SetNull)
-  createdAt  DateTime @default(now())
+  createdAt    DateTime       @default(now())
 
   @@index([createdAt])
   @@index([entityType, entityId])
@@ -430,22 +430,22 @@ enum ReportRunStatus {
 }
 
 model ReportSchedule {
-  id          String   @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String
   reportKey   String
   params      Json
   cron        String
-  timezone    String   @default("Asia/Kolkata")
+  timezone    String      @default("Asia/Kolkata")
   /// User ids of recipients; each must have an email address.
   recipients  Json
-  active      Boolean  @default(false)
+  active      Boolean     @default(false)
   lastRunAt   DateTime?
   createdById String?
-  createdBy   User?    @relation("ReportScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdBy   User?       @relation("ReportScheduleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   /// Optimistic locking: edits must send the version they read.
-  version     Int      @default(1)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  version     Int         @default(1)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
   runs        ReportRun[]
 
   @@index([active])
@@ -701,6 +701,9 @@ model ErpWebhookEvent {
   doctype        String?
   docName        String?
   event          String?
+  /// The ERP record's modified timestamp from the webhook payload. Replays
+  /// carry the same value, so it doubles as the idempotency key (SB-H5).
+  docModified    String?
   signatureValid Boolean
   status         WebhookEventStatus
   /// Plain-English reason for IGNORED / REJECTED / FAILED.
@@ -885,80 +888,84 @@ model TicketCounter {
 }
 
 model Ticket {
-  id                 String             @id @default(cuid())
-  number             String             @unique
-  title              String
-  description        String?
-  customerId         String
-  customer           Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  siteId             String?
-  site               Site?              @relation(fields: [siteId], references: [id], onDelete: SetNull)
-  equipmentId        String?
-  equipment          Equipment?         @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
-  contactId          String?
-  contact            CustomerContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
-  serviceTypeId      String
-  serviceType        ServiceType        @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
-  priority           TicketPriority
-  channel            TicketChannel
+  id                     String             @id @default(cuid())
+  number                 String             @unique
+  title                  String
+  description            String?
+  customerId             String
+  customer               Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  siteId                 String?
+  site                   Site?              @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  equipmentId            String?
+  equipment              Equipment?         @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  contactId              String?
+  contact                CustomerContact?   @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  serviceTypeId          String
+  serviceType            ServiceType        @relation(fields: [serviceTypeId], references: [id], onDelete: Restrict)
+  priority               TicketPriority
+  channel                TicketChannel
   /// Worked out from the machine when the ticket was logged.
-  coverage           Coverage
-  coverageUntil      DateTime?          @db.Date
-  stage              TicketStage        @default(NEW)
+  coverage               Coverage
+  coverageUntil          DateTime?          @db.Date
+  stage                  TicketStage        @default(NEW)
   /// Where ON_HOLD returns to.
-  stageBeforeHold    TicketStage?
-  holdReason         String?
-  regionId           String?
-  region             Region?            @relation(fields: [regionId], references: [id], onDelete: SetNull)
-  areaManagerId      String?
-  areaManager        User?              @relation("TicketAreaManager", fields: [areaManagerId], references: [id], onDelete: SetNull)
-  engineerId         String?
-  engineer           User?              @relation("TicketEngineer", fields: [engineerId], references: [id], onDelete: SetNull)
-  createdById        String?
-  createdBy          User?              @relation("TicketCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  stageBeforeHold        TicketStage?
+  holdReason             String?
+  regionId               String?
+  region                 Region?            @relation(fields: [regionId], references: [id], onDelete: SetNull)
+  areaManagerId          String?
+  areaManager            User?              @relation("TicketAreaManager", fields: [areaManagerId], references: [id], onDelete: SetNull)
+  engineerId             String?
+  engineer               User?              @relation("TicketEngineer", fields: [engineerId], references: [id], onDelete: SetNull)
+  createdById            String?
+  createdBy              User?              @relation("TicketCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   /// SLA targets copied from the policy when logged, so later policy edits don't move open tickets.
-  responseMinutes    Int
-  resolutionMinutes  Int
-  slaCalendarId      String?
-  responseDueAt      DateTime
-  resolutionDueAt    DateTime
-  respondedAt        DateTime?
-  resolvedAt         DateTime?
-  verifiedAt         DateTime?
-  closedAt           DateTime?
-  cancelledAt        DateTime?
+  responseMinutes        Int
+  resolutionMinutes      Int
+  slaCalendarId          String?
+  responseDueAt          DateTime
+  resolutionDueAt        DateTime
+  respondedAt            DateTime?
+  resolvedAt             DateTime?
+  verifiedAt             DateTime?
+  closedAt               DateTime?
+  cancelledAt            DateTime?
   /// Set while ON_HOLD: open minutes left on each clock when the hold began.
-  pausedAt           DateTime?
-  responseLeftMin    Int?
-  resolutionLeftMin  Int?
+  pausedAt               DateTime?
+  responseLeftMin        Int?
+  resolutionLeftMin      Int?
   /// The running clock (response until accepted, then resolution). Null while paused or finished.
-  slaDueAt           DateTime?
+  slaDueAt               DateTime?
   /// When the running clock turns "at risk" (last 25% of its target).
-  slaRiskAt          DateTime?
-  responseBreached   Boolean            @default(false)
-  resolutionBreached Boolean            @default(false)
-  reopenCount        Int                @default(0)
-  duplicateOfId      String?
-  duplicateOf        Ticket?            @relation("TicketDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
-  duplicates         Ticket[]           @relation("TicketDuplicate")
+  slaRiskAt              DateTime?
+  responseBreached       Boolean            @default(false)
+  resolutionBreached     Boolean            @default(false)
+  /// Once a clock has breached it stays breached here, even across reopens —
+  /// SLA compliance history is never rewritten.
+  responseBreachedEver   Boolean            @default(false)
+  resolutionBreachedEver Boolean            @default(false)
+  reopenCount            Int                @default(0)
+  duplicateOfId          String?
+  duplicateOf            Ticket?            @relation("TicketDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates             Ticket[]           @relation("TicketDuplicate")
   /// Partner API key that logged this ticket, if any.
-  partnerKeyId       String?
-  partnerKey         PartnerApiKey?     @relation(fields: [partnerKeyId], references: [id], onDelete: SetNull)
+  partnerKeyId           String?
+  partnerKey             PartnerApiKey?     @relation(fields: [partnerKeyId], references: [id], onDelete: SetNull)
   /// The partner's own reference — idempotency key, unique per partner key.
-  externalRef        String?
-  isDemo             Boolean            @default(false)
-  version            Int                @default(1)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-  events             TicketEvent[]
-  writebacks         ErpWriteback[]
-  attachments        TicketAttachment[]
-  notifications      Notification[]
-  visits             Visit[]
-  quotations         Quotation[]
-  csatTokens         CsatToken[]
-  emailLogs          EmailLog[]
-  plannedVisits      AmcPlannedVisit[]
+  externalRef            String?
+  isDemo                 Boolean            @default(false)
+  version                Int                @default(1)
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  events                 TicketEvent[]
+  writebacks             ErpWriteback[]
+  attachments            TicketAttachment[]
+  notifications          Notification[]
+  visits                 Visit[]
+  quotations             Quotation[]
+  csatTokens             CsatToken[]
+  emailLogs              EmailLog[]
+  plannedVisits          AmcPlannedVisit[]
 
   @@unique([partnerKeyId, externalRef])
   @@index([stage, priority])
@@ -1257,13 +1264,17 @@ model CsatToken {
   ticket    Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   /// The public feedback URL, stored so the service team can copy it later.
   url       String?
+  /// Survey links expire 90 days after minting; describe()/answer() reject expired tokens.
+  expiresAt DateTime?
   /// Whether the invite email was queued.
   emailed   Boolean       @default(false)
   usedAt    DateTime?
   createdAt DateTime      @default(now())
   response  CsatResponse?
 
-  @@index([ticketId])
+  /// One token per ticket: backstops the close-action optimistic lock so a
+  /// concurrent double-close can never mint two survey links.
+  @@unique([ticketId])
 }
 
 /// One customer's answer. One row per token: single-use at the database level.

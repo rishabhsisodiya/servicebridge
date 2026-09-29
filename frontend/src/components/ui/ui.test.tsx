@@ -1,12 +1,14 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Button, IconButton } from "./button";
+import { Dialog, Drawer } from "./dialog";
 import { Field, Input } from "./field";
 import { Popover } from "./popover";
 import { Segmented } from "./segmented";
 import { Tabs } from "./tabs";
+import { ToastProvider, useToast } from "./toast";
 
 describe("Button", () => {
   it("is disabled and busy while loading", async () => {
@@ -124,5 +126,112 @@ describe("Popover", () => {
     await userEvent.keyboard("{Escape}");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
     expect(trigger).toHaveFocus();
+  });
+});
+
+describe("Dialog dirty guard", () => {
+  beforeEach(() => {
+    // jsdom doesn't implement the modal dialog methods.
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+      this.removeAttribute("open");
+    });
+  });
+
+  const cancel = () => {
+    const dialog = document.querySelector("dialog")!;
+    fireEvent(dialog, new Event("cancel", { cancelable: true }));
+  };
+
+  it("asks before discarding a dirty form on Escape", async () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open onClose={onClose} title="Edit role" dirty>
+        <p>Form</p>
+      </Dialog>,
+    );
+    cancel();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog", { name: "Discard changes?" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+
+    cancel();
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second Escape dismisses the discard confirmation instead of closing", async () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open onClose={onClose} title="Edit role" dirty>
+        <p>Form</p>
+      </Dialog>,
+    );
+    cancel();
+    expect(screen.getByRole("alertdialog", { name: "Discard changes?" })).toBeInTheDocument();
+
+    // A second Escape returns to editing; edits are not lost.
+    cancel();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.querySelector("dialog")).toBeInTheDocument();
+  });
+
+  it("closes a clean form on Escape without asking", () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open onClose={onClose} title="Edit role" dirty={false}>
+        <p>Form</p>
+      </Dialog>,
+    );
+    cancel();
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  it("guards the drawer close button the same way", async () => {
+    const onClose = vi.fn();
+    render(
+      <Drawer open onClose={onClose} title="Edit role" dirty>
+        <p>Form</p>
+      </Drawer>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog", { name: "Discard changes?" })).toBeInTheDocument();
+  });
+});
+
+describe("Toast action", () => {
+  it("runs the action and dismisses the toast", async () => {
+    const onUndo = vi.fn();
+    function Fire() {
+      const toast = useToast();
+      return (
+        <button
+          onClick={() =>
+            toast.success("report.pdf removed.", { action: { label: "Undo", onClick: onUndo } })
+          }
+        >
+          Remove
+        </button>
+      );
+    }
+    render(
+      <ToastProvider>
+        <Fire />
+      </ToastProvider>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Remove" }));
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).toBeInTheDocument();
+    await userEvent.click(undo);
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "Undo" })).not.toBeInTheDocument();
   });
 });

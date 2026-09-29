@@ -1,10 +1,11 @@
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
   IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   MaxLength,
@@ -73,9 +74,15 @@ export class PartnerCreateTicketDto {
   /**
    * The partner's own reference for this ticket. Unique per API key: a repeat
    * POST with the same value returns the existing ticket instead of creating
-   * a duplicate.
+   * a duplicate. Trimmed first so whitespace-only values are rejected as
+   * empty — an empty ref would false-match other empty refs (false
+   * duplicate:true, ticket silently never created).
    */
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
+  @IsNotEmpty({ message: 'Give your own reference for this ticket.' })
   @MaxLength(100)
   externalRef!: string;
 

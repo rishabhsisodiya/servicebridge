@@ -42,6 +42,12 @@ class ClearDemoDto {
   confirm: string;
 }
 
+class LoadDemoDto {
+  @IsOptional()
+  @IsBoolean()
+  confirmed?: boolean;
+}
+
 @Controller()
 export class DemoController {
   constructor(
@@ -97,8 +103,14 @@ export class DemoController {
   @RequirePermissions('demo.manage')
   @RequireRecentAuth()
   @HttpCode(HttpStatus.OK)
-  load(@CurrentUser() actor: AuthUser, @Client() client: ClientInfo) {
-    return this.demo.load(actor, client.ip);
+  load(
+    @CurrentUser() actor: AuthUser,
+    @Client() client: ClientInfo,
+    @Body() body: LoadDemoDto,
+  ) {
+    // Seeding a non-empty install needs the caller's explicit confirmation;
+    // the web UI asks for it after the backend answers DEMO_CONFIRMATION_REQUIRED.
+    return this.demo.load(actor, client.ip, { confirmed: body.confirmed ?? false });
   }
 
   @Post('demo/clear')

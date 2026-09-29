@@ -41,9 +41,18 @@ function build(found: ReturnType<typeof user> | null) {
   const prisma = {
     user: {
       findUnique: jest.fn().mockResolvedValue(found),
-      update: jest
-        .fn()
-        .mockImplementation(({ data }: { data: object }) => Promise.resolve({ ...found, ...data })),
+      update: jest.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) => {
+        const next = { ...found };
+        const failures = data.failedLoginCount as { increment?: number } | number | undefined;
+        if (failures && typeof failures === 'object' && typeof failures.increment === 'number') {
+          // Simulates the database's atomic increment: the returned counter is
+          // what the service makes its lockout decision from.
+          next.failedLoginCount = (found?.failedLoginCount ?? 0) + failures.increment;
+        } else {
+          Object.assign(next, data);
+        }
+        return Promise.resolve(next);
+      }),
     },
   };
   const sessions = {
@@ -90,25 +99,46 @@ describe('AuthService.login', () => {
     });
   });
 
-  it('counts a wrong password', async () => {
+  it('counts a wrong password with an atomic increment', async () => {
     const { service, prisma } = build(user({ failedLoginCount: 2 }));
     await expect(
       service.login('meera@example.com', 'wrong-password-1', client),
     ).rejects.toMatchObject({
       code: 'INVALID_CREDENTIALS',
     });
-    expect(prisma.user.update.mock.calls[0][0].data.failedLoginCount).toBe(3);
+    expect(prisma.user.update.mock.calls[0][0].data.failedLoginCount).toEqual({ increment: 1 });
   });
 
-  it(`locks the account after ${MAX_FAILED_LOGINS} wrong passwords`, async () => {
+  it(`locks the account after ${MAX_FAILED_LOGINS} wrong passwords, decided from the fresh counter`, async () => {
     const { service, prisma, audit } = build(user({ failedLoginCount: MAX_FAILED_LOGINS - 1 }));
     await expect(
       service.login('meera@example.com', 'wrong-password-1', client),
     ).rejects.toMatchObject({
       code: 'INVALID_CREDENTIALS',
     });
-    expect(prisma.user.update.mock.calls[0][0].data.lockedUntil).toBeInstanceOf(Date);
+    // The first write is the atomic increment; the lockout decision came from
+    // the re-read counter, so the account locks even if the login's read was stale.
+    expect(prisma.user.update.mock.calls[0][0].data.failedLoginCount).toEqual({ increment: 1 });
+    expect(prisma.user.update.mock.calls[1][0].data).toMatchObject({ failedLoginCount: 0 });
+    expect(prisma.user.update.mock.calls[1][0].data.lockedUntil).toBeInstanceOf(Date);
     expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: 'auth.locked' }));
+  });
+
+  it('issues one atomic increment per concurrent failure instead of clobbering the counter', async () => {
+    const { service, prisma } = build(user({ failedLoginCount: 0 }));
+    await Promise.all(
+      Array.from({ length: MAX_FAILED_LOGINS }, () =>
+        service.login('meera@example.com', 'wrong-password-1', client).catch(() => undefined),
+      ),
+    );
+    const incrementWrites = prisma.user.update.mock.calls.filter(
+      (call: unknown[]) =>
+        (call[0] as { data?: { failedLoginCount?: { increment?: number } } })?.data
+          ?.failedLoginCount?.increment === 1,
+    );
+    // Every failure issued its own increment write; the database (not the
+    // stale read) is what counts, so concurrent failures can't stay at 1.
+    expect(incrementWrites).toHaveLength(MAX_FAILED_LOGINS);
   });
 
   it('refuses a locked account even with the right password', async () => {

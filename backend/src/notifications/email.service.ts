@@ -118,6 +118,32 @@ export function renderTemplate(text: string, variables: TemplateVariables): stri
   });
 }
 
+/**
+ * Escapes the five HTML-significant characters in a template value.
+ * Ticket titles, customer names and other user-controlled text flow into
+ * notification emails, so every value rendered into HTML must be inert.
+ */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Renders `{{variable}}` placeholders into HTML, escaping every value (SB-H3).
+ * Use for bodyHtml only: subject and bodyText are plain text, where escaping
+ * would corrupt the output ("A&B" would read "A&amp;B"). Pure.
+ */
+export function renderHtmlTemplate(text: string, variables: TemplateVariables): string {
+  return text.replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_match, name: string) => {
+    const value = variables[name];
+    return value === null || value === undefined ? '' : escapeHtml(String(value));
+  });
+}
+
 export interface QueuedEmail {
   to: string;
   templateKey: string;
@@ -190,7 +216,7 @@ export class EmailService implements OnModuleInit {
       const company = await this.settings.company();
       const variables: TemplateVariables = { companyName: company.name, ...input.variables };
       const subject = renderTemplate(template.subject, variables);
-      const bodyHtml = renderTemplate(template.bodyHtml, variables);
+      const bodyHtml = renderHtmlTemplate(template.bodyHtml, variables);
       const bodyText = renderTemplate(template.bodyText, variables);
       const log = await this.prisma.emailLog.create({
         data: {

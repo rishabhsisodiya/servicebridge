@@ -169,6 +169,7 @@ export function QuotationTimeline({ ticket }: { ticket: TicketDetail }) {
       <Dialog
         open={creating}
         onClose={() => setCreating(false)}
+        dirty={discount !== "" || notes.trim() !== ""}
         title={`New quotation for ${ticket.number}`}
         description="A draft is created with the next QT number; you add lines on the next screen."
         footer={

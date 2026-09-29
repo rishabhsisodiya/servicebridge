@@ -12,11 +12,13 @@ interface PopoverProps {
   }) => ReactNode;
   children: (close: () => void) => ReactNode;
   align?: "start" | "end";
+  /** Which way the panel opens. "up" is for triggers pinned to the bottom. */
+  side?: "down" | "up";
   className?: string;
 }
 
 /** Non-modal panel anchored to a button. Closes on Escape, outside click, or `close()`. */
-export function Popover({ trigger, children, align = "end", className }: PopoverProps) {
+export function Popover({ trigger, children, align = "end", side = "down", className }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -51,7 +53,8 @@ export function Popover({ trigger, children, align = "end", className }: Popover
         id={panelId}
         hidden={!open}
         className={cn(
-          "absolute top-[calc(100%+6px)] z-[60] w-[min(360px,calc(100vw-32px))] animate-pop rounded-xl border border-line bg-surface shadow-lg",
+          "absolute z-[60] w-[min(360px,calc(100vw-32px))] animate-pop rounded-xl border border-line bg-surface shadow-lg",
+          side === "down" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]",
           align === "end" ? "right-0" : "left-0",
           className,
         )}

@@ -27,6 +27,41 @@ describe('isPrivateAddress', () => {
   it.each(['8.8.8.8', '172.32.0.1', '104.21.1.1', '2606:4700::1111'])('allows public %s', (ip) => {
     expect(isPrivateAddress(ip)).toBe(false);
   });
+
+  describe('SB-H4: hex-form IPv4-embedded IPv6', () => {
+    it.each([
+      '::ffff:7f00:1', // WHATWG serialization of ::ffff:127.0.0.1
+      '::ffff:7F00:0001', // case and zero-padding variants
+      '::ffff:c0a8:1', // 192.168.0.1
+      '::ffff:a9fe:a9fe', // 169.254.169.254 (cloud metadata)
+      '::ffff:0:7f00:1', // IPv4-translated form of ::ffff:127.0.0.1 (RFC 4291)
+      '::ffff:0:a9fe:a9fe', // IPv4-translated form of 169.254.169.254
+      '2002:7f00:1::', // 6to4 wrapping 127.0.0.1
+      '2002:c0a8:100::1', // 6to4 wrapping 192.168.1.0
+    ])('blocks %s', (ip) => {
+      expect(isPrivateAddress(ip)).toBe(true);
+    });
+
+    it.each([
+      '::ffff:808:808', // 8.8.8.8 — public stays public
+      '::ffff:0:808:808', // translated form of public 8.8.8.8 stays public
+      '2002:808:808::', // 6to4 wrapping 8.8.8.8
+    ])('allows public %s', (ip) => {
+      expect(isPrivateAddress(ip)).toBe(false);
+    });
+
+    it('blocks the WHATWG-normalized form end to end via assertHostAllowed', () => {
+      const host = new URL('https://[::ffff:127.0.0.1]:8443').hostname.replace(/^\[|\]$/g, '');
+      expect(host).toBe('::ffff:7f00:1');
+      expect(() => assertHostAllowed(host, false)).toThrow(/private or reserved/);
+    });
+
+    it('blocks the IPv4-translated form end to end via assertHostAllowed', () => {
+      const host = new URL('https://[::ffff:0:127.0.0.1]:8443').hostname.replace(/^\[|\]$/g, '');
+      expect(host).toBe('::ffff:0:7f00:1');
+      expect(() => assertHostAllowed(host, false)).toThrow(/private or reserved/);
+    });
+  });
 });
 
 describe('resolveSafeAddress', () => {

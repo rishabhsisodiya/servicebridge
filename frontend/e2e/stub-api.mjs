@@ -992,6 +992,8 @@ const server = createServer(async (req, res) => {
       return send(res, 201, ticketFor(session).detail);
     }
     // Latest CSAT token for the ticket (newest first); empty when none issued.
+    // The raw token-bearing link never appears here (SB-M7); staff fetch it
+    // on demand from /survey-link.
     if (sub === "/feedback" && req.method === "GET")
       return send(res, 200, [
         {
@@ -999,12 +1001,14 @@ const server = createServer(async (req, res) => {
           createdAt: "2026-09-26T09:00:00.000Z",
           usedAt: null,
           emailed: true,
-          feedbackUrl: "http://127.0.0.1:3100/feedback/csat-d1",
           rating: null,
           comment: null,
           answeredAt: null,
         },
       ]);
+    // Staff-only raw survey link (SB-M7): needs tickets.edit in the real API.
+    if (sub === "/survey-link" && req.method === "GET")
+      return send(res, 200, { feedbackUrl: "http://127.0.0.1:3100/feedback/csat-d1" });
   }
   if (ticketMatch && req.method === "GET")
     return fail(res, 404, "TICKET_NOT_FOUND", "That ticket doesn't exist, or you can't see it.");
@@ -2153,7 +2157,7 @@ const server = createServer(async (req, res) => {
         error: null,
         startedAt: "2026-09-28T03:30:00.000Z",
         finishedAt: "2026-09-28T03:30:05.000Z",
-        csvKey: null,
+        hasFile: false,
         requestedBy: { id: "u-admin", name: "Test Admin" },
       },
     ]);

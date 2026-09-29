@@ -91,7 +91,8 @@ export interface ReportRun {
   error: string | null;
   startedAt: string;
   finishedAt: string | null;
-  csvKey: string | null;
+  /** Whether a CSV download exists for this run (the storage key stays server-side). */
+  hasFile: boolean;
   requestedBy: { id: string; name: string } | null;
 }
 

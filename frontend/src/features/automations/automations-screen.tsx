@@ -330,6 +330,8 @@ function ScheduleForm({
   // "custom" is its own choice: picking it keeps the current expression and lets you edit it.
   const [mode, setMode] = useState(PRESETS.some((p) => p.cron === cron) ? cron : "custom");
 
+  const dirty = cron !== (automation.cron ?? "");
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -356,6 +358,7 @@ function ScheduleForm({
     <Dialog
       open
       onClose={onClose}
+      dirty={dirty}
       title={`Schedule for “${automation.name}”`}
       description={`Times are in ${automation.timezone}.`}
       footer={
@@ -499,6 +502,10 @@ function EscalationParamsForm({
     fetcher,
   );
 
+  const dirty =
+    afterMinutes !== String(automation.params.afterMinutes ?? config.defaultAfterMinutes) ||
+    notifyRoleId !== (automation.params.notifyRoleId ?? "");
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setSaving(true);
@@ -532,6 +539,7 @@ function EscalationParamsForm({
     <Dialog
       open
       onClose={onClose}
+      dirty={dirty}
       title={`Escalation settings: ${automation.name}`}
       description="Each assignment sets its own timer with these settings."
       footer={

@@ -50,7 +50,6 @@ export function LabelsTab<R extends LabelRow>({
           <tr>
             <Th>Shown as</Th>
             <Th>Meaning</Th>
-            <Th>System name</Th>
           </tr>
         </thead>
         <tbody>
@@ -66,7 +65,6 @@ export function LabelsTab<R extends LabelRow>({
                 </button>
               </Td>
               <Td className="min-w-64 text-muted">{row.description ?? "—"}</Td>
-              <Td className="font-mono text-xs text-muted">{keyOf(row)}</Td>
             </Tr>
           ))}
         </tbody>
@@ -74,6 +72,7 @@ export function LabelsTab<R extends LabelRow>({
       <LabelDrawer
         key={editing ? keyOf(editing) : "closed"}
         row={editing}
+        systemName={editing ? keyOf(editing) : ""}
         path={editing ? `${endpoint}/${keyOf(editing)}` : ""}
         noun={noun}
         readOnly={!canEdit}
@@ -89,6 +88,7 @@ export function LabelsTab<R extends LabelRow>({
 
 function LabelDrawer({
   row,
+  systemName,
   path,
   noun,
   onClose,
@@ -96,6 +96,7 @@ function LabelDrawer({
   readOnly = false,
 }: {
   row: LabelRow | null;
+  systemName: string;
   path: string;
   noun: string;
   onClose: () => void;
@@ -107,6 +108,8 @@ function LabelDrawer({
   const [description, setDescription] = useState(row?.description ?? "");
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+
+  const dirty = label !== (row?.label ?? "") || description !== (row?.description ?? "");
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -131,6 +134,7 @@ function LabelDrawer({
     <Drawer
       open={!!row}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       title={`Rename ${noun}`}
       description="Everyone sees the new name straight away, on every ticket."
       footer={
@@ -172,6 +176,13 @@ function LabelDrawer({
               />
             )}
           </Field>
+          <div className="flex flex-col gap-1.5">
+            <span className="text-[13px] font-semibold">System name</span>
+            <span className="font-mono text-xs text-muted">{systemName}</span>
+            <p className="text-xs text-muted">
+              The name the system uses internally. It can&apos;t be changed.
+            </p>
+          </div>
         </fieldset>
       </form>
     </Drawer>

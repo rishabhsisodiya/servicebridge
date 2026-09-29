@@ -10,9 +10,19 @@ interface StageStepperProps {
 /** Progress through the main flow. On hold keeps the last reached stage highlighted. */
 export function StageStepper({ stage, times = {} }: StageStepperProps) {
   const current = TICKET_FLOW.indexOf(stage as (typeof TICKET_FLOW)[number]);
+  const total = TICKET_FLOW.length;
   return (
-    <div className="relative overflow-x-auto pb-1">
-      <ol aria-label="Ticket progress" className="m-0 flex min-w-[720px] list-none p-0">
+    <>
+      {/* Phones get a one-line summary instead of the 720px stepper. */}
+      <p className="text-[13px] text-muted sm:hidden" aria-label="Ticket progress">
+        <span className="font-semibold text-text">
+          Step {current >= 0 ? current + 1 : "?"} of {total}
+        </span>
+        {" · "}
+        {current >= 0 ? STAGE_DISPLAY[TICKET_FLOW[current]].label : stage}
+      </p>
+      <div className="relative hidden overflow-x-auto pb-1 sm:block">
+        <ol aria-label="Ticket progress" className="m-0 flex min-w-[720px] list-none p-0">
         {TICKET_FLOW.map((step, index) => {
           const done = current >= 0 && index < current;
           const now = index === current;
@@ -40,7 +50,8 @@ export function StageStepper({ stage, times = {} }: StageStepperProps) {
             </li>
           );
         })}
-      </ol>
-    </div>
+        </ol>
+      </div>
+    </>
   );
 }

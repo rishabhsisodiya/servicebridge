@@ -10,7 +10,6 @@ import {
   Phone,
   ShieldCheck,
   Timer,
-  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
@@ -209,7 +208,7 @@ function SlaCallouts({ ticket }: { ticket: TicketDetail }) {
 
   const coverage = (
     <Callout
-      tone={ticket.coverage === "CHARGEABLE" ? "warn" : "info"}
+      tone="info"
       icon={<ShieldCheck className="size-4" aria-hidden />}
       title={
         ticket.coverage === "AMC"
@@ -235,11 +234,15 @@ function SlaCallouts({ ticket }: { ticket: TicketDetail }) {
 }
 
 function ScheduledCard({ ticket }: { ticket: TicketDetail }) {
+  const { can } = useSession();
   const running = !!ticket.sla.dueAt;
+  const allowed = can("system.read");
   const { data, error } = useSWR<ScheduledTimers>(
-    running ? `/tickets/${ticket.id}/scheduled?v=${ticket.version}` : null,
+    running && allowed ? `/tickets/${ticket.id}/scheduled?v=${ticket.version}` : null,
     fetcher,
   );
+  // Background timing detail: only people who can read system settings see it.
+  if (!allowed) return null;
   if (!running) return null;
   const pending = data?.timers.filter((t) => t.state === "delayed" || t.state === "waiting") ?? [];
   return (
@@ -248,7 +251,7 @@ function ScheduledCard({ ticket }: { ticket: TicketDetail }) {
       <CardBody>
         {!data && !error && <Skeleton className="h-10" />}
         {(error || data?.available === false) && (
-          <p className="text-[13px] text-muted">Couldn&apos;t read the job queue right now.</p>
+          <p className="text-[13px] text-muted">Couldn&apos;t check the pending alerts right now.</p>
         )}
         {data?.available && pending.length === 0 && (
           <p className="text-[13px] text-muted">
@@ -381,16 +384,6 @@ export function TicketDetailScreen({ id }: { id: string }) {
               Logged {formatWhen(ticket.createdAt)} · {CHANNEL_LABEL[ticket.channel]}
             </span>
           </span>
-        }
-        actions={
-          canAssign && (
-            <Button
-              icon={<Users className="size-4" aria-hidden />}
-              onClick={() => setAssigning(true)}
-            >
-              {ticket.engineer ? "Reassign" : "Assign engineer"}
-            </Button>
-          )
         }
       />
 

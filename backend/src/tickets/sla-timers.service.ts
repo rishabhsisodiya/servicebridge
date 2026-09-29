@@ -171,7 +171,12 @@ export class SlaTimersService implements OnModuleInit {
     await this.prisma.$transaction([
       this.prisma.ticket.update({
         where: { id: ticket.id },
-        data: data.clock === 'response' ? { responseBreached: true } : { resolutionBreached: true },
+        // The ever flag is sticky history: a later reopen resets the live
+        // flag, but compliance still counts this ticket as breached (SB-M8).
+        data:
+          data.clock === 'response'
+            ? { responseBreached: true, responseBreachedEver: true }
+            : { resolutionBreached: true, resolutionBreachedEver: true },
       }),
       this.prisma.ticketEvent.create({
         data: {

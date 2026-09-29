@@ -16,6 +16,8 @@ import { APP_SETTINGS_KEY, type CompanySettings, useAppSettings } from "@/lib/ap
 import { useSession } from "@/lib/auth/session";
 
 const CONFIRM = "DELETE DEMO DATA";
+/** Typed confirmation for seeding demo data onto an install that already has real data. */
+const SEED_CONFIRM = "SEED";
 
 interface DemoStatus {
   active: boolean;
@@ -196,6 +198,8 @@ function DemoCard() {
   const [result, setResult] = useState<LoadResult | null>(null);
   const [clearing, setClearing] = useState(false);
   const [typed, setTyped] = useState("");
+  const [seedConfirmOpen, setSeedConfirmOpen] = useState(false);
+  const [seedTyped, setSeedTyped] = useState("");
   const [copied, setCopied] = useState(false);
 
   const refresh = () => Promise.all([mutate(), globalMutate(APP_SETTINGS_KEY)]);
@@ -204,16 +208,32 @@ function DemoCard() {
     toast.error(caught instanceof ApiError ? caught.message : "Something went wrong. Try again.");
   };
 
-  const load = async () => {
+  const load = async (confirmed = false) => {
     setBusy("load");
     try {
-      setResult(await stepUp.run(() => apiFetch<LoadResult>("/demo/load", { method: "POST" })));
+      setResult(
+        await stepUp.run(() => apiFetch<LoadResult>("/demo/load", { method: "POST", json: { confirmed } })),
+      );
+      setSeedConfirmOpen(false);
+      setSeedTyped("");
       await refresh();
     } catch (caught) {
-      fail(caught);
+      if (caught instanceof ApiError && caught.code === "DEMO_CONFIRMATION_REQUIRED" && !confirmed) {
+        // The install already has real data: ask for an explicit typed
+        // confirmation before seeding demo data onto it.
+        setSeedConfirmOpen(true);
+      } else {
+        fail(caught);
+      }
     } finally {
       setBusy(null);
     }
+  };
+
+  const confirmSeed = async (event: FormEvent) => {
+    event.preventDefault();
+    setSeedConfirmOpen(false);
+    await load(true);
   };
 
   const clear = async (event: FormEvent) => {
@@ -258,7 +278,7 @@ function DemoCard() {
             variant="primary"
             icon={<FlaskConical className="size-4" aria-hidden />}
             loading={busy === "load"}
-            onClick={() => void load()}
+            onClick={() => void load(false)}
           >
             {data?.active ? "Reset demo data" : "Load demo data"}
           </Button>
@@ -351,6 +371,50 @@ function DemoCard() {
                 {...p}
                 value={typed}
                 onChange={(e) => setTyped(e.target.value)}
+                autoComplete="off"
+                className="font-mono"
+              />
+            )}
+          </Field>
+        </form>
+      </Dialog>
+      <Dialog
+        open={seedConfirmOpen}
+        onClose={() => {
+          setSeedConfirmOpen(false);
+          setSeedTyped("");
+        }}
+        title="Load demo data here?"
+        description="This install already has real regions, customers or tickets. Demo records stay separate and can be cleared later without touching your real data, but demo users and regions will appear alongside the real ones (for example in the engineer assignment pool) until you clear them."
+        footer={
+          <>
+            <Button
+              onClick={() => {
+                setSeedConfirmOpen(false);
+                setSeedTyped("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="seed-demo-form"
+              variant="strong"
+              loading={busy === "load"}
+              disabled={seedTyped !== SEED_CONFIRM}
+            >
+              Load demo data
+            </Button>
+          </>
+        }
+      >
+        <form id="seed-demo-form" onSubmit={confirmSeed} noValidate>
+          <Field label={`Type ${SEED_CONFIRM} to confirm`}>
+            {(p) => (
+              <Input
+                {...p}
+                value={seedTyped}
+                onChange={(e) => setSeedTyped(e.target.value)}
                 autoComplete="off"
                 className="font-mono"
               />

@@ -38,11 +38,14 @@ describe('KpiService.matrix', () => {
       region: { findMany: jest.fn().mockResolvedValue(REGIONS) },
       ticket: {
         findMany: jest.fn().mockResolvedValue([
-          // r1: 2 closed — one clean, one breached+reopened, resolved in 24h and 72h
-          { regionId: 'r1', responseBreached: false, resolutionBreached: false, reopenCount: 0, createdAt: day(1), resolvedAt: day(2) },
-          { regionId: 'r1', responseBreached: true, resolutionBreached: false, reopenCount: 1, createdAt: day(1), resolvedAt: day(4) },
+          // r1: 2 closed — one clean, one breached+reopened, resolved in 24h and 72h.
+          // The reopened row models SB-M8 laundering: the live flags are clean
+          // after the reopen, but the sticky ever-breached flag keeps it
+          // non-compliant.
+          { regionId: 'r1', responseBreached: false, resolutionBreached: false, responseBreachedEver: false, resolutionBreachedEver: false, reopenCount: 0, createdAt: day(1), resolvedAt: day(2) },
+          { regionId: 'r1', responseBreached: false, resolutionBreached: false, responseBreachedEver: true, resolutionBreachedEver: false, reopenCount: 1, createdAt: day(1), resolvedAt: day(4) },
           // r2: 1 closed, clean, resolved in 48h
-          { regionId: 'r2', responseBreached: false, resolutionBreached: false, reopenCount: 0, createdAt: day(2), resolvedAt: day(4) },
+          { regionId: 'r2', responseBreached: false, resolutionBreached: false, responseBreachedEver: false, resolutionBreachedEver: false, reopenCount: 0, createdAt: day(2), resolvedAt: day(4) },
         ]),
         groupBy: jest.fn().mockResolvedValue([
           { regionId: 'r1', _count: { _all: 3 } },
@@ -85,6 +88,35 @@ describe('KpiService.matrix', () => {
     expect(north['csat-average'].met).toBe(true);
     expect(north['backlog-change'].value).toBe(1); // 3 created - 2 closed
     expect(north['visit-completion'].value).toBe(100); // 2 submitted / 2 planned
+  });
+
+  it('counts a laundered ticket as non-compliant via the sticky ever-breached flag (SB-M8)', async () => {
+    const prisma = mockPrisma({
+      region: { findMany: jest.fn().mockResolvedValue(REGIONS) },
+      ticket: {
+        findMany: jest.fn().mockResolvedValue([
+          // Breached, reopened, then resolved inside the fresh window: the
+          // live flags are clean, the sticky flag is not.
+          {
+            regionId: 'r1',
+            responseBreached: false,
+            resolutionBreached: false,
+            responseBreachedEver: false,
+            resolutionBreachedEver: true,
+            reopenCount: 1,
+            createdAt: day(1),
+            resolvedAt: day(2),
+          },
+        ]),
+        groupBy: jest.fn().mockResolvedValue([{ regionId: 'r1', _count: { _all: 1 } }]),
+      },
+    });
+    const service = new KpiService(prisma as never, { record: jest.fn() } as never);
+    const { rows } = await service.matrix(manager, { from: '2026-09-01', to: '2026-09-28' });
+
+    const north = Object.fromEntries(rows[0].kpis.map((k) => [k.key, k]));
+    expect(north['sla-compliance'].value).toBe(0);
+    expect(north['sla-compliance'].met).toBe(false);
   });
 
   it('shows null with met=null when there is no data', async () => {

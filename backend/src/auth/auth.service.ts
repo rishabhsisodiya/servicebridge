@@ -118,26 +118,30 @@ export class AuthService {
   }
 
   private async recordFailure(user: User, client: ClientInfo): Promise<void> {
-    const failures = user.failedLoginCount + 1;
-    const locks = failures >= MAX_FAILED_LOGINS;
+    // Atomic increment: concurrent failed logins each add one instead of
+    // clobbering each other back to 1 (read-modify-write). The lockout
+    // decision is made from the freshly incremented counter.
+    const fresh = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { failedLoginCount: { increment: 1 } },
+    });
+    if (fresh.failedLoginCount < MAX_FAILED_LOGINS) return;
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
-        failedLoginCount: locks ? 0 : failures,
-        lockedUntil: locks ? new Date(Date.now() + LOCKOUT_MINUTES * 60_000) : undefined,
+        failedLoginCount: 0,
+        lockedUntil: new Date(Date.now() + LOCKOUT_MINUTES * 60_000),
       },
     });
-    if (locks) {
-      await this.audit.record({
-        actorId: null,
-        action: 'auth.locked',
-        entityType: 'user',
-        entityId: user.id,
-        summary: `${user.name}'s account was locked for ${LOCKOUT_MINUTES} minutes after ${MAX_FAILED_LOGINS} wrong passwords`,
-        ip: client.ip,
-        requestId: client.requestId,
-      });
-    }
+    await this.audit.record({
+      actorId: null,
+      action: 'auth.locked',
+      entityType: 'user',
+      entityId: user.id,
+      summary: `${user.name}'s account was locked for ${LOCKOUT_MINUTES} minutes after ${MAX_FAILED_LOGINS} wrong passwords`,
+      ip: client.ip,
+      requestId: client.requestId,
+    });
   }
 
   private async startSession(

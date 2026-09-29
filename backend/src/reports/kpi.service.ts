@@ -189,6 +189,8 @@ export class KpiService {
           regionId: true,
           responseBreached: true,
           resolutionBreached: true,
+          responseBreachedEver: true,
+          resolutionBreachedEver: true,
           reopenCount: true,
           createdAt: true,
           resolvedAt: true,
@@ -220,7 +222,10 @@ export class KpiService {
       const a = acc(t.regionId);
       if (!a) continue;
       a.closed += 1;
-      if (!t.responseBreached && !t.resolutionBreached) a.compliant += 1;
+      // SB-M8: compliance reads the sticky ever-breached flags, so reopening
+      // a breached ticket and resolving it inside the fresh window can't
+      // launder it into a compliant one.
+      if (!t.responseBreachedEver && !t.resolutionBreachedEver) a.compliant += 1;
       if (t.reopenCount > 0) a.reopened += 1;
       if (t.resolvedAt) a.resolutionHours.push((t.resolvedAt.getTime() - t.createdAt.getTime()) / 3_600_000);
     }

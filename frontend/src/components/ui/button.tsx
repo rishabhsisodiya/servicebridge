@@ -9,7 +9,7 @@ export type ButtonSize = "sm" | "md";
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: "bg-accent-strong text-on-accent-strong border-accent-strong hover:brightness-95",
   strong: "bg-primary text-on-primary border-primary hover:brightness-110",
-  secondary: "bg-surface text-text border-line-strong hover:bg-surface-2",
+  secondary: "bg-surface text-text border-control-border hover:bg-surface-2",
   ghost: "bg-transparent text-text border-transparent hover:bg-surface-2",
   danger: "bg-surface text-bad border-bad/40 hover:bg-bad-bg",
 };

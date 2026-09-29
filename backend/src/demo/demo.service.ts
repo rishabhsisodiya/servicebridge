@@ -79,7 +79,9 @@ export function demoPassword(): string {
 /**
  * Loads and clears the fictional demo company. Demo rows are marked
  * (source = DEMO, isDemo = true), so clearing never touches ERP-synced data
- * or real users.
+ * or real users. Seeding never reuses real region rows (demo regions are
+ * always demo-owned, clearly marked rows), and refuses a non-empty install
+ * without explicit confirmation.
  */
 @Injectable()
 export class DemoService {
@@ -165,6 +167,20 @@ export class DemoService {
     return after;
   }
 
+  /**
+   * True when the install holds real (non-demo) data. The seed refuses to run
+   * on such installs without explicit confirmation, so "Load demo data" can
+   * never silently hijack a live install's regions.
+   */
+  private async hasRealData(): Promise<boolean> {
+    const [regions, customers, tickets] = await this.prisma.$transaction([
+      this.prisma.region.count({ where: { isDemo: false } }),
+      this.prisma.customer.count({ where: { source: { not: 'DEMO' } } }),
+      this.prisma.ticket.count({ where: { isDemo: false } }),
+    ]);
+    return regions > 0 || customers > 0 || tickets > 0;
+  }
+
   private assertNotDemoActor = async (actor: DemoActor) => {
     if (!actor.id) return;
     const user = await this.prisma.user.findUnique({
@@ -193,7 +209,8 @@ export class DemoService {
     for (const u of DEMO_USERS.filter((u) => u.role === 'AREA_MANAGER' && u.region)) {
       const id = userId.get(demoEmail(u.name));
       const regionId = regionIds.get(u.region as string);
-      // Never replace a manager an admin chose for a region they created.
+      // Demo regions only: regionIds never contains a real region's id, so a
+      // demo manager can never be written into a real region's areaManagerId.
       if (id && regionId) {
         await tx.region.updateMany({
           where: { id: regionId, areaManagerId: null },
@@ -236,12 +253,20 @@ export class DemoService {
   async load(
     actor: DemoActor,
     ip?: string | null,
+    opts: { confirmed?: boolean } = {},
   ): Promise<{
     password: string;
     logins: { name: string; email: string; role: string }[];
     counts: DemoCounts;
   }> {
     await this.assertNotDemoActor(actor);
+    if (!opts.confirmed && (await this.hasRealData())) {
+      throw new AppException(
+        'DEMO_CONFIRMATION_REQUIRED',
+        'This install already has real regions, customers or tickets. Loading demo data here could confuse live operations — confirm explicitly to proceed anyway.',
+        HttpStatus.CONFLICT,
+      );
+    }
     const data = buildDemoData(new Date());
     const password = demoPassword();
     const passwordHash = await hashPassword(password);
@@ -250,11 +275,15 @@ export class DemoService {
       async (tx) => {
         const tasks = await this.deleteDemo(tx);
 
-        // Reuse regions an admin already created with the same name.
+        // Demo regions are always demo-owned rows with clearly demo-marked
+        // names. Reusing a real region row with the same name would attach
+        // demo engineers to it, putting them into the live assignment pool.
         const regionIds = new Map<string, string>();
         for (const name of DEMO_REGIONS) {
-          const existing = await tx.region.findUnique({ where: { name } });
-          const region = existing ?? (await tx.region.create({ data: { name, isDemo: true } }));
+          const demoName = `${name} (Demo)`;
+          const region =
+            (await tx.region.findFirst({ where: { name: demoName, isDemo: true } })) ??
+            (await tx.region.create({ data: { name: demoName, isDemo: true } }));
           regionIds.set(name, region.id);
         }
 

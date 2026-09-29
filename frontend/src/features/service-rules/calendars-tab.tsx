@@ -174,6 +174,10 @@ export function CalendarsTab() {
   );
 }
 
+function defaultHours(): OpeningWindow[] {
+  return [1, 2, 3, 4, 5, 6].map((day) => ({ day, open: "09:00", close: "18:00" }));
+}
+
 function CalendarDrawer({
   calendar,
   onClose,
@@ -189,13 +193,18 @@ function CalendarDrawer({
   const [name, setName] = useState(existing?.name ?? "");
   const [alwaysOpen, setAlwaysOpen] = useState(existing?.alwaysOpen ?? false);
   const [hours, setHours] = useState<OpeningWindow[]>(
-    existing?.hours.length
-      ? existing.hours
-      : [1, 2, 3, 4, 5, 6].map((day) => ({ day, open: "09:00", close: "18:00" })),
+    existing?.hours.length ? existing.hours : defaultHours(),
   );
   const [holidays, setHolidays] = useState<Holiday[]>(existing?.holidays ?? []);
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+
+  const dirty =
+    name !== (existing?.name ?? "") ||
+    alwaysOpen !== (existing?.alwaysOpen ?? false) ||
+    JSON.stringify(hours) !==
+      JSON.stringify(existing?.hours.length ? existing.hours : defaultHours()) ||
+    JSON.stringify(holidays) !== JSON.stringify(existing?.holidays ?? []);
 
   const updateWindow = (index: number, patch: Partial<OpeningWindow>) =>
     setHours((all) => all.map((w, i) => (i === index ? { ...w, ...patch } : w)));
@@ -242,6 +251,7 @@ function CalendarDrawer({
     <Drawer
       open={!!calendar}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       title={existing ? `Edit ${existing.name}` : "Add a calendar"}
       description="Changes apply to tickets logged after you save."
       className="w-[min(560px,100vw)]!"

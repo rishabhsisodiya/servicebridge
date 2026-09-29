@@ -117,8 +117,43 @@ export class ReportsService implements OnModuleInit {
 
   // ── Schedules ─────────────────────────────────────────────────────────────
 
-  listSchedules() {
+  /**
+   * Who may change a schedule: its owner, or an administrator (isAdmin = holds
+   * the locked Administrator role). Reading a run additionally allows the
+   * schedule's recipients; run output is rendered under the owner's scope.
+   */
+  private canManageSchedule(
+    actor: Pick<AuthUser, 'id' | 'isAdmin'>,
+    schedule: { createdById: string | null },
+  ): boolean {
+    return actor.isAdmin || (!!schedule.createdById && schedule.createdById === actor.id);
+  }
+
+  private canReadSchedule(
+    actor: Pick<AuthUser, 'id' | 'isAdmin'>,
+    schedule: { createdById: string | null; recipients: unknown },
+  ): boolean {
+    if (this.canManageSchedule(actor, schedule)) return true;
+    return Array.isArray(schedule.recipients) && schedule.recipients.includes(actor.id);
+  }
+
+  private assertCanManageSchedule(
+    actor: Pick<AuthUser, 'id' | 'isAdmin'>,
+    schedule: { createdById: string | null },
+  ): void {
+    if (!this.canManageSchedule(actor, schedule)) {
+      fail(
+        'SCHEDULE_FORBIDDEN',
+        'You can only change schedules you created.',
+        HttpStatus.FORBIDDEN,
+      );
+    }
+  }
+
+  /** Non-admins see only their own schedules; version + createdBy stay private. */
+  listSchedules(actor: Pick<AuthUser, 'id' | 'isAdmin'>) {
     return this.prisma.reportSchedule.findMany({
+      where: actor.isAdmin ? undefined : { createdById: actor.id },
       orderBy: { createdAt: 'desc' },
       include: {
         createdBy: { select: { id: true, name: true } },
@@ -127,12 +162,22 @@ export class ReportsService implements OnModuleInit {
     });
   }
 
-  async getSchedule(id: string) {
+  /** The raw row, without any ownership check — for internal use only. */
+  private async scheduleRow(id: string) {
     const schedule = await this.prisma.reportSchedule.findUnique({
       where: { id },
       include: { createdBy: { select: { id: true, name: true } } },
     });
     if (!schedule) fail('SCHEDULE_NOT_FOUND', 'Report schedule not found.', HttpStatus.NOT_FOUND);
+    return schedule;
+  }
+
+  /** A schedule is visible to its owner and administrators (404, not 403). */
+  async getSchedule(actor: Pick<AuthUser, 'id' | 'isAdmin'>, id: string) {
+    const schedule = await this.scheduleRow(id);
+    if (!this.canManageSchedule(actor, schedule)) {
+      fail('SCHEDULE_NOT_FOUND', 'Report schedule not found.', HttpStatus.NOT_FOUND);
+    }
     return schedule;
   }
 
@@ -190,7 +235,8 @@ export class ReportsService implements OnModuleInit {
   }
 
   async updateSchedule(actor: AuthUser, id: string, input: UpdateScheduleInput, client: ClientInfo) {
-    const existing = await this.getSchedule(id);
+    const existing = await this.scheduleRow(id);
+    this.assertCanManageSchedule(actor, existing);
     const merged: CreateScheduleInput = {
       name: input.name ?? existing.name,
       reportKey: input.reportKey ?? existing.reportKey,
@@ -236,7 +282,8 @@ export class ReportsService implements OnModuleInit {
   }
 
   async deleteSchedule(actor: AuthUser, id: string, client: ClientInfo): Promise<void> {
-    const existing = await this.getSchedule(id);
+    const existing = await this.scheduleRow(id);
+    this.assertCanManageSchedule(actor, existing);
     await this.prisma.$transaction(async (tx) => {
       await tx.reportSchedule.delete({ where: { id } });
       await this.audit.record(
@@ -254,14 +301,16 @@ export class ReportsService implements OnModuleInit {
     await this.queues.queue('reports').removeJobScheduler(scheduleJobId(id));
   }
 
-  async activate(id: string): Promise<void> {
-    await this.getSchedule(id);
+  async activate(actor: Pick<AuthUser, 'id' | 'isAdmin'>, id: string): Promise<void> {
+    const schedule = await this.scheduleRow(id);
+    this.assertCanManageSchedule(actor, schedule);
     await this.prisma.reportSchedule.update({ where: { id }, data: { active: true } });
     await this.applySchedule(id);
   }
 
-  async deactivate(id: string): Promise<void> {
-    await this.getSchedule(id);
+  async deactivate(actor: Pick<AuthUser, 'id' | 'isAdmin'>, id: string): Promise<void> {
+    const schedule = await this.scheduleRow(id);
+    this.assertCanManageSchedule(actor, schedule);
     await this.prisma.reportSchedule.update({ where: { id }, data: { active: false } });
     await this.queues.queue('reports').removeJobScheduler(scheduleJobId(id));
   }
@@ -281,13 +330,19 @@ export class ReportsService implements OnModuleInit {
     }
   }
 
-  /** Re-registers every active schedule on boot (stale jobs from deleted rows are dropped). */
+  /**
+   * Re-registers every active schedule on boot, and drops BullMQ schedulers
+   * with no matching schedule row — e.g. a schedule deleted while Redis was
+   * failing would otherwise fire forever (the delete path couldn't remove its
+   * job scheduler).
+   */
   async reconcile(): Promise<void> {
     const active = await this.prisma.reportSchedule.findMany({
       where: { active: true },
       select: { id: true, cron: true, timezone: true },
     });
     const queue = this.queues.queue('reports');
+    const expected = new Set(active.map((s) => scheduleJobId(s.id)));
     for (const s of active) {
       try {
         await queue.upsertJobScheduler(
@@ -298,6 +353,19 @@ export class ReportsService implements OnModuleInit {
       } catch (error) {
         this.logger.error(`Could not re-register schedule ${s.id}: ${(error as Error).message}`);
       }
+    }
+    try {
+      const schedulers = await queue.getJobSchedulers();
+      for (const js of schedulers) {
+        // Only report-schedule ids: other features share the queue.
+        const id = js.id ?? '';
+        if (id.startsWith('report-schedule-') && !expected.has(id)) {
+          await queue.removeJobScheduler(id);
+          this.logger.warn(`Removed orphan report scheduler ${id} (no schedule row).`);
+        }
+      }
+    } catch (error) {
+      this.logger.error(`Could not drop orphan report schedulers: ${(error as Error).message}`);
     }
   }
 
@@ -369,7 +437,7 @@ export class ReportsService implements OnModuleInit {
     csvBuffer: Buffer,
   ): Promise<void> {
     const recipients = await this.prisma.user.findMany({
-      where: { id: { in: ((await this.getSchedule(schedule.id)).recipients as string[]) }, status: 'ACTIVE' },
+      where: { id: { in: ((await this.scheduleRow(schedule.id)).recipients as string[]) }, status: 'ACTIVE' },
       select: { email: true },
     });
     const summary = Object.entries(result.summary)
@@ -405,8 +473,22 @@ export class ReportsService implements OnModuleInit {
 
   // ── Run history ───────────────────────────────────────────────────────────
 
-  listRuns(scheduleId: string, page = 1, pageSize = 25) {
-    return this.prisma.reportRun.findMany({
+  /**
+   * A run's output is readable by the schedule owner, its recipients, and
+   * administrators. The internal storage key never leaves the API: callers get
+   * only `hasFile` (whether a download exists).
+   */
+  async listRuns(
+    actor: Pick<AuthUser, 'id' | 'isAdmin'>,
+    scheduleId: string,
+    page = 1,
+    pageSize = 25,
+  ) {
+    const schedule = await this.scheduleRow(scheduleId);
+    if (!this.canReadSchedule(actor, schedule)) {
+      fail('SCHEDULE_NOT_FOUND', 'Report schedule not found.', HttpStatus.NOT_FOUND);
+    }
+    const runs = await this.prisma.reportRun.findMany({
       where: { scheduleId },
       orderBy: { startedAt: 'desc' },
       skip: (page - 1) * pageSize,
@@ -424,11 +506,25 @@ export class ReportsService implements OnModuleInit {
         requestedBy: { select: { id: true, name: true } },
       },
     });
+    return runs.map(({ csvKey, ...rest }) => ({ ...rest, hasFile: csvKey != null }));
   }
 
-  async readRunCsv(runId: string): Promise<{ stream: ReadStream; filename: string }> {
-    const run = await this.prisma.reportRun.findUnique({ where: { id: runId } });
+  async readRunCsv(
+    actor: Pick<AuthUser, 'id' | 'isAdmin'>,
+    runId: string,
+  ): Promise<{ stream: ReadStream; filename: string }> {
+    const run = await this.prisma.reportRun.findUnique({
+      where: { id: runId },
+      include: { schedule: { select: { createdById: true, recipients: true } } },
+    });
     if (!run || !run.csvKey) {
+      fail('RUN_NOT_FOUND', 'No stored file for this run.', HttpStatus.NOT_FOUND);
+    }
+    // Runs orphaned by a schedule deletion keep their requester as the reader.
+    const allowed = run.schedule
+      ? this.canReadSchedule(actor, run.schedule)
+      : actor.isAdmin || run.requestedById === actor.id;
+    if (!allowed) {
       fail('RUN_NOT_FOUND', 'No stored file for this run.', HttpStatus.NOT_FOUND);
     }
     return { stream: this.storage.read(run.csvKey), filename: `report-${run.id}.csv` };

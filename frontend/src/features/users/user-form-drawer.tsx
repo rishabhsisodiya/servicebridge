@@ -49,6 +49,16 @@ function UserForm({ user, isSelf, open, onClose, onSubmit }: UserFormDrawerProps
   const set = (field: keyof UserFormValues) => (event: { target: { value: string } }) =>
     setValues((v) => ({ ...v, [field]: event.target.value }));
 
+  const initial: UserFormValues = {
+    name: user?.name ?? "",
+    email: user?.email ?? "",
+    role: user?.role.id ?? "",
+    regionId: user?.region?.id ?? "",
+  };
+  const dirty = (Object.keys(values) as (keyof UserFormValues)[]).some(
+    (k) => values[k] !== initial[k],
+  );
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const next: Errors = {};
@@ -82,6 +92,7 @@ function UserForm({ user, isSelf, open, onClose, onSubmit }: UserFormDrawerProps
     <Drawer
       open={open}
       onClose={onClose}
+      dirty={dirty}
       title={editing ? `Edit ${user.name}` : "Invite a user"}
       description={
         editing ? user.email : "You'll get a one-time link to send them. It expires after 48 hours."

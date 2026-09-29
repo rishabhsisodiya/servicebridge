@@ -36,6 +36,10 @@ import { SlaTimersService } from './sla-timers.service';
 import { TicketNotifier } from './ticket-notifier';
 import { slaFields, slaStatus } from './sla';
 import { ACTIONS, availableActions, blockedReason, FINAL_STAGES, nextStage } from './workflow';
+import { visibleTo } from './visibility';
+
+// Re-exported for existing importers (ticket-stats, quotations, reports, …).
+export { visibleTo };
 
 const NUMBER_PREFIX = 'SB';
 
@@ -74,27 +78,6 @@ export function toTicketRow(t: RowTicket, now = new Date()) {
     region: t.region,
     sla: slaStatus(t, now),
     version: t.version,
-  };
-}
-
-/**
- * Where a user may see tickets, from their role's ticket scope. Everyone else
- * gets a 404, not a 403, so ticket numbers don't leak.
- */
-export function visibleTo(
-  user: Pick<AuthUser, 'id' | 'ticketScope' | 'regionId'>,
-): Prisma.TicketWhereInput {
-  if (user.ticketScope === 'ALL') return {};
-  if (user.ticketScope === 'OWN') {
-    return { OR: [{ engineerId: user.id }, { createdById: user.id }] };
-  }
-  return {
-    OR: [
-      ...(user.regionId ? [{ regionId: user.regionId }] : []),
-      { areaManagerId: user.id },
-      { createdById: user.id },
-      { engineerId: user.id },
-    ],
   };
 }
 
@@ -389,7 +372,11 @@ export class TicketsService {
     return `${NUMBER_PREFIX}-${String(year % 100).padStart(2, '0')}-${String(counter.last).padStart(6, '0')}`;
   }
 
-  async create(user: AuthUser, dto: CreateTicketDto, opts?: { createdById?: string | null }) {
+  async create(
+    user: AuthUser,
+    dto: CreateTicketDto,
+    opts?: { createdById?: string | null; partnerKeyId?: string; externalRef?: string },
+  ) {
     const now = new Date();
     // Automation-created tickets (AMC visits) belong to ServiceBridge itself, not a person.
     const createdById = opts && 'createdById' in opts ? opts.createdById : user.id;
@@ -440,7 +427,8 @@ export class TicketsService {
 
       if (equipment && !dto.acknowledgeDuplicates) {
         const open = await tx.ticket.findMany({
-          where: { equipmentId: equipment.id, stage: { notIn: FINAL_STAGES } },
+          // Only name tickets the creator can see; out-of-scope numbers stay hidden.
+          where: { equipmentId: equipment.id, stage: { notIn: FINAL_STAGES }, ...visibleTo(user) },
           select: { number: true },
           take: 3,
         });
@@ -485,6 +473,12 @@ export class TicketsService {
           areaManagerId: region?.areaManagerId ?? null,
           createdById,
           isDemo: customer.source === 'DEMO',
+          // Partner API stamping happens at insert so the
+          // @@unique([partnerKeyId, externalRef]) constraint can fire on a
+          // concurrent repeat POST (idempotency race) — never as a follow-up
+          // update that leaves an orphan on P2002.
+          partnerKeyId: opts?.partnerKeyId ?? null,
+          externalRef: opts?.externalRef ?? null,
           ...sla,
           ...slaFields(base),
           events: {
@@ -530,6 +524,23 @@ export class TicketsService {
       }
 
       const to = nextStage(dto.action, t);
+      // The PO gate (session 10, approved; SB-H1/SB-H2): when switched on,
+      // every transition into IN_PROGRESS faces the same check — 'start',
+      // 'reject' (RESOLVED → IN_PROGRESS) and 'resume' back into IN_PROGRESS.
+      // Case-local checks can't cover this; the gate lives on the transition.
+      if (to === 'IN_PROGRESS') {
+        const gate = await this.settings.quotations();
+        if (gate.requirePoBeforeWork) {
+          const blocker = await findPoBlockingQuotation(tx, t.id);
+          if (blocker) {
+            throw new AppException(
+              'PO_REQUIRED',
+              `Work can't start on ${t.number} until a purchase order is recorded for quotation ${blocker}.`,
+              HttpStatus.CONFLICT,
+            );
+          }
+        }
+      }
       const changes: Prisma.TicketUncheckedUpdateInput = { stage: to };
       let eventType: 'STAGE_CHANGED' | 'ASSIGNED' | 'REOPENED' = 'STAGE_CHANGED';
       let eventData: Prisma.InputJsonValue = { action: dto.action };
@@ -565,7 +576,12 @@ export class TicketsService {
         }
         case 'accept':
           changes.respondedAt = t.respondedAt ?? now;
-          if (!t.respondedAt) changes.responseBreached = now > t.responseDueAt;
+          if (!t.respondedAt) {
+            changes.responseBreached = now > t.responseDueAt;
+            // A breach is sticky history: it stays set even if the ticket is
+            // later reopened and resolved inside the fresh window.
+            if (changes.responseBreached) changes.responseBreachedEver = true;
+          }
           break;
         case 'decline':
           changes.engineerId = null;
@@ -611,6 +627,9 @@ export class TicketsService {
         case 'resolve':
           changes.resolvedAt = now;
           changes.resolutionBreached = now > t.resolutionDueAt;
+          // Sticky history: never reset, even by reopen (which resets the
+          // live flag and grants a fresh window).
+          if (changes.resolutionBreached) changes.resolutionBreachedEver = true;
           break;
         case 'verify':
           changes.verifiedAt = now;
@@ -640,30 +659,30 @@ export class TicketsService {
         }
         case 'triage':
         case 'arrive':
+        case 'start':
           break;
-        case 'start': {
-          // Session 10 (approved): the PO gate. When switched on, work can't
-          // start while a SENT quotation on the ticket is waiting for a PO.
-          const gate = await this.settings.quotations();
-          if (gate.requirePoBeforeWork) {
-            const blocker = await findPoBlockingQuotation(tx, t.id);
-            if (blocker) {
-              throw new AppException(
-                'PO_REQUIRED',
-                `Work can't start on ${t.number} until a purchase order is recorded for quotation ${blocker}.`,
-                HttpStatus.CONFLICT,
-              );
-            }
-          }
-          break;
-        }
       }
 
       const merged = { ...t, ...changes } as Ticket;
-      const row = await tx.ticket.update({
-        where: { id: t.id },
-        data: { ...changes, ...slaFields(merged), version: { increment: 1 } },
-      });
+      // True optimistic locking (SB-M6): the version is enforced at write
+      // time, so two concurrent actions on the same read both passing the
+      // read-time assertVersion can't both commit. A lost race surfaces as
+      // VERSION_CONFLICT, never as a silent double-apply.
+      const row = await tx.ticket
+        .update({
+          where: { id: t.id, version: t.version },
+          data: { ...changes, ...slaFields(merged), version: { increment: 1 } },
+        })
+        .catch((error: { code?: string }) => {
+          if (error?.code === 'P2025') {
+            throw new AppException(
+              'VERSION_CONFLICT',
+              'Someone else changed this ticket while you were editing. Reload to see their changes.',
+              HttpStatus.CONFLICT,
+            );
+          }
+          throw error;
+        });
       await tx.ticketEvent.create({
         data: {
           ticketId: t.id,
@@ -676,9 +695,11 @@ export class TicketsService {
         },
       });
       // Closing mints the feedback token in the same transaction, so the link
-      // and the close commit together. The invite email goes out afterwards.
+      // and the close commit together. One token per ticket (CsatToken.ticketId
+      // is unique): a reopen→close cycle reuses the first survey link. The
+      // invite email goes out afterwards.
       const feedback =
-        dto.action === 'close' ? await this.csat.createToken(t.id, tx) : null;
+        dto.action === 'close' ? await this.csat.tokenForTicket(t.id, tx) : null;
       return { before: t, row, feedback };
     });
     const { before, row: updated, feedback } = outcome;
@@ -693,10 +714,12 @@ export class TicketsService {
     }
     const detail = await this.detail(user, updated.id);
     if (!feedback) return detail;
-    // Both paths: the closer gets a copyable link, and the customer is emailed
-    // when SMTP is on and we have their address.
+    // SB-M7: the raw public survey link never goes to staff in the action
+    // response — staff who need to copy it use GET /tickets/:id/survey-link
+    // (tickets.edit). The customer is emailed when SMTP is on and we have
+    // their address; feedbackEmailed is staff-safe status.
     const feedbackEmailed = await this.sendCsatInvite(updated.id, feedback);
-    return { ...detail, feedbackUrl: feedback.url, feedbackEmailed };
+    return { ...detail, feedbackEmailed };
   }
 
   /**
@@ -706,7 +729,7 @@ export class TicketsService {
    */
   private async sendCsatInvite(
     ticketId: string,
-    feedback: { tokenId: string; url: string },
+    feedback: { tokenId: string; url: string | null },
   ): Promise<boolean> {
     try {
       const ticket = await this.prisma.ticket.findUnique({
@@ -714,7 +737,7 @@ export class TicketsService {
         select: { number: true, customer: { select: { name: true, email: true } } },
       });
       const address = ticket?.customer.email?.trim();
-      if (!ticket || !address) return false;
+      if (!ticket || !address || !feedback.url) return false;
       const queued = await this.email.queueEmail({
         to: address,
         templateKey: 'csat.invite',

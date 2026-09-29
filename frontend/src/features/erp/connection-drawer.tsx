@@ -67,6 +67,26 @@ function ConnectionForm({ open, connection, onClose, onSave, onReveal }: Connect
   const [result, setResult] = useState<TestResult>();
   const [revealing, setRevealing] = useState(false);
 
+  // Secrets start blank even when editing ("leave blank to keep it"), so any
+  // typed value counts as an edit.
+  const initialValues = {
+    name: connection?.name ?? "",
+    baseUrl: connection?.baseUrl ?? "",
+    apiKey: "",
+    apiSecret: "",
+    dbHost: connection?.db?.host ?? "",
+    dbPort: String(connection?.db?.port ?? 3306),
+    dbName: connection?.db?.database ?? "",
+    dbUser: connection?.db?.user ?? "",
+    dbPassword: "",
+    dbSsl: connection?.db?.ssl ?? true,
+    dbLimit: String(connection?.db?.connectionLimit ?? 3),
+  };
+  const dirty =
+    (Object.keys(initialValues) as (keyof typeof initialValues)[]).some(
+      (k) => values[k] !== initialValues[k],
+    ) || useDb !== !!connection?.db;
+
   const reveal = async () => {
     if (!onReveal) return;
     setRevealing(true);
@@ -176,6 +196,7 @@ function ConnectionForm({ open, connection, onClose, onSave, onReveal }: Connect
     <Drawer
       open={open}
       onClose={onClose}
+      dirty={dirty}
       title={editing ? `Edit “${connection.name}”` : "Add an ERP connection"}
       description="ERPNext only. Credentials are stored encrypted and never shown again."
       className="w-[min(520px,100vw)]!"

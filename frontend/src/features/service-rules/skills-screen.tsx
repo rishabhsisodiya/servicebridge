@@ -234,6 +234,16 @@ function SkillDrawer({
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
 
+  const initialModels = new Set(existing?.equipmentModels ?? []);
+  const initialEngineers = new Set(existing?.engineers.map((e) => e.id) ?? []);
+  const dirty =
+    name !== (existing?.name ?? "") ||
+    description !== (existing?.description ?? "") ||
+    models.size !== initialModels.size ||
+    [...models].some((m) => !initialModels.has(m)) ||
+    engineers.size !== initialEngineers.size ||
+    [...engineers].some((e) => !initialEngineers.has(e));
+
   const toggle = (set: Set<string>, update: (next: Set<string>) => void) => (value: string) => {
     const next = new Set(set);
     if (next.has(value)) next.delete(value);
@@ -283,6 +293,7 @@ function SkillDrawer({
     <Drawer
       open={!!skill}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       title={existing ? `Edit ${existing.name}` : "Add a skill"}
       footer={
         <>

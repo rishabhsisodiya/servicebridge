@@ -70,6 +70,7 @@ function AssignForm({ ticket, open, onClose, onChanged }: AssignDrawerProps) {
     <Drawer
       open={open}
       onClose={onClose}
+      dirty={engineerId !== "" || note.trim() !== ""}
       title={ticket.engineer ? "Reassign engineer" : "Assign an engineer"}
       description={
         ticket.equipment

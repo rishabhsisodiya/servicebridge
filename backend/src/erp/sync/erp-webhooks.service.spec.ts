@@ -40,6 +40,7 @@ function build(enabled: boolean) {
         return Promise.resolve({ id: 'e1', ...data });
       }),
       update: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
   };
   const add = jest.fn().mockResolvedValue({ id: 'job1' });
@@ -55,7 +56,7 @@ function build(enabled: boolean) {
     { enforce: jest.fn() } as unknown as RateLimitService,
     {} as AuditService,
   );
-  return { service, events, add };
+  return { service, events, add, prisma };
 }
 
 const body = (payload: object) => Buffer.from(JSON.stringify(payload));
@@ -121,5 +122,60 @@ describe('ErpWebhooksService.receive', () => {
       expect.objectContaining({ doctype: 'Serial No', name: 'CX400-2311-052', eventId: 'e1' }),
       expect.objectContaining({ attempts: 5 }),
     );
+  });
+
+  it('SB-H5: stores the payload modified timestamp on the event', async () => {
+    const { service, events } = build(true);
+    const raw = body({
+      doctype: 'Customer',
+      name: 'CUST-0001',
+      event: 'on_trash',
+      modified: '2026-09-29 01:00:00.123456',
+    });
+    await expect(service.receive('c1', raw, sign(raw))).resolves.toEqual({ accepted: true });
+    expect(events[0]).toMatchObject({
+      status: 'QUEUED',
+      docModified: '2026-09-29 01:00:00.123456',
+    });
+  });
+
+  it('SB-H5: ignores a replayed delivery with the same modified timestamp', async () => {
+    const { service, add, prisma } = build(true);
+    const payload = {
+      doctype: 'Customer',
+      name: 'CUST-0001',
+      event: 'on_trash',
+      modified: '2026-09-29 01:00:00.123456',
+    };
+    const raw = body(payload);
+    await expect(service.receive('c1', raw, sign(raw))).resolves.toEqual({ accepted: true });
+    expect(add).toHaveBeenCalledTimes(1);
+    // Simulate the first event having been recorded as QUEUED.
+    (prisma.erpWebhookEvent.findFirst as jest.Mock).mockResolvedValue({ id: 'e1' });
+    const replay = body(payload);
+    await expect(service.receive('c1', replay, sign(replay))).resolves.toMatchObject({
+      accepted: false,
+    });
+    expect(add).toHaveBeenCalledTimes(1);
+  });
+
+  it('SB-H5: a new change to the same record is not treated as a duplicate', async () => {
+    const { service, add } = build(true);
+    const first = body({
+      doctype: 'Customer',
+      name: 'CUST-0001',
+      event: 'on_update',
+      modified: '2026-09-29 01:00:00.000000',
+    });
+    await expect(service.receive('c1', first, sign(first))).resolves.toEqual({ accepted: true });
+    const second = body({
+      doctype: 'Customer',
+      name: 'CUST-0001',
+      event: 'on_update',
+      modified: '2026-09-29 01:05:00.000000',
+    });
+    // findFirst stays null (different modified) → both deliveries queue.
+    await expect(service.receive('c1', second, sign(second))).resolves.toEqual({ accepted: true });
+    expect(add).toHaveBeenCalledTimes(2);
   });
 });

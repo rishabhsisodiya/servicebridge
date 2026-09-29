@@ -197,6 +197,23 @@ describe('RolesService.update', () => {
     ).rejects.toMatchObject({ code: 'ROLE_ESCALATION' });
   });
 
+  it('stops a narrower-scoped role admin from widening a wider role', async () => {
+    // The lead holds every permission on the target role, but only sees their
+    // region. The old code checked only *added* permissions (none here) and
+    // scope *widening* (unchanged), so even a rename went through and the lead
+    // could then grant ALL-scope access they could never grant directly.
+    const { service } = build(role({ ticketScope: 'ALL', permissions: ['tickets.read'] }));
+    await expect(
+      service.update(lead, 'role_x', { name: 'Renamed', version: 2 }, client),
+    ).rejects.toMatchObject({ code: 'ROLE_ESCALATION' });
+  });
+
+  it('lets a narrower-scoped role admin edit a role whose full access they hold', async () => {
+    const { service } = build(role({ ticketScope: 'REGION', permissions: ['tickets.read'] }));
+    const row = await service.update(lead, 'role_x', { name: 'Renamed', version: 2 }, client);
+    expect(row.name).toBe('Renamed');
+  });
+
   it('reports open tickets left with people who stop being engineers', async () => {
     const { service, tx } = build(role({ permissions: ['tickets.read', 'tickets.work'] }), {
       open: 3,

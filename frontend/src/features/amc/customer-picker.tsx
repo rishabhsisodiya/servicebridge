@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import useSWR from "swr";
 import { SearchInput } from "@/components/ui/list-controls";
 import { apiFetch } from "@/lib/api/client";
@@ -25,6 +25,7 @@ export function CustomerPicker({
   onPick: (customer: CustomerOption) => void;
 }) {
   const [search, setSearch] = useState("");
+  const inputId = useId();
   const results = useSWR<{ data: CustomerOption[] }>(
     search.length >= 2 ? `/customers?search=${encodeURIComponent(search)}&pageSize=8` : null,
     (key: string) => apiFetch<{ data: CustomerOption[] }>(key),
@@ -33,15 +34,16 @@ export function CustomerPicker({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-semibold">
+      <label htmlFor={inputId} className="text-[13px] font-semibold">
         {label}{" "}
         {required && (
           <span className="text-bad" aria-hidden>
             *
           </span>
         )}
-      </span>
+      </label>
       <SearchInput
+        id={inputId}
         label={`Find the ${label.toLowerCase()}`}
         placeholder="Customer name, GSTIN or phone"
         onChange={setSearch}

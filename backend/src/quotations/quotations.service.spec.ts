@@ -383,6 +383,7 @@ describe('QuotationsService', () => {
       );
       prisma.quotationCounter.upsert.mockResolvedValue({ year: 2026, last: 8 });
       prisma.quotation.create.mockResolvedValue(draftQuotation({ number: 'QT-26-000008' }));
+      prisma.quotation.update.mockResolvedValue({});
 
       const revision = await service.revise(user, 'quote-1', 5);
 
@@ -414,6 +415,41 @@ describe('QuotationsService', () => {
       expect(error.code).toBe('QUOTATION_REVISE_NOT_ALLOWED');
       expect(prisma.quotation.create).not.toHaveBeenCalled();
     });
+
+    it('guards the write with status+version (recordPo pattern)', async () => {
+      const { prisma, service } = mocks();
+      prisma.quotation.findUnique.mockResolvedValue(
+        draftQuotation({ status: 'SENT', version: 5, lines: [] }),
+      );
+      prisma.quotationCounter.upsert.mockResolvedValue({ year: 2026, last: 8 });
+      prisma.quotation.create.mockResolvedValue(draftQuotation({ number: 'QT-26-000008' }));
+      prisma.quotation.update.mockResolvedValue({});
+
+      await service.revise(user, 'quote-1', 5);
+
+      expect(prisma.quotation.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1', status: 'SENT', version: 5 } }),
+      );
+    });
+
+    it('SB-M5: a revise racing a PO recording fails cleanly, no orphaned PO', async () => {
+      const { prisma, expiry, service } = mocks();
+      // The attacker read SENT/v5; a PO landed (SENT -> PO_RECEIVED) before
+      // the revise's write. The guarded update finds no row -> P2025.
+      prisma.quotation.findUnique.mockResolvedValue(
+        draftQuotation({ status: 'SENT', version: 5, lines: [] }),
+      );
+      const p2025 = Object.assign(new Error('Record not found'), { code: 'P2025' });
+      prisma.quotation.update.mockRejectedValue(p2025);
+
+      const error = await appError(service.revise(user, 'quote-1', 5));
+
+      expect(error.code).toBe('QUOTATION_REVISE_NOT_ALLOWED');
+      expect(error.getStatus()).toBe(HttpStatus.CONFLICT);
+      // The whole transaction rolls back: no new draft, no PO stranded.
+      expect(prisma.quotation.create).not.toHaveBeenCalled();
+      expect(expiry.cancel).not.toHaveBeenCalled();
+    });
   });
 
   describe('cancel', () => {
@@ -439,6 +475,35 @@ describe('QuotationsService', () => {
       const error = await appError(service.cancel(user, 'quote-1', 3));
 
       expect(error.code).toBe('QUOTATION_CANCEL_NOT_ALLOWED');
+    });
+
+    it('guards the write with status+version (recordPo pattern)', async () => {
+      const { prisma, service } = mocks();
+      prisma.quotation.findUnique.mockResolvedValue(
+        draftQuotation({ status: 'SENT', version: 3 }),
+      );
+      prisma.quotation.update.mockResolvedValue(draftQuotation({ status: 'CANCELLED' }));
+
+      await service.cancel(user, 'quote-1', 3);
+
+      expect(prisma.quotation.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'quote-1', status: 'SENT', version: 3 } }),
+      );
+    });
+
+    it('SB-M5: a cancel racing a PO recording fails cleanly, no orphaned PO', async () => {
+      const { prisma, expiry, service } = mocks();
+      prisma.quotation.findUnique.mockResolvedValue(
+        draftQuotation({ status: 'SENT', version: 3 }),
+      );
+      const p2025 = Object.assign(new Error('Record not found'), { code: 'P2025' });
+      prisma.quotation.update.mockRejectedValue(p2025);
+
+      const error = await appError(service.cancel(user, 'quote-1', 3));
+
+      expect(error.code).toBe('QUOTATION_CANCEL_NOT_ALLOWED');
+      expect(error.getStatus()).toBe(HttpStatus.CONFLICT);
+      expect(expiry.cancel).not.toHaveBeenCalled();
     });
   });
 
@@ -511,25 +576,96 @@ describe('QuotationsService', () => {
 });
 
 describe('findPoBlockingQuotation', () => {
+  const txFor = (rows: Record<string, unknown>[]) => ({
+    quotation: { findMany: jest.fn().mockResolvedValue(rows) },
+  });
+  const q = (patch: Record<string, unknown>) => ({
+    id: 'q1',
+    number: 'QT-26-000007',
+    status: 'SENT',
+    sentAt: new Date('2026-09-01T10:00:00Z'),
+    poNumber: null,
+    revisesId: null,
+    createdAt: new Date('2026-09-01T09:00:00Z'),
+    ...patch,
+  });
+
   it('returns the number of a SENT quotation waiting for a PO', async () => {
-    const tx = {
-      quotation: {
-        findFirst: jest.fn().mockResolvedValue({ number: 'QT-26-000007' }),
-      },
-    };
+    const tx = txFor([q({})]);
 
     const blocker = await findPoBlockingQuotation(tx as never, 'ticket-1');
 
     expect(blocker).toBe('QT-26-000007');
-    expect(tx.quotation.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { ticketId: 'ticket-1', status: 'SENT', poNumber: null },
-      }),
+    expect(tx.quotation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { ticketId: 'ticket-1' } }),
     );
   });
 
   it('returns null when nothing blocks', async () => {
-    const tx = { quotation: { findFirst: jest.fn().mockResolvedValue(null) } };
+    expect(await findPoBlockingQuotation(txFor([]) as never, 'ticket-1')).toBeNull();
+    expect(
+      await findPoBlockingQuotation(txFor([q({ status: 'PO_RECEIVED', poNumber: 'PO-1' })]) as never, 'ticket-1'),
+    ).toBeNull();
+  });
+
+  it('SB-H1: a revised SENT quotation without a PO still blocks', async () => {
+    const tx = txFor([
+      q({ id: 'q1', number: 'QT-26-000007', status: 'REVISED' }),
+      q({
+        id: 'q2',
+        number: 'QT-26-000008',
+        status: 'DRAFT',
+        sentAt: null,
+        revisesId: 'q1',
+        createdAt: new Date('2026-09-02T09:00:00Z'),
+      }),
+    ]);
+
+    expect(await findPoBlockingQuotation(tx as never, 'ticket-1')).toBe('QT-26-000007');
+  });
+
+  it('SB-H1: a cancelled SENT quotation without a PO still blocks', async () => {
+    const tx = txFor([q({ status: 'CANCELLED' })]);
+
+    expect(await findPoBlockingQuotation(tx as never, 'ticket-1')).toBe('QT-26-000007');
+  });
+
+  it('does not block when the revision chain received a PO (legitimate flow)', async () => {
+    const tx = txFor([
+      q({ id: 'q1', number: 'QT-26-000007', status: 'REVISED' }),
+      q({
+        id: 'q2',
+        number: 'QT-26-000008',
+        status: 'PO_RECEIVED',
+        poNumber: 'PO-99',
+        revisesId: 'q1',
+        createdAt: new Date('2026-09-02T09:00:00Z'),
+      }),
+    ]);
+
+    expect(await findPoBlockingQuotation(tx as never, 'ticket-1')).toBeNull();
+  });
+
+  it('does not block a cancelled quotation when a later quote got the PO', async () => {
+    const tx = txFor([
+      q({ id: 'q1', number: 'QT-26-000007', status: 'CANCELLED' }),
+      q({
+        id: 'q3',
+        number: 'QT-26-000009',
+        status: 'PO_RECEIVED',
+        poNumber: 'PO-100',
+        createdAt: new Date('2026-09-03T09:00:00Z'),
+      }),
+    ]);
+
+    expect(await findPoBlockingQuotation(tx as never, 'ticket-1')).toBeNull();
+  });
+
+  it('ignores quotations that were never sent', async () => {
+    const tx = txFor([
+      q({ status: 'CANCELLED', sentAt: null }),
+      q({ id: 'q2', status: 'DRAFT', sentAt: null, createdAt: new Date('2026-09-02T09:00:00Z') }),
+    ]);
 
     expect(await findPoBlockingQuotation(tx as never, 'ticket-1')).toBeNull();
   });

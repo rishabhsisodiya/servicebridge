@@ -26,6 +26,9 @@
   --faint: #5b6b82;
   --line: #e2e8f0;
   --line-strong: #cbd5e1;
+  /* Control borders (inputs, secondary buttons, filter chips): 3:1 against
+     the surface so the control edge is perceivable. */
+  --control-border: #7c8ba0;
 
   --primary: #334155;
   --on-primary: #ffffff;
@@ -79,6 +82,9 @@
   --faint: #8594ab;
   --line: #1f2b45;
   --line-strong: #2f3e5e;
+  /* Control borders (inputs, secondary buttons, filter chips): 3:1 against
+     the surface so the control edge is perceivable. */
+  --control-border: #5b6d93;
 
   --primary: #cbd5e1;
   --on-primary: #0f172a;
@@ -133,6 +139,8 @@
   --color-faint: var(--faint);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+  --color-control-border: var(--control-border);
+  --color-scrim: var(--scrim);
   --color-primary: var(--primary);
   --color-on-primary: var(--on-primary);
   --color-accent: var(--accent);

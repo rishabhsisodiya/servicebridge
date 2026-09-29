@@ -658,10 +658,25 @@ export class QuotationsService {
           HttpStatus.CONFLICT,
         );
       }
-      await tx.quotation.update({
-        where: { id },
-        data: { status: 'REVISED', version: { increment: 1 } },
-      });
+      // The status (+version) guard in the where clause makes the revise fail
+      // cleanly when a PO was recorded (or a second revise landed) between the
+      // pre-transaction read and this write: the PO is never orphaned on a
+      // REVISED quotation, and two concurrent revises can't both succeed.
+      await tx.quotation
+        .update({
+          where: { id, status: quotation.status, version: quotation.version },
+          data: { status: 'REVISED', version: { increment: 1 } },
+        })
+        .catch((error: { code?: string }) => {
+          if (error?.code === 'P2025') {
+            throw new AppException(
+              'QUOTATION_REVISE_NOT_ALLOWED',
+              'This quotation changed while you were working on it. Reload and try again.',
+              HttpStatus.CONFLICT,
+            );
+          }
+          throw error;
+        });
       const created = await tx.quotation.create({
         data: {
           ticketId: quotation.ticketId,
@@ -730,11 +745,25 @@ export class QuotationsService {
           HttpStatus.CONFLICT,
         );
       }
-      const next = await tx.quotation.update({
-        where: { id },
-        data: { status: 'CANCELLED', version: { increment: 1 } },
-        select: { ...quotationDetail, lines: { select: { quantity: true, rate: true } } },
-      });
+      // Same status (+version) guard as revise(): a concurrently recorded PO
+      // turns this write into a clean 409 instead of stranding the PO on a
+      // CANCELLED quotation.
+      const next = await tx.quotation
+        .update({
+          where: { id, status: quotation.status, version: quotation.version },
+          data: { status: 'CANCELLED', version: { increment: 1 } },
+          select: { ...quotationDetail, lines: { select: { quantity: true, rate: true } } },
+        })
+        .catch((error: { code?: string }) => {
+          if (error?.code === 'P2025') {
+            throw new AppException(
+              'QUOTATION_CANCEL_NOT_ALLOWED',
+              'This quotation changed while you were working on it. Reload and try again.',
+              HttpStatus.CONFLICT,
+            );
+          }
+          throw error;
+        });
       await this.audit.record(
         {
           actorId: user.id,

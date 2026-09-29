@@ -244,7 +244,7 @@ export class ErpWebhooksService implements OnModuleInit {
     );
     const valid = !!signature && safeEqual(signature, expected);
 
-    let payload: { doctype?: string; name?: string; event?: string } = {};
+    let payload: { doctype?: string; name?: string; event?: string; modified?: string } = {};
     try {
       payload = JSON.parse((rawBody ?? Buffer.alloc(0)).toString('utf8')) as typeof payload;
     } catch {
@@ -255,6 +255,9 @@ export class ErpWebhooksService implements OnModuleInit {
       doctype: typeof payload.doctype === 'string' ? payload.doctype.slice(0, 80) : null,
       docName: typeof payload.name === 'string' ? payload.name.slice(0, 200) : null,
       event: typeof payload.event === 'string' ? payload.event.slice(0, 40) : 'on_update',
+      // The ERP record's modified timestamp doubles as the idempotency key:
+      // a replayed delivery carries the same value (SB-H5).
+      docModified: typeof payload.modified === 'string' ? payload.modified.slice(0, 80) : null,
       signatureValid: valid,
     };
 
@@ -278,6 +281,26 @@ export class ErpWebhooksService implements OnModuleInit {
       where: { key: WEBHOOK_SYNC_KEY },
     });
     if (!setting?.enabled) return ignore('Webhook sync is switched off (Settings → Automations).');
+
+    // SB-H5: drop replayed deliveries. Two deliveries of the same ERP change
+    // carry the same modified timestamp; a genuinely new change never does.
+    // (Re-verification in syncOne is the real control for on_trash; this just
+    // avoids re-reading the ERP for replays. FAILED events are retried, not
+    // dropped.)
+    if (base.docModified) {
+      const seen = await this.prisma.erpWebhookEvent.findFirst({
+        where: {
+          connectionId,
+          doctype: base.doctype,
+          docName: base.docName,
+          event: base.event,
+          docModified: base.docModified,
+          status: { in: ['QUEUED', 'PROCESSED'] },
+        },
+        select: { id: true },
+      });
+      if (seen) return ignore(`Duplicate delivery of the ${base.event} event for ${base.doctype} ${base.docName}.`);
+    }
 
     const event = await this.prisma.erpWebhookEvent.create({ data: { ...base, status: 'QUEUED' } });
     const job = await this.queues.queue('erp-sync').add(

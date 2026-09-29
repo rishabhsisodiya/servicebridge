@@ -56,7 +56,7 @@ describe('ImportService', () => {
       (prisma.customer.findMany as jest.Mock).mockResolvedValue([
         { id: 'c1', name: 'Acme Industries', taxId: 'GSTIN1' },
       ]);
-      const preview = await service.validate('customers', csvFile(CUSTOMERS_CSV));
+      const preview = await service.validate('customers', csvFile(CUSTOMERS_CSV), actor);
       expect(preview.summary).toEqual({ valid: 0, warning: 1, error: 3 });
       const [acme, beta, noname, dupe] = preview.rows;
       expect(acme.status).toBe('warning');
@@ -76,6 +76,7 @@ describe('ImportService', () => {
       const preview = await service.validate(
         'customers',
         csvFile('name,customer_group,territory,tax_id,mobile,email\nAcme Industries,,,GSTIN1,,\n'),
+        actor,
       );
       expect(preview.rows[0].status).toBe('warning');
       expect(preview.rows[0].matchedExisting?.id).toBe('c1');
@@ -83,18 +84,18 @@ describe('ImportService', () => {
 
     it('rejects non-csv files and oversized payloads', async () => {
       const { service } = makeService();
-      await expect(service.validate('customers', csvFile('a,b\n1,2\n', 'data.txt'))).rejects.toMatchObject(
+      await expect(service.validate('customers', csvFile('a,b\n1,2\n', 'data.txt'), actor)).rejects.toMatchObject(
         { code: 'VALIDATION_FAILED' },
       );
       await expect(
-        service.validate('customers', { originalname: 'a.csv', size: 6 * 1024 * 1024, buffer: Buffer.from('x') }),
+        service.validate('customers', { originalname: 'a.csv', size: 6 * 1024 * 1024, buffer: Buffer.from('x') }, actor),
       ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
     });
 
     it('rejects a missing required column', async () => {
       const { service } = makeService();
       await expect(
-        service.validate('customers', csvFile('customer_group\nIndustrial\n')),
+        service.validate('customers', csvFile('customer_group\nIndustrial\n'), actor),
       ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
     });
   });
@@ -105,7 +106,7 @@ describe('ImportService', () => {
       (prisma.customer.findMany as jest.Mock).mockResolvedValue([
         { id: 'c1', name: 'Acme Industries' },
       ]);
-      const preview = await service.validate('equipment', csvFile(MACHINES_CSV));
+      const preview = await service.validate('equipment', csvFile(MACHINES_CSV), actor);
       // SN-001 valid; SN-002 bad date; SN-001 duplicate serial; SN-003 valid (no customer).
       expect(preview.summary).toEqual({ valid: 2, warning: 0, error: 2 });
       expect(preview.rows[1].errors.join(' ')).toContain('YYYY-MM-DD');
@@ -117,6 +118,7 @@ describe('ImportService', () => {
       const preview = await service.validate(
         'equipment',
         csvFile('serial_no,item_code,item_name,customer_name\nSN-9,,,Ghost Co\n'),
+        actor,
       );
       expect(preview.rows[0].status).toBe('error');
       expect(preview.rows[0].errors.join(' ')).toContain('Import the customer first');
@@ -129,6 +131,7 @@ describe('ImportService', () => {
       const preview = await service.validate(
         'customers',
         csvFile('name,customer_group,territory,tax_id,mobile,email\nNew Co,Retail,East,,111,ok@new.example\n,Retail,East,,222,bad@new.example\n'),
+        actor,
       );
       const report = await service.confirm(
         'customers',
@@ -162,6 +165,7 @@ describe('ImportService', () => {
       const preview = await service.validate(
         'customers',
         csvFile('name,customer_group,territory,tax_id,mobile,email\nAcme Industries,Changed,West,GSTIN1,0000000000,new@acme.example\n'),
+        actor,
       );
       expect(preview.rows[0].defaultMode).toBe('update-fill');
       await service.confirm('customers', { validationId: preview.validationId }, actor, client);
@@ -187,6 +191,7 @@ describe('ImportService', () => {
       const preview = await service.validate(
         'customers',
         csvFile('name,customer_group,territory,tax_id,mobile,email\nAcme Industries,Changed,West,,,,\n'),
+        actor,
       );
       await service.confirm(
         'customers',
@@ -210,6 +215,7 @@ describe('ImportService', () => {
       const preview = await service.validate(
         'customers',
         csvFile('name\nSolo\n'),
+        actor,
       );
       await expect(
         service.confirm('equipment', { validationId: preview.validationId }, actor, client),
@@ -224,6 +230,7 @@ describe('ImportService', () => {
       const preview = await service.validate(
         'equipment',
         csvFile('serial_no,item_code,item_name,customer_name,warranty_expires_on\nSN-100,CMP-1,Compressor,Acme Industries,2027-01-15\n'),
+        actor,
       );
       const report = await service.confirm(
         'equipment',
@@ -239,6 +246,76 @@ describe('ImportService', () => {
         customerId: 'c1',
         warrantyExpiresOn: new Date('2027-01-15T00:00:00Z'),
       });
+    });
+
+    it('SB-M9: a second confirm with the same id fails (validation consumed)', async () => {
+      const { service, prisma } = makeService();
+      const preview = await service.validate(
+        'customers',
+        csvFile('name\nSolo\n'),
+        actor,
+      );
+      const first = await service.confirm(
+        'customers',
+        { validationId: preview.validationId },
+        actor,
+        client,
+      );
+      expect(first.created).toBe(1);
+      // The validation was claimed atomically before processing: the second
+      // confirm finds nothing held and fails instead of duplicating rows.
+      await expect(
+        service.confirm('customers', { validationId: preview.validationId }, actor, client),
+      ).rejects.toMatchObject({ code: 'VALIDATION_EXPIRED' });
+      expect(prisma.customer.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('SB-M9: a single confirm still works end to end', async () => {
+      const { service, prisma } = makeService();
+      const preview = await service.validate(
+        'customers',
+        csvFile('name\nSolo\n'),
+        actor,
+      );
+      const report = await service.confirm(
+        'customers',
+        { validationId: preview.validationId },
+        actor,
+        client,
+      );
+      expect(report).toEqual({ created: 1, updated: 0, skipped: 0, errors: [] });
+      expect(prisma.customer.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('SB-L2: rejects confirm from a different user than the validator', async () => {
+      const { service, prisma } = makeService();
+      const preview = await service.validate(
+        'customers',
+        csvFile('name\nSolo\n'),
+        actor,
+      );
+      const mallory = { id: 'u2', name: 'Mallory' } as never;
+      await expect(
+        service.confirm('customers', { validationId: preview.validationId }, mallory, client),
+      ).rejects.toMatchObject({ code: 'IMPORT_USER_MISMATCH' });
+      expect(prisma.customer.create).not.toHaveBeenCalled();
+    });
+
+    it('SB-L2: the validating user can confirm their own validation', async () => {
+      const { service, prisma } = makeService();
+      const preview = await service.validate(
+        'customers',
+        csvFile('name\nSolo\n'),
+        actor,
+      );
+      const report = await service.confirm(
+        'customers',
+        { validationId: preview.validationId },
+        actor,
+        client,
+      );
+      expect(report.created).toBe(1);
+      expect(prisma.customer.create).toHaveBeenCalledTimes(1);
     });
   });
 });

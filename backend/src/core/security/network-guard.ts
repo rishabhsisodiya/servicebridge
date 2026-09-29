@@ -24,6 +24,16 @@ function v4ToInt(ip: string): number {
   return ip.split('.').reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0;
 }
 
+/**
+ * Decodes two IPv6 hextets (32 bits) to dotted-quad IPv4, e.g. ('7f00','1') →
+ * '127.0.0.1'. Used for the hex forms of IPv4-embedded IPv6 addresses.
+ */
+function hexPairToV4(hi: string, lo: string): string {
+  const a = parseInt(hi, 16);
+  const b = parseInt(lo, 16);
+  return `${(a >> 8) & 0xff}.${a & 0xff}.${(b >> 8) & 0xff}.${b & 0xff}`;
+}
+
 export function isPrivateAddress(address: string): boolean {
   const family = isIP(address);
   if (family === 4) {
@@ -34,6 +44,15 @@ export function isPrivateAddress(address: string): boolean {
     const lower = address.toLowerCase();
     const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
     if (mapped) return isPrivateAddress(mapped[1]);
+    // WHATWG URL serializes ::ffff:127.0.0.1 as the hex form ::ffff:7f00:1,
+    // which the dotted-quad check above misses (SB-H4). The IPv4-translated
+    // form ::ffff:0:7f00:1 (RFC 4291 ::ffff:0:0/96) must also be caught:
+    // decode the last 32 bits back to the embedded IPv4 before range checks.
+    const mappedHex = lower.match(/^::ffff:(?:0:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (mappedHex) return isPrivateAddress(hexPairToV4(mappedHex[1], mappedHex[2]));
+    // 6to4 (2002:<ipv4-hex>::/48) embeds the IPv4 in the 32 bits after 2002:.
+    const sixToFour = lower.match(/^2002:([0-9a-f]{1,4}):([0-9a-f]{1,4})/);
+    if (sixToFour) return isPrivateAddress(hexPairToV4(sixToFour[1], sixToFour[2]));
     return (
       lower === '::' ||
       lower === '::1' ||

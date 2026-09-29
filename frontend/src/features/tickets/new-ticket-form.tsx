@@ -3,7 +3,7 @@
 import { AlertTriangle, Building2, Lock, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, type FormEvent } from "react";
+import { useCallback, useId, useState, type FormEvent } from "react";
 import useSWR from "swr";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody } from "@/components/ui/card";
@@ -457,6 +457,7 @@ export function NewTicketForm({ initialCustomerId }: { initialCustomerId?: strin
 }
 
 function CustomerPicker({ error, onPick }: { error?: string; onPick: (id: string) => void }) {
+  const inputId = useId();
   const [search, setSearch] = useState("");
   const onSearch = useCallback((value: string) => setSearch(value), []);
   const results = useSWR<{ data: CustomerOption[] }>(
@@ -467,13 +468,14 @@ function CustomerPicker({ error, onPick }: { error?: string; onPick: (id: string
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[13px] font-semibold">
+      <label htmlFor={inputId} className="text-[13px] font-semibold">
         Customer{" "}
         <span className="text-bad" aria-hidden>
           *
         </span>
-      </span>
+      </label>
       <SearchInput
+        id={inputId}
         label="Find the customer"
         placeholder="Customer name, GSTIN or phone"
         onChange={onSearch}

@@ -76,7 +76,7 @@ function RunHistory({ schedule }: { schedule: ReportSchedule }) {
                 </Td>
                 <Td>{run.status === "SUCCESS" ? run.rowCount.toLocaleString("en-IN") : "—"}</Td>
                 <Td>
-                  {run.csvKey && (
+                  {run.hasFile && (
                     <IconButton label="Download this run's CSV" onClick={() => download(run)}>
                       <Download className="size-4" aria-hidden />
                     </IconButton>
@@ -89,6 +89,19 @@ function RunHistory({ schedule }: { schedule: ReportSchedule }) {
       )}
     </div>
   );
+}
+
+function initialScheduleParams(
+  schedule: ReportSchedule | null,
+  catalog: ReportCatalogEntry[],
+): Record<string, string> {
+  if (schedule) return schedule.params;
+  const range = defaultRange();
+  const initial: Record<string, string> = {};
+  for (const p of catalog[0]?.params ?? []) {
+    if (p.type === "date") initial[p.key] = p.key === "from" ? range.from : range.to;
+  }
+  return initial;
 }
 
 function ScheduleForm({
@@ -105,15 +118,9 @@ function ScheduleForm({
   const toast = useToast();
   const [name, setName] = useState(schedule?.name ?? "");
   const [reportKey, setReportKey] = useState(schedule?.reportKey ?? catalog[0]?.key ?? "");
-  const range = defaultRange();
-  const [params, setParams] = useState<Record<string, string>>(() => {
-    if (schedule) return schedule.params;
-    const initial: Record<string, string> = {};
-    for (const p of catalog[0]?.params ?? []) {
-      if (p.type === "date") initial[p.key] = p.key === "from" ? range.from : range.to;
-    }
-    return initial;
-  });
+  const [params, setParams] = useState<Record<string, string>>(() =>
+    initialScheduleParams(schedule, catalog),
+  );
   const [cron, setCron] = useState(schedule?.cron ?? "0 8 * * 1");
   const [timezone, setTimezone] = useState(schedule?.timezone ?? "Asia/Kolkata");
   const [recipients, setRecipients] = useState<string[]>(schedule?.recipients ?? []);
@@ -122,6 +129,16 @@ function ScheduleForm({
   const [error, setError] = useState<string>();
 
   const report = catalog.find((r) => r.key === reportKey) ?? catalog[0];
+
+  // Params default differently for new vs edit; compare against the drawer's
+  // own initial values, not a generic blank.
+  const dirty =
+    name !== (schedule?.name ?? "") ||
+    reportKey !== (schedule?.reportKey ?? catalog[0]?.key ?? "") ||
+    JSON.stringify(params) !== JSON.stringify(initialScheduleParams(schedule, catalog)) ||
+    cron !== (schedule?.cron ?? "0 8 * * 1") ||
+    timezone !== (schedule?.timezone ?? "Asia/Kolkata") ||
+    JSON.stringify(recipients) !== JSON.stringify(schedule?.recipients ?? []);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -169,6 +186,7 @@ function ScheduleForm({
     <Drawer
       open
       onClose={onClose}
+      dirty={dirty}
       title={schedule ? `Edit “${schedule.name}”` : "New scheduled report"}
       description="The report is rendered with the ticket scope of whoever created the schedule."
       footer={

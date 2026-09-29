@@ -304,6 +304,10 @@ export class DemoTicketsService implements OnModuleInit {
           responseBreached: (respondedAt ?? p.times.CANCELLED ?? now) > sla.responseDueAt,
           resolutionBreached:
             (resolvedAt ?? p.times.ON_HOLD ?? p.times.CANCELLED ?? now) > sla.resolutionDueAt,
+          // Sticky history (SB-M8): matches the live flags at seed time.
+          responseBreachedEver: (respondedAt ?? p.times.CANCELLED ?? now) > sla.responseDueAt,
+          resolutionBreachedEver:
+            (resolvedAt ?? p.times.ON_HOLD ?? p.times.CANCELLED ?? now) > sla.resolutionDueAt,
           isDemo: true,
           createdAt: p.createdAt,
           events: {

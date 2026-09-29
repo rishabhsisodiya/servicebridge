@@ -314,6 +314,11 @@ function RegionDrawer({
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
 
+  const dirty =
+    name !== (existing?.name ?? "") ||
+    areaManagerId !== (existing?.areaManager?.id ?? "") ||
+    prefixes !== (existing?.pincodePrefixes.join(", ") ?? "");
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const list = parsePrefixes(prefixes);
@@ -347,6 +352,7 @@ function RegionDrawer({
     <Drawer
       open={!!region}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       title={existing ? `Edit ${existing.name}` : "Add a region"}
       footer={
         <>

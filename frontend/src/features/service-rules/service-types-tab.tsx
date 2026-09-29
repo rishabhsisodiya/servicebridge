@@ -148,6 +148,15 @@ function ServiceTypeDrawer({
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+  const initialValues = {
+    name: existing?.name ?? "",
+    description: existing?.description ?? "",
+    defaultPriority: existing?.defaultPriority ?? ("MEDIUM" as Priority),
+    requiresEquipment: existing?.requiresEquipment ?? true,
+  };
+  const dirty = (Object.keys(initialValues) as (keyof typeof initialValues)[]).some(
+    (k) => values[k] !== initialValues[k],
+  );
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -177,6 +186,7 @@ function ServiceTypeDrawer({
     <Drawer
       open={!!type}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       title={existing ? `Edit ${existing.name}` : "Add a service type"}
       footer={
         <>

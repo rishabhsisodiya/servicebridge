@@ -52,12 +52,15 @@ describe('PartnerService', () => {
         channel: 'PARTNER',
         title: 'Compressor not starting',
       });
-      // System-owned: createdById null.
-      expect((tickets.create as jest.Mock).mock.calls[0][2]).toEqual({ createdById: null });
-      expect(prisma.ticket.update).toHaveBeenCalledWith({
-        where: { id: 't1' },
-        data: { partnerKeyId: 'k1', externalRef: 'ACME-1001' },
+      // System-owned: createdById null; idempotency fields stamped at insert so
+      // the @@unique([partnerKeyId, externalRef]) constraint guards the create.
+      expect((tickets.create as jest.Mock).mock.calls[0][2]).toEqual({
+        createdById: null,
+        partnerKeyId: 'k1',
+        externalRef: 'ACME-1001',
       });
+      // No follow-up stamping update: the row is never briefly an orphan.
+      expect(prisma.ticket.update).not.toHaveBeenCalled();
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: 'partner.ticket_created',
@@ -94,6 +97,44 @@ describe('PartnerService', () => {
       );
       const result = await service.createTicket(partner, dto(), client);
       expect(result).toEqual({ id: 't1', number: 'T-26-0001', duplicate: true });
+    });
+
+    it('SB-M10: concurrent same-externalRef resolves to one ticket, no orphan', async () => {
+      const p2002 = Object.assign(new Error('Unique constraint'), { code: 'P2002' });
+      const ticketFindFirst = jest
+        .fn()
+        .mockResolvedValueOnce(null) // call 1 pre-check misses
+        .mockResolvedValueOnce(null) // call 2 pre-check misses
+        .mockResolvedValue({ id: 't1', number: 'T-26-0001' }); // loser refetch finds the winner
+      const ticketUpdate = jest.fn();
+      const { service, tickets, prisma } = makeService({
+        ticket: { findFirst: ticketFindFirst, update: ticketUpdate },
+      });
+      // The winner's INSERT (stamped at insert) commits; the loser's INSERT
+      // violates @@unique([partnerKeyId, externalRef]) -> P2002.
+      (tickets.create as jest.Mock)
+        .mockResolvedValueOnce({ id: 't1', number: 'T-26-0001' })
+        .mockRejectedValueOnce(p2002);
+
+      const [first, second] = await Promise.all([
+        service.createTicket(partner, dto(), client),
+        service.createTicket(partner, dto(), client),
+      ]);
+
+      expect(first).toEqual({ id: 't1', number: 'T-26-0001', duplicate: false });
+      expect(second).toEqual({ id: 't1', number: 'T-26-0001', duplicate: true });
+      // The idempotency fields ride on the INSERT (opts), so the P2002 path
+      // fires inside the guarded create and no follow-up update can orphan
+      // the loser's ticket with NULL fields.
+      expect(ticketUpdate).not.toHaveBeenCalled();
+      expect(prisma.ticket.update).not.toHaveBeenCalled();
+      for (const call of (tickets.create as jest.Mock).mock.calls) {
+        expect(call[2]).toEqual({
+          createdById: null,
+          partnerKeyId: 'k1',
+          externalRef: 'ACME-1001',
+        });
+      }
     });
 
     it('422s when the customer cannot be resolved', async () => {

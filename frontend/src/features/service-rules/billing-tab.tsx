@@ -243,6 +243,17 @@ function RateDrawer({
   });
   const [errors, setErrors] = useState<FormErrors>({});
   const [saving, setSaving] = useState(false);
+  const initialValues = {
+    code: existing?.code ?? "",
+    name: existing?.name ?? "",
+    unit: existing?.unit ?? ("PER_VISIT" as BillingUnit),
+    amount: existing ? String(existing.amount) : "",
+    erpItemCode: existing?.erpItemCode ?? "",
+    active: existing?.active ?? true,
+  };
+  const dirty = (Object.keys(initialValues) as (keyof typeof initialValues)[]).some(
+    (k) => values[k] !== initialValues[k],
+  );
   const set = (field: keyof typeof values) => (e: { target: { value: string } }) =>
     setValues((v) => ({ ...v, [field]: e.target.value }));
 
@@ -285,6 +296,7 @@ function RateDrawer({
     <Drawer
       open={!!rate}
       onClose={onClose}
+      dirty={dirty && !readOnly}
       title={existing ? `Edit ${existing.name}` : "Add a service charge"}
       description="New rates apply to quotations and invoices made after you save."
       footer={

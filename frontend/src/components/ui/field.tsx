@@ -51,20 +51,20 @@ export function Field({ label, help, error, required, className, children }: Fie
         </p>
       )}
       {help && (
-        <p id={helpId} className="text-xs text-muted">
+        <div id={helpId} className="text-xs text-muted">
           {help}
-        </p>
+        </div>
       )}
     </div>
   );
 }
 
 const control = cn(
-  "w-full min-h-10 rounded-lg border border-line-strong bg-surface px-3 py-2 text-text",
+  "w-full min-h-10 rounded-lg border border-control-border bg-surface px-3 py-2 text-text",
   "placeholder:text-faint max-sm:text-base",
   "focus:border-accent focus:outline-2 focus:outline-offset-0 focus:outline-accent/50",
   "aria-invalid:border-bad aria-invalid:bg-bad-bg/40",
-  "read-only:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50",
+  "read-only:bg-surface-2 disabled:cursor-not-allowed disabled:bg-surface-2",
 );
 
 export function Input({ className, ...rest }: ComponentProps<"input">) {

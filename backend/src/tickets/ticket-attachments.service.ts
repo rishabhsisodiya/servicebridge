@@ -36,6 +36,15 @@ export class TicketAttachmentsService {
   ) {}
 
   async upload(user: AuthUser, idOrNumber: string, file: UploadedFileLike | undefined) {
+    // SB-M2: attaching a file is a write. Read-only users may see the ticket
+    // but may not add files to it.
+    if (!can(user, 'tickets.work') && !can(user, 'tickets.edit') && !can(user, 'tickets.create')) {
+      throw new AppException(
+        'FORBIDDEN',
+        "You don't have permission to add files to tickets.",
+        HttpStatus.FORBIDDEN,
+      );
+    }
     if (!file?.buffer?.length) {
       throw new AppException('FILE_MISSING', 'Choose a file to upload.', HttpStatus.BAD_REQUEST);
     }
