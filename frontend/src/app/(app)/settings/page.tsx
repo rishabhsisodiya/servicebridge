@@ -11,6 +11,7 @@ import {
   Layers,
   Mail,
   Map,
+  MessageCircle,
   Palette,
   ScrollText,
   ShieldCheck,
@@ -156,6 +157,12 @@ const GROUPS: { title: string; entries: Entry[] }[] = [
         label: "Notification templates",
         description: "Wording for the emails the app sends",
         href: "/settings/email?tab=templates",
+      },
+      {
+        icon: MessageCircle,
+        label: "WhatsApp",
+        description: "Meta WhatsApp Business connection, channel toggles and deliveries",
+        href: "/settings/whatsapp",
       },
       {
         icon: ScrollText,

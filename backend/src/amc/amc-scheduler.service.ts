@@ -8,6 +8,7 @@ import { QueueService } from '../core/queue/queue.service';
 import { AppSettingsService } from '../demo/app-settings.service';
 import { rolesWith } from '../roles/role-filters';
 import { EmailService } from '../notifications/email.service';
+import { WhatsAppService } from '../notifications/whatsapp.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AutomationsService, type AutomationContext } from '../automations/automations.service';
 import { TicketsService } from '../tickets/tickets.service';
@@ -73,6 +74,7 @@ export class AmcSchedulerService implements OnModuleInit, OnApplicationBootstrap
     private readonly tickets: TicketsService,
     private readonly notifications: NotificationsService,
     private readonly email: EmailService,
+    private readonly whatsapp: WhatsAppService,
     private readonly settings: AppSettingsService,
     private readonly config: AppConfig,
   ) {}
@@ -292,7 +294,7 @@ export class AmcSchedulerService implements OnModuleInit, OnApplicationBootstrap
 
     const managers = await this.prisma.user.findMany({
       where: { status: 'ACTIVE', role: rolesWith('amc.edit') },
-      select: { id: true, email: true },
+      select: { id: true, email: true, phone: true },
     });
     const title = `AMC ${contract.number} ends in ${daysOut} days`;
     const body = `${contract.customer.name}'s contract ends on ${endsOn}. Follow up on the renewal.`;
@@ -317,6 +319,18 @@ export class AmcSchedulerService implements OnModuleInit, OnApplicationBootstrap
         },
       });
       if (queued) sent += 1;
+      // The WhatsApp reminder is independent of the email one: it goes out
+      // whenever the channel is on and the manager has a usable number.
+      await this.whatsapp.queueWhatsApp({
+        to: manager.phone,
+        templateKey: 'amc.renewal',
+        variables: {
+          contractNumber: contract.number,
+          customerName: contract.customer.name,
+          endsOn,
+          daysLeft: daysOut,
+        },
+      });
     }
     return `Reminded ${managers.length} contract manager(s) (${sent} email(s)) about ${contract.number}`;
   }

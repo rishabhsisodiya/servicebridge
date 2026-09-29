@@ -108,6 +108,15 @@ export const EMAIL_TEMPLATE_SEEDS: TemplateSeed[] = [
       'Hi,\n\nYour scheduled report {{scheduleName}} ({{reportLabel}}) ran with {{rowCount}} rows.\n\n{{summary}}\n\n{{downloadNote}}\n\n— {{companyName}}',
     enabled: true,
   },
+  {
+    key: 'portal.magic_link',
+    name: 'Portal sign-in link',
+    subject: '[{{companyName}}] Your ServiceBridge portal sign-in link',
+    bodyHtml: `<p>Hi {{name}},</p><p>Use this link to sign in to the customer portal (expires in 15 minutes):</p><p><a href="{{magicLink}}">Sign in</a></p><p>— {{companyName}}</p>`,
+    bodyText:
+      'Hi {{name}},\n\nUse this link to sign in to the customer portal (expires in 15 minutes):\n\n{{magicLink}}\n\n— {{companyName}}',
+    enabled: true,
+  },
 ];
 
 /** Renders `{{variable}}` placeholders; unknown variables render empty. Pure. */
@@ -202,13 +211,16 @@ export class EmailService implements OnModuleInit {
 
   /**
    * Queues a templated email. Returns null (and queues nothing) when email is
-   * off/unconfigured or the template is disabled. Never throws: callers must
-   * not fail their own work because email is unavailable.
+   * off/unconfigured, the email channel is switched off for the template, or
+   * the template is disabled. Never throws: callers must not fail their own
+   * work because email is unavailable.
    */
   async queueEmail(input: QueuedEmail): Promise<string | null> {
     try {
       const credentials = await this.settings.emailCredentials();
       if (!credentials) return null;
+      const channels = await this.settings.notificationChannels();
+      if (channels[input.templateKey]?.email === false) return null;
       const template = await this.prisma.emailTemplate.findUnique({
         where: { key: input.templateKey },
       });

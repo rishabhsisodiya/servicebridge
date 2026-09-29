@@ -4,6 +4,7 @@ import { AppConfig } from '../core/config/app-config.service';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { EmailService, type TemplateVariables } from '../notifications/email.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { WhatsAppService, type WhatsAppVariables } from '../notifications/whatsapp.service';
 import { rolesWith } from '../roles/role-filters';
 import type { TicketAction } from './workflow';
 
@@ -33,6 +34,7 @@ export class TicketNotifier {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly email: EmailService,
+    private readonly whatsapp: WhatsAppService,
     private readonly config: AppConfig,
   ) {}
 
@@ -95,6 +97,29 @@ export class TicketNotifier {
     }
   }
 
+  /**
+   * The WhatsApp twin of an in-app notification. queueWhatsApp() is a no-op
+   * when WhatsApp is off, the channel toggle is off, the number is unusable or
+   * the template is disabled, and never throws, so the in-app notification is
+   * unaffected.
+   */
+  private async whatsappUsers(
+    userIds: (string | null | undefined)[],
+    templateKey: string,
+    variables: WhatsAppVariables,
+    ticketId: string,
+  ): Promise<void> {
+    const ids = [...new Set(userIds.filter((id): id is string => !!id))];
+    if (!ids.length) return;
+    const rows = await this.prisma.user.findMany({
+      where: { id: { in: ids }, status: 'ACTIVE' },
+      select: { phone: true },
+    });
+    for (const row of rows) {
+      await this.whatsapp.queueWhatsApp({ to: row.phone, templateKey, variables, ticketId });
+    }
+  }
+
   async created(ticket: NotifyTicket, actor: Actor, regionName: string | null): Promise<void> {
     if (ticket.areaManagerId) {
       await this.send(
@@ -144,6 +169,16 @@ export class TicketNotifier {
               ticketNumber: after.number,
               ticketTitle: after.title,
               ticketUrl: this.ticketUrl(after.id),
+            },
+            after.id,
+          );
+          await this.whatsappUsers(
+            [after.engineerId],
+            'ticket.assigned',
+            {
+              assigneeName: engineer?.name ?? 'there',
+              ticketNumber: after.number,
+              ticketTitle: after.title,
             },
             after.id,
           );

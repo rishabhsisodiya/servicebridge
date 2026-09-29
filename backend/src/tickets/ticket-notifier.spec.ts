@@ -16,10 +16,11 @@ function build() {
     },
   };
   const email = { queueEmail: jest.fn().mockResolvedValue(null) };
-  const notifier = new TicketNotifier(prisma as never, notifications as never, email as never, {
+  const whatsapp = { queueWhatsApp: jest.fn().mockResolvedValue(null) };
+  const notifier = new TicketNotifier(prisma as never, notifications as never, email as never, whatsapp as never, {
     get: () => 'https://app.example.com',
   } as never);
-  return { notifier, sent, email };
+  return { notifier, sent, email, whatsapp };
 }
 
 const ticket = {

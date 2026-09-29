@@ -14,6 +14,7 @@ const makeService = () => {
     {} as never,
     {} as never,
     {} as never,
+    { queueWhatsApp: jest.fn().mockResolvedValue(null) } as never,
     settings as never,
     {} as never,
   );
@@ -28,7 +29,7 @@ describe('AmcSchedulerService.sync', () => {
       { amcContract: { findUnique: jest.fn().mockResolvedValue({ id: 'c1', status: 'DRAFT', endsOn: new Date(), plannedVisits: [] }) } } as never,
       { queue: jest.fn().mockReturnValue(queue) } as never,
       { isEnabled: jest.fn().mockResolvedValue(false) } as never,
-      {} as never, {} as never, {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, { queueWhatsApp: jest.fn().mockResolvedValue(null) } as never, {} as never, {} as never,
     );
     await service.sync('c1');
     expect(remove).toHaveBeenCalledWith('amc-expire-c1');

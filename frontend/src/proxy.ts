@@ -3,6 +3,9 @@ import { NextResponse, type NextRequest } from "next/server";
 /** Set by the API at sign-in. Not a credential: only says a sign-in exists. */
 export const SIGNED_IN_COOKIE = "sb_signed_in";
 
+/** Set by the portal API at magic-link sign-in. Not a credential: only says a sign-in exists. */
+export const PORTAL_SIGNED_IN_COOKIE = "sb_portal_signed_in";
+
 const PUBLIC_PAGES = [
   /^\/login$/,
   /^\/welcome\/[^/]+$/,
@@ -10,8 +13,18 @@ const PUBLIC_PAGES = [
   /^\/feedback\/[^/]+$/,
 ];
 
+const PORTAL_PUBLIC_PAGES = [/^\/portal\/login$/, /^\/portal\/auth\/verify$/];
+
 export function isPublicPage(pathname: string): boolean {
   return PUBLIC_PAGES.some((pattern) => pattern.test(pathname));
+}
+
+export function isPortalPublicPage(pathname: string): boolean {
+  return PORTAL_PUBLIC_PAGES.some((pattern) => pattern.test(pathname));
+}
+
+function isPortalPage(pathname: string): boolean {
+  return pathname === "/portal" || pathname.startsWith("/portal/");
 }
 
 /**
@@ -42,6 +55,19 @@ export function proxy(request: NextRequest) {
   }
 
   const signedIn = request.cookies.has(SIGNED_IN_COOKIE);
+
+  // The customer portal is a separate sign-in (magic link). Its login and
+  // verify pages stay public; every other /portal/* page needs the portal
+  // cookie, checked optimistically — the API verifies the session on each call.
+  if (isPortalPage(pathname)) {
+    const portalSignedIn = request.cookies.has(PORTAL_SIGNED_IN_COOKIE);
+    if (!portalSignedIn && !isPortalPublicPage(pathname)) {
+      const login = new URL("/portal/login", request.url);
+      login.searchParams.set("next", `${pathname}${search}`);
+      return NextResponse.redirect(login);
+    }
+    return NextResponse.next();
+  }
 
   if (!signedIn && !isPublicPage(pathname)) {
     const login = new URL("/login", request.url);

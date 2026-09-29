@@ -71,6 +71,7 @@ function build({ gateOn, blocking }: { gateOn: boolean; blocking: boolean }) {
     { onTicketAction: jest.fn().mockResolvedValue(undefined) } as never,
     { tokenForTicket: jest.fn().mockResolvedValue(null) } as never,
     {} as never,
+    { queueWhatsApp: jest.fn().mockResolvedValue(null) } as never,
     { sync: jest.fn() } as never,
   );
   jest.spyOn(service, 'detail').mockResolvedValue({ id: 't1' } as never);

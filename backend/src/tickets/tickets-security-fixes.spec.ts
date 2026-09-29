@@ -95,6 +95,7 @@ function buildAct(ticket: Record<string, unknown>) {
     { onTicketAction: jest.fn().mockResolvedValue(undefined) } as never,
     csat as never,
     email as never,
+    { queueWhatsApp: jest.fn().mockResolvedValue(null) } as never,
     { sync: jest.fn() } as never,
   );
   jest.spyOn(service, 'detail').mockResolvedValue({ id: 't1' } as never);
@@ -275,6 +276,7 @@ describe('ticket security fixes (audit run-1)', () => {
         {} as never,
         {} as never,
         {} as never,
+        { queueWhatsApp: jest.fn().mockResolvedValue(null) } as never,
         { sync: jest.fn() } as never,
       );
       return { service, tx };

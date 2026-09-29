@@ -95,6 +95,8 @@ model User {
   /// Always stored lower-case.
   email             String     @unique
   name              String
+  /// E.164 staff mobile, used for WhatsApp notifications.
+  phone             String?
   roleId            String
   role              Role       @relation(fields: [roleId], references: [id], onDelete: Restrict)
   status            UserStatus @default(INVITED)
@@ -495,6 +497,8 @@ model Customer {
   taxId           String?
   mobile          String?
   email           String?
+  /// Opt-out of WhatsApp business-initiated template messages.
+  whatsappOptOut  Boolean           @default(false)
   active          Boolean           @default(true)
   erpModified     DateTime?
   syncedAt        DateTime?
@@ -504,8 +508,10 @@ model Customer {
   sites           Site[]
   equipment       Equipment[]
 
-  tickets      Ticket[]
-  amcContracts AmcContract[]
+  tickets        Ticket[]
+  amcContracts   AmcContract[]
+  /// Customer portal sign-ins (magic-link sessions).
+  portalSessions CustomerSession[]
 
   @@unique([erpConnectionId, erpName])
   @@index([name])
@@ -524,6 +530,8 @@ model CustomerContact {
   email           String?
   mobile          String?
   phone           String?
+  /// Opt-out of WhatsApp business-initiated template messages.
+  whatsappOptOut  Boolean      @default(false)
   isPrimary       Boolean      @default(false)
   active          Boolean      @default(true)
   erpModified     DateTime?
@@ -531,9 +539,54 @@ model CustomerContact {
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
 
-  tickets Ticket[]
+  tickets        Ticket[]
+  portalTokens   CustomerToken[]
+  portalSessions CustomerSession[]
 
   @@unique([erpConnectionId, erpName])
+  @@index([customerId])
+}
+
+enum CustomerTokenType {
+  MAGIC_LINK
+}
+
+/// Single-use magic-link tokens for customer portal sign-in. Mirrors
+/// UserToken but is bound to a CustomerContact, never a staff User.
+model CustomerToken {
+  id        String            @id @default(cuid())
+  contactId String
+  contact   CustomerContact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  type      CustomerTokenType @default(MAGIC_LINK)
+  /// sha256 of the token in the link.
+  tokenHash String            @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime          @default(now())
+
+  @@index([contactId, type])
+}
+
+/// One customer portal sign-in. The session token is sha256-hashed at rest;
+/// customerId is denormalized so every request can scope cheaply.
+model CustomerSession {
+  id                String          @id @default(cuid())
+  contactId         String
+  contact           CustomerContact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  customerId        String
+  customer          Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// sha256 of the session token (the token itself is never stored).
+  tokenHash         String          @unique
+  /// Sliding expiry, pushed forward on activity up to absoluteExpiresAt.
+  expiresAt         DateTime
+  absoluteExpiresAt DateTime
+  revokedAt         DateTime?
+  ip                String?
+  userAgent         String?
+  createdAt         DateTime        @default(now())
+  lastUsedAt        DateTime        @default(now())
+
+  @@index([contactId, revokedAt])
   @@index([customerId])
 }
 
@@ -879,6 +932,8 @@ enum TicketEventType {
   SLA_BREACHED
   ESCALATED
   REOPENED
+  /// Customer approved a quotation via the portal.
+  APPROVAL
 }
 
 /// Yearly ticket number sequence: SB-26-000123.
@@ -966,6 +1021,7 @@ model Ticket {
   csatTokens             CsatToken[]
   emailLogs              EmailLog[]
   plannedVisits          AmcPlannedVisit[]
+  WhatsAppLog            WhatsAppLog[]
 
   @@unique([partnerKeyId, externalRef])
   @@index([stage, priority])
@@ -1116,34 +1172,37 @@ enum QuotationStatus {
 /// quotation and starts its validity clock. A PO, a revision or cancellation
 /// supersedes it. Totals are computed, never stored.
 model Quotation {
-  id              String          @id @default(cuid())
-  ticketId        String
-  ticket          Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  id                   String          @id @default(cuid())
+  ticketId             String
+  ticket               Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   /// Yearly sequence: QT-26-000123.
-  number          String          @unique
-  status          QuotationStatus @default(DRAFT)
+  number               String          @unique
+  status               QuotationStatus @default(DRAFT)
   /// Optional total-level discount, in percent (0–100).
-  discountPercent Decimal?        @db.Decimal(5, 2)
+  discountPercent      Decimal?        @db.Decimal(5, 2)
   /// The offer lapses after this date; the expiry automation then marks EXPIRED.
-  validUntil      DateTime        @db.Date
-  notes           String?         @db.Text
-  sentAt          DateTime?
-  sentById        String?
-  sentBy          User?           @relation("QuotationSentBy", fields: [sentById], references: [id], onDelete: SetNull)
-  poNumber        String?
-  poDate          DateTime?       @db.Date
-  poReceivedAt    DateTime?
+  validUntil           DateTime        @db.Date
+  notes                String?         @db.Text
+  sentAt               DateTime?
+  sentById             String?
+  sentBy               User?           @relation("QuotationSentBy", fields: [sentById], references: [id], onDelete: SetNull)
+  poNumber             String?
+  poDate               DateTime?       @db.Date
+  poReceivedAt         DateTime?
+  /// Set when the customer approves this quotation in the portal. Approval
+  /// alone does not move status; a supplied PO number flows through recordPo.
+  approvedByCustomerAt DateTime?
   /// The quotation this one revises, when it is a revision.
-  revisesId       String?
-  revises         Quotation?      @relation("QuotationRevision", fields: [revisesId], references: [id], onDelete: SetNull)
-  revisions       Quotation[]     @relation("QuotationRevision")
-  createdById     String?
-  createdBy       User?           @relation("QuotationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-  isDemo          Boolean         @default(false)
-  version         Int             @default(1)
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  lines           QuotationLine[]
+  revisesId            String?
+  revises              Quotation?      @relation("QuotationRevision", fields: [revisesId], references: [id], onDelete: SetNull)
+  revisions            Quotation[]     @relation("QuotationRevision")
+  createdById          String?
+  createdBy            User?           @relation("QuotationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  isDemo               Boolean         @default(false)
+  version              Int             @default(1)
+  createdAt            DateTime        @default(now())
+  updatedAt            DateTime        @updatedAt
+  lines                QuotationLine[]
 
   @@index([ticketId])
 }
@@ -1324,6 +1383,54 @@ model EmailLog {
 
   @@index([status])
   @@index([ticketId])
+}
+
+/// Delivery states for a WhatsApp message, updated by the outbox worker and
+/// the provider's delivery-receipt webhook.
+enum WhatsAppStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// A Meta-approved WhatsApp template. Bodies are NOT admin-editable: every
+/// business-initiated template must be pre-approved by Meta, so the body lives
+/// in seed data with positional {{1}} parameters. Disabled by default — the
+/// WhatsApp channel is off everywhere until an admin enables it.
+model WhatsAppTemplate {
+  key                  String   @id
+  name                 String
+  /// The template name as approved in the WhatsApp Business account.
+  providerTemplateName String
+  languageCode         String   @default("en")
+  /// Positional parameters {{1}}, {{2}} — filled in order when sending.
+  bodyText             String   @db.Text
+  enabled              Boolean  @default(false)
+  version              Int      @default(1)
+  updatedAt            DateTime @updatedAt
+}
+
+/// Every WhatsApp message the system tried to send; the outbox worker and the
+/// delivery-receipt webhook update the status.
+model WhatsAppLog {
+  id                String         @id @default(cuid())
+  /// E.164 phone number, e.g. +919876543210.
+  to                String
+  templateKey       String
+  ticketId          String?
+  ticket            Ticket?        @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  providerMessageId String?
+  status            WhatsAppStatus @default(QUEUED)
+  error             String?        @db.Text
+  attempts          Int            @default(0)
+  sentAt            DateTime?
+  createdAt         DateTime       @default(now())
+
+  @@index([status])
+  @@index([ticketId])
+  @@index([providerMessageId])
 }
 
 /// A device that may receive push notifications (delivery is a later session).

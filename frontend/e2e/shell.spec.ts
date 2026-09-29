@@ -19,6 +19,7 @@ const BUILT_PAGES = [
   "/settings/automations",
   "/settings/email",
   "/settings/email?tab=templates",
+  "/settings/whatsapp",
   "/settings/design-system",
   "/settings/users",
   "/settings/roles",
@@ -33,6 +34,11 @@ const BUILT_PAGES = [
   "/settings/partner-keys",
   "/settings/import",
   "/settings/audit-log",
+  "/portal",
+  "/portal/login",
+  "/portal/tickets",
+  "/portal/tickets/new",
+  "/portal/amc",
 ];
 
 async function expectNoA11yViolations(page: Page) {

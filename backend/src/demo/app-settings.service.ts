@@ -5,6 +5,8 @@ import { AuditService } from '../core/audit/audit.service';
 import { CryptoService } from '../core/crypto/crypto.service';
 import { validationFailed } from '../core/http/app.exception';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { generateToken } from '../core/security/tokens';
+import { normalizePhone } from '../notifications/phone.util';
 
 export interface CompanySettings {
   name: string;
@@ -23,6 +25,8 @@ export const COMPANY_KEY = 'company';
 export const QUOTATIONS_KEY = 'quotations';
 export const WRITEBACKS_KEY = 'writebacks';
 export const EMAIL_KEY = 'email';
+export const WHATSAPP_KEY = 'whatsapp';
+export const NOTIFICATION_CHANNELS_KEY = 'notifications';
 export const AMC_KEY = 'amc';
 export const DEFAULT_QUOTATIONS: QuotationSettings = {
   requirePoBeforeWork: false,
@@ -83,6 +87,55 @@ export const DEFAULT_EMAIL: EmailSettings = {
   fromName: '',
   fromAddress: '',
 };
+
+/** WhatsApp (Meta Cloud API) settings stored in AppSetting. Secrets are encrypted at rest. */
+export interface WhatsAppSettings {
+  /** Master switch: nothing is queued while off. */
+  enabled: boolean;
+  provider: 'meta';
+  /** The phone number ID from the Meta WhatsApp Business account. */
+  phoneNumberId: string;
+  businessAccountId: string;
+  /** The business's own WhatsApp number, e.g. +919876543210. */
+  displayPhoneNumber: string;
+  /**
+   * Plain setup value, not a secret: Meta sends it back on the webhook
+   * handshake, so the admin copies it into the Meta app dashboard.
+   */
+  verifyToken: string;
+}
+
+/** What the API returns: the settings plus whether secrets are stored. Never the secrets. */
+export interface WhatsAppSettingsView extends WhatsAppSettings {
+  hasAccessToken: boolean;
+  hasAppSecret: boolean;
+}
+
+/** Decrypted credentials for the WhatsApp outbox, or null when not configured. */
+export interface WhatsAppCredentials {
+  phoneNumberId: string;
+  accessToken: string;
+  appSecret: string | null;
+  verifyToken: string | null;
+}
+
+export const DEFAULT_WHATSAPP: WhatsAppSettings = {
+  enabled: false,
+  provider: 'meta',
+  phoneNumberId: '',
+  businessAccountId: '',
+  displayPhoneNumber: '',
+  verifyToken: '',
+};
+
+/**
+ * Per-template channel toggles stored in AppSetting. Email defaults to on
+ * (today's behaviour); WhatsApp defaults to off — an admin enables it per
+ * template after the master switch is on.
+ */
+export interface NotificationChannels {
+  [templateKey: string]: { email: boolean; whatsapp: boolean };
+}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -330,6 +383,192 @@ export class AppSettingsService {
       requestId: client.requestId,
     });
     return { ...next, hasPassword: !!passwordEncrypted };
+  }
+
+  /** WhatsApp settings for display. Secrets are never returned; see hasAccessToken/hasAppSecret. */
+  async whatsapp(): Promise<WhatsAppSettingsView> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: WHATSAPP_KEY } });
+    const stored =
+      (row?.value as Partial<WhatsAppSettings> & {
+        accessTokenEncrypted?: string;
+        appSecretEncrypted?: string;
+      }) ?? {};
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { accessTokenEncrypted, appSecretEncrypted, ...rest } = stored;
+    return {
+      ...DEFAULT_WHATSAPP,
+      ...rest,
+      hasAccessToken: !!accessTokenEncrypted,
+      hasAppSecret: !!appSecretEncrypted,
+    };
+  }
+
+  /**
+   * Decrypted WhatsApp credentials for the outbox, or null when WhatsApp isn't
+   * configured. Only the WhatsApp worker calls this; the API never exposes it.
+   */
+  async whatsappCredentials(): Promise<WhatsAppCredentials | null> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: WHATSAPP_KEY } });
+    if (!row) return null;
+    const stored = row.value as Partial<WhatsAppSettings> & {
+      accessTokenEncrypted?: string;
+      appSecretEncrypted?: string;
+    };
+    if (!stored.enabled || !stored.phoneNumberId || !stored.accessTokenEncrypted) return null;
+    return {
+      phoneNumberId: stored.phoneNumberId,
+      accessToken: this.crypto.decrypt(stored.accessTokenEncrypted),
+      appSecret: stored.appSecretEncrypted ? this.crypto.decrypt(stored.appSecretEncrypted) : null,
+      verifyToken: stored.verifyToken || null,
+    };
+  }
+
+  /**
+   * The webhook secrets (verify token + app secret), or null when webhooks
+   * aren't set up. The master switch doesn't gate this: Meta verifies the
+   * webhook before the channel ever goes live.
+   */
+  async whatsappWebhookSecrets(): Promise<{ verifyToken: string; appSecret: string } | null> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: WHATSAPP_KEY } });
+    const stored = row?.value as
+      | (Partial<WhatsAppSettings> & { appSecretEncrypted?: string })
+      | undefined;
+    if (!stored?.verifyToken || !stored?.appSecretEncrypted) return null;
+    return {
+      verifyToken: stored.verifyToken,
+      appSecret: this.crypto.decrypt(stored.appSecretEncrypted),
+    };
+  }
+
+  async updateWhatsAppSettings(
+    actor: AuthUser,
+    input: Partial<WhatsAppSettings> & { accessToken?: string; appSecret?: string },
+    client: ClientInfo,
+  ): Promise<WhatsAppSettingsView> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: WHATSAPP_KEY } });
+    const stored =
+      (row?.value as Partial<WhatsAppSettings> & {
+        accessTokenEncrypted?: string;
+        appSecretEncrypted?: string;
+      }) ?? {};
+    const next: WhatsAppSettings = {
+      enabled: input.enabled ?? stored.enabled ?? DEFAULT_WHATSAPP.enabled,
+      provider: 'meta',
+      phoneNumberId: (input.phoneNumberId ?? stored.phoneNumberId ?? '').trim(),
+      businessAccountId: (input.businessAccountId ?? stored.businessAccountId ?? '').trim(),
+      displayPhoneNumber: (input.displayPhoneNumber ?? stored.displayPhoneNumber ?? '').trim(),
+      verifyToken: (input.verifyToken ?? stored.verifyToken ?? '').trim(),
+    };
+    // The admin copies the verify token into the Meta dashboard; generate one
+    // when the channel is switched on without it.
+    if (next.enabled && !next.verifyToken) next.verifyToken = generateToken();
+    // undefined keeps the stored secret; an empty string clears it.
+    const accessTokenEncrypted =
+      input.accessToken === undefined
+        ? stored.accessTokenEncrypted
+        : input.accessToken
+          ? this.crypto.encrypt(input.accessToken)
+          : undefined;
+    const appSecretEncrypted =
+      input.appSecret === undefined
+        ? stored.appSecretEncrypted
+        : input.appSecret
+          ? this.crypto.encrypt(input.appSecret)
+          : undefined;
+    const problems = [
+      next.enabled && !next.phoneNumberId && {
+        field: 'phoneNumberId',
+        message: 'Enter the phone number ID from your Meta WhatsApp Business account.',
+      },
+      next.enabled && !accessTokenEncrypted && {
+        field: 'accessToken',
+        message: 'Enter the WhatsApp access token.',
+      },
+      next.displayPhoneNumber && !normalizePhone(next.displayPhoneNumber) && {
+        field: 'displayPhoneNumber',
+        message: 'Enter a valid phone number, e.g. +919876543210.',
+      },
+    ].filter((p): p is { field: string; message: string } => !!p);
+    if (problems.length) throw validationFailed(problems);
+
+    await this.prisma.appSetting.upsert({
+      where: { key: WHATSAPP_KEY },
+      create: {
+        key: WHATSAPP_KEY,
+        value: { ...next, accessTokenEncrypted, appSecretEncrypted } as unknown as Prisma.InputJsonValue,
+      },
+      update: {
+        value: { ...next, accessTokenEncrypted, appSecretEncrypted } as unknown as Prisma.InputJsonValue,
+      },
+    });
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'settings.whatsapp_updated',
+      entityType: 'app_setting',
+      entityId: WHATSAPP_KEY,
+      summary: `${actor.name} updated the WhatsApp settings`,
+      ip: client.ip,
+      requestId: client.requestId,
+    });
+    return { ...next, hasAccessToken: !!accessTokenEncrypted, hasAppSecret: !!appSecretEncrypted };
+  }
+
+  /** Per-template channel toggles. Unknown keys are dropped. */
+  async notificationChannels(): Promise<NotificationChannels> {
+    const row = await this.prisma.appSetting.findUnique({ where: { key: NOTIFICATION_CHANNELS_KEY } });
+    const stored = (row?.value as { channels?: NotificationChannels } | undefined)?.channels;
+    if (!stored || typeof stored !== 'object') return {};
+    const channels: NotificationChannels = {};
+    for (const [key, value] of Object.entries(stored)) {
+      if (!value || typeof value !== 'object') continue;
+      channels[key] = {
+        email: (value as { email?: unknown }).email !== false,
+        whatsapp: (value as { whatsapp?: unknown }).whatsapp === true,
+      };
+    }
+    return channels;
+  }
+
+  async updateNotificationChannels(
+    actor: AuthUser,
+    input: { channels: Record<string, { email?: boolean; whatsapp?: boolean }> },
+    client: ClientInfo,
+  ): Promise<NotificationChannels> {
+    const current = await this.notificationChannels();
+    const [emailTemplates, whatsappTemplates] = await Promise.all([
+      this.prisma.emailTemplate.findMany({ select: { key: true } }),
+      this.prisma.whatsAppTemplate.findMany({ select: { key: true } }),
+    ]);
+    const known = new Set([
+      ...emailTemplates.map((t) => t.key),
+      ...whatsappTemplates.map((t) => t.key),
+    ]);
+    const next: NotificationChannels = { ...current };
+    for (const [key, value] of Object.entries(input.channels ?? {})) {
+      if (!known.has(key) || !value || typeof value !== 'object') continue;
+      next[key] = {
+        email: value.email ?? current[key]?.email ?? true,
+        whatsapp: value.whatsapp ?? current[key]?.whatsapp ?? false,
+      };
+    }
+    await this.prisma.appSetting.upsert({
+      where: { key: NOTIFICATION_CHANNELS_KEY },
+      create: {
+        key: NOTIFICATION_CHANNELS_KEY,
+        value: { channels: next } as unknown as Prisma.InputJsonValue,
+      },
+      update: { value: { channels: next } as unknown as Prisma.InputJsonValue },
+    });
+    await this.audit.record({
+      actorId: actor.id,
+      action: 'settings.notification_channels_updated',
+      entityType: 'app_setting',
+      entityId: NOTIFICATION_CHANNELS_KEY,
+      summary: `${actor.name} updated the notification channel toggles`,
+      ip: client.ip,
+      requestId: client.requestId,
+    });
+    return next;
   }
 
   /** AMC scheduling rules. */

@@ -61,6 +61,7 @@ describe('EmailService seeds', () => {
       'auth.invite',
       'auth.reset',
       'amc.renewal',
+      'portal.magic_link',
     ]) {
       expect(keys.has(key)).toBe(true);
     }
@@ -75,6 +76,7 @@ describe('EmailService seeds', () => {
       'auth.invite': { name: 'N', inviteUrl: 'U', expiresIn: '48 hours', companyName: 'Co' },
       'auth.reset': { name: 'N', resetUrl: 'U', expiresIn: '2 hours', companyName: 'Co' },
       'amc.renewal': { contractNumber: 'N', customerName: 'C', endsOn: 'D', daysLeft: 30, companyName: 'Co' },
+      'portal.magic_link': { name: 'N', magicLink: 'U', companyName: 'Co' },
     };
     for (const seed of EMAIL_TEMPLATE_SEEDS) {
       for (const text of [seed.subject, seed.bodyHtml, seed.bodyText]) {
@@ -103,6 +105,7 @@ describe('EmailService.queueEmail', () => {
     const settings = {
       emailCredentials: jest.fn(),
       company: jest.fn().mockResolvedValue({ name: 'Acme' }),
+      notificationChannels: jest.fn().mockResolvedValue({}),
     };
     const service = new EmailService(prisma as never, queues as never, settings as never, {} as never);
     return { service, settings, queues, prisma };
@@ -125,6 +128,32 @@ describe('EmailService.queueEmail', () => {
     await expect(
       service.queueEmail({ to: 'a@b.co', templateKey: 'ticket.assigned', variables: {} }),
     ).resolves.toBeNull();
+  });
+
+  it('returns null when the email channel is switched off for the template', async () => {
+    const { service, settings, queues } = makeService();
+    (settings.emailCredentials as jest.Mock).mockResolvedValue({ host: 'smtp' });
+    (settings.notificationChannels as jest.Mock).mockResolvedValue({
+      'ticket.assigned': { email: false, whatsapp: true },
+    });
+    await expect(
+      service.queueEmail({ to: 'a@b.co', templateKey: 'ticket.assigned', variables: {} }),
+    ).resolves.toBeNull();
+    expect(queues.queue).not.toHaveBeenCalled();
+  });
+
+  it('queues when the email channel toggle is on', async () => {
+    const { service, settings } = makeService();
+    (settings.emailCredentials as jest.Mock).mockResolvedValue({ host: 'smtp' });
+    (settings.notificationChannels as jest.Mock).mockResolvedValue({
+      'ticket.assigned': { email: true, whatsapp: false },
+    });
+    const id = await service.queueEmail({
+      to: 'a@b.co',
+      templateKey: 'ticket.assigned',
+      variables: {},
+    });
+    expect(id).toBe('log1');
   });
 
   it('queues a rendered email with a fixed job id', async () => {

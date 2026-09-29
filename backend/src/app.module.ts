@@ -19,6 +19,7 @@ import { FeedbackModule } from './feedback/feedback.module';
 import { ReportsModule } from './reports/reports.module';
 import { PartnerModule } from './partner/partner.module';
 import { ImportsModule } from './imports/imports.module';
+import { PortalModule } from './portal/portal.module';
 import { AuditModule } from './core/audit/audit.module';
 import { buildLoggerParams } from './core/logging/logging.config';
 import { PrismaModule } from './core/prisma/prisma.module';
@@ -54,6 +55,7 @@ import { RedisModule } from './core/redis/redis.module';
     ReportsModule,
     PartnerModule,
     ImportsModule,
+    PortalModule,
     AuditModule,
   ],
 })

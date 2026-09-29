@@ -1,16 +1,17 @@
 "use client";
 
-import { Mail, MapPin, Phone, Plus } from "lucide-react";
+import { Copy, Mail, MapPin, Phone, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import useSWR from "swr";
 import { StatusPill } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/misc";
 import { ErrorState, TableSkeleton } from "@/components/ui/states";
 import { Sub, Table, Td, Th, Tr } from "@/components/ui/table";
 import { Tabs } from "@/components/ui/tabs";
+import { useStepUp } from "@/features/auth/use-step-up";
 import { apiFetch, ApiError } from "@/lib/api/client";
 import { type Coverage, CoveragePill, SourceTag } from "./shared";
 
@@ -55,6 +56,57 @@ interface CustomerDetail {
     until: string | null;
     amcExpiring: boolean;
   }[];
+}
+
+/**
+ * Copies a staff-issued portal sign-in link for a contact — the manual path
+ * for when email isn't configured (or the contact has no usable email). The
+ * link is single-use and lives 15 minutes; issuing needs a fresh password
+ * check and is audited with the staff member's identity.
+ */
+function CopyPortalLinkButton({ contactId, active }: { contactId: string; active: boolean }) {
+  const stepUp = useStepUp();
+  const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
+
+  const copy = async () => {
+    setState("idle");
+    try {
+      const { link } = await stepUp.run(() =>
+        apiFetch<{ link: string; expiresAt: string }>(
+          `/portal/staff/contacts/${encodeURIComponent(contactId)}/sign-in-link`,
+          { method: "POST" },
+        ),
+      );
+      await navigator.clipboard.writeText(link);
+      setState("copied");
+    } catch (caught) {
+      // Closing the password prompt is a cancel, not an error.
+      if (caught instanceof ApiError && caught.code === "STEP_UP_CANCELLED") return;
+      setState("failed");
+    }
+  };
+
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Button
+        size="sm"
+        onClick={copy}
+        disabled={!active}
+        icon={<Copy className="size-4" aria-hidden />}
+        aria-live="polite"
+        title={
+          active
+            ? "Create a one-time sign-in link (valid 15 minutes) to share with this contact."
+            : "Only active contacts can get a sign-in link."
+        }
+      >
+        {state === "copied" ? "Copied" : "Copy portal link"}
+      </Button>
+      {state === "copied" && <span className="text-xs text-muted">Valid 15 min</span>}
+      {state === "failed" && <span className="text-xs text-bad">Couldn&apos;t create the link.</span>}
+      {stepUp.dialog}
+    </span>
+  );
 }
 
 export function CustomerDetailScreen({ id }: { id: string }) {
@@ -194,6 +246,7 @@ export function CustomerDetailScreen({ id }: { id: string }) {
                     <Th>Name</Th>
                     <Th>Mobile</Th>
                     <Th>Email</Th>
+                    <Th>Portal sign-in</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -205,6 +258,9 @@ export function CustomerDetailScreen({ id }: { id: string }) {
                       </Td>
                       <Td className="whitespace-nowrap">{c.mobile ?? c.phone ?? "—"}</Td>
                       <Td>{c.email ?? "—"}</Td>
+                      <Td>
+                        <CopyPortalLinkButton contactId={c.id} active={c.active} />
+                      </Td>
                     </Tr>
                   ))}
                 </tbody>

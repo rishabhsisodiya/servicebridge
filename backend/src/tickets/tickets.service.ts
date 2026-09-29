@@ -15,6 +15,7 @@ import { roleGrants } from '../roles/role-filters';
 import { AppSettingsService } from '../demo/app-settings.service';
 import { CsatService } from '../feedback/csat.service';
 import { EmailService } from '../notifications/email.service';
+import { WhatsAppService } from '../notifications/whatsapp.service';
 import { addBusinessMinutes, businessMinutesBetween } from '../service-rules/business-calendar';
 import { assertVersion } from '../service-rules/common';
 import { RegionsService } from '../service-rules/regions.service';
@@ -95,6 +96,7 @@ export class TicketsService {
     private readonly writebacks: WritebacksService,
     private readonly csat: CsatService,
     private readonly email: EmailService,
+    private readonly whatsapp: WhatsAppService,
     private readonly escalations: EscalationTimersService,
   ) {}
 
@@ -723,9 +725,11 @@ export class TicketsService {
   }
 
   /**
-   * Emails the feedback link to the customer. Never throws and returns whether
-   * an email was queued; the copy-link path in the action response covers the
-   * customer-not-found / email-off cases.
+   * Sends the feedback invite to the customer over email and WhatsApp. The two
+   * channels are independent: each fires whenever it's configured and the
+   * customer is reachable on it. Never throws; returns whether an email was
+   * queued (the copy-link path in the action response covers the
+   * customer-not-found / email-off cases).
    */
   private async sendCsatInvite(
     ticketId: string,
@@ -734,12 +738,32 @@ export class TicketsService {
     try {
       const ticket = await this.prisma.ticket.findUnique({
         where: { id: ticketId },
-        select: { number: true, customer: { select: { name: true, email: true } } },
+        select: {
+          number: true,
+          customer: { select: { name: true, email: true, mobile: true, whatsappOptOut: true } },
+        },
       });
-      const address = ticket?.customer.email?.trim();
-      if (!ticket || !address || !feedback.url) return false;
-      const queued = await this.email.queueEmail({
-        to: address,
+      if (!ticket || !feedback.url) return false;
+      let emailed = false;
+      const address = ticket.customer.email?.trim();
+      if (address) {
+        const queued = await this.email.queueEmail({
+          to: address,
+          templateKey: 'csat.invite',
+          variables: {
+            customerName: ticket.customer.name,
+            ticketNumber: ticket.number,
+            feedbackUrl: feedback.url,
+          },
+          ticketId,
+        });
+        if (queued) {
+          await this.csat.markEmailed(feedback.tokenId);
+          emailed = true;
+        }
+      }
+      await this.whatsapp.queueWhatsApp({
+        to: ticket.customer.mobile,
         templateKey: 'csat.invite',
         variables: {
           customerName: ticket.customer.name,
@@ -747,10 +771,9 @@ export class TicketsService {
           feedbackUrl: feedback.url,
         },
         ticketId,
+        optOut: ticket.customer.whatsappOptOut,
       });
-      if (!queued) return false;
-      await this.csat.markEmailed(feedback.tokenId);
-      return true;
+      return emailed;
     } catch {
       return false;
     }
