@@ -23,7 +23,7 @@ async function main(): Promise<void> {
 
   const port = app.get(AppConfig).get('PORT');
   await app.listen(port);
-  app.get(Logger).log(`ServiceBridge API listening on http://localhost:${port}/${API_PREFIX}`);
+  app.get(Logger).log(`ERPTick API listening on http://localhost:${port}/${API_PREFIX}`);
 }
 
 void main();

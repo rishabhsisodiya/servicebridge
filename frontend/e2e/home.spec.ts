@@ -13,7 +13,7 @@ test.describe("home and notifications", () => {
     await expect(bell).toBeVisible();
     await bell.click();
     await page.getByRole("button", { name: /resolution time at risk/ }).click();
-    await expect(page).toHaveURL(/\/tickets\/SB-26-000415$/);
+    await expect(page).toHaveURL(/\/tickets\/ET-26-000415$/);
     await expect(page.getByRole("button", { name: "Notifications", exact: true })).toBeVisible();
   });
 

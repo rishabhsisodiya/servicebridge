@@ -76,7 +76,7 @@ function mocks() {  const visit = {
 
 const ticketOnSite = {
   id: 'ticket-1',
-  number: 'SB-26-000101',
+  number: 'ET-26-000101',
   title: 'Press breakdown',
   stage: 'ON_SITE',
   engineerId: 'user-eng',

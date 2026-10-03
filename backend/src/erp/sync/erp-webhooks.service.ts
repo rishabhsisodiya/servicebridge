@@ -56,7 +56,7 @@ export class ErpWebhooksService implements OnModuleInit {
         key: WEBHOOK_SYNC_KEY,
         name: 'Apply changes from ERPNext (webhooks)',
         description:
-          'When ERPNext reports that a customer, address, contact, serial number, item, price or warehouse changed, ServiceBridge re-reads that one record and updates its copy. Needs the webhooks set up (Settings → ERP connections).',
+          'When ERPNext reports that a customer, address, contact, serial number, item, price or warehouse changed, ERPTick re-reads that one record and updates its copy. Needs the webhooks set up (Settings → ERP connections).',
         category: 'ERP',
         queue: 'erp-sync',
         kind: 'event',
@@ -276,7 +276,7 @@ export class ErpWebhooksService implements OnModuleInit {
       return { accepted: false, detail };
     };
     if (!base.doctype || !base.docName || !WEBHOOK_DOCTYPES.includes(base.doctype))
-      return ignore('Not a record type ServiceBridge syncs.');
+      return ignore('Not a record type ERPTick syncs.');
     const setting = await this.prisma.automationSetting.findUnique({
       where: { key: WEBHOOK_SYNC_KEY },
     });

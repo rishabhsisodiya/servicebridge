@@ -59,7 +59,7 @@ export function TicketActivity({
                 />
                 <div className="min-w-0 text-[13.5px]">
                   <span className="font-semibold">
-                    {system ? "ServiceBridge" : event.actor!.name}
+                    {system ? "ERPTick" : event.actor!.name}
                   </span>{" "}
                   {what}
                   {detail && <span className="text-muted"> · {detail}</span>}

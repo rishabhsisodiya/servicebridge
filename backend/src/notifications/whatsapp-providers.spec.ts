@@ -23,7 +23,7 @@ describe('MetaCloudApiProvider', () => {
     });
     const result = await provider.sendTemplate('+919876543210', 'ticket_assigned', 'en', [
       'Mira',
-      'SB-26-000101',
+      'ET-26-000101',
     ]);
     expect(result).toEqual({ providerMessageId: 'wamid.test123' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -43,7 +43,7 @@ describe('MetaCloudApiProvider', () => {
             type: 'body',
             parameters: [
               { type: 'text', text: 'Mira' },
-              { type: 'text', text: 'SB-26-000101' },
+              { type: 'text', text: 'ET-26-000101' },
             ],
           },
         ],

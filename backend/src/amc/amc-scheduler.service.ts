@@ -29,7 +29,7 @@ const expiryJobId = (contractId: string) => `amc-expire-${contractId}`;
 /** A job that is running right now is locked and can't be removed; its handler sees the change and skips. */
 const removeQuietly = (queue: Queue, id: string) => queue.remove(id).catch(() => 0);
 
-/** The scheduler acts as ServiceBridge itself, never as a person. */
+/** The scheduler acts as ERPTick itself, never as a person. */
 const systemActor: AuthUser = {
   id: 'system',
   email: '',

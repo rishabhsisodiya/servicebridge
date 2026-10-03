@@ -91,7 +91,7 @@ export const envSchema = z.object({
    * Set to true only when the ERP runs on your own network, e.g. a local Docker ERPNext.
    */
   /**
-   * Address ERPNext uses to reach ServiceBridge's webhook endpoint. Defaults to APP_URL.
+   * Address ERPNext uses to reach ERPTick's webhook endpoint. Defaults to APP_URL.
    * Must be reachable from the ERP (a cloud ERP can't reach localhost; use a tunnel for local testing).
    */
   PUBLIC_WEBHOOK_BASE_URL: z

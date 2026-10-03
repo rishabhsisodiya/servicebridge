@@ -119,7 +119,7 @@ export function EmailSettingsScreen({ tab, onTab }: { tab: EmailTab; onTab: (tab
     <>
       <PageHeader
         title="Email"
-        description="The SMTP server ServiceBridge sends from, and the wording of every automated email."
+        description="The SMTP server ERPTick sends from, and the wording of every automated email."
       />
       <Tabs
         label="Email settings"
@@ -241,7 +241,7 @@ function SmtpTab() {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <CardHeader title="SMTP server" meta="How ServiceBridge sends email" />
+        <CardHeader title="SMTP server" meta="How ERPTick sends email" />
         <CardBody>
           <form onSubmit={save} noValidate className="flex max-w-3xl flex-col gap-4">
             <div className="flex items-center gap-3 rounded-lg border border-line px-3.5 py-3">

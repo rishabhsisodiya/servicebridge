@@ -217,8 +217,11 @@ function eventSummary(event: {
   switch (event.type) {
     case 'STAGE_CHANGED':
       return `Stage changed to ${humanizeStage(event.toStage)}`;
-    case 'ASSIGNED':
-      return `Assigned to ${event.actor?.name ?? 'an engineer'}`;
+    case 'ASSIGNED': {
+      // The actor is whoever made the assignment; the customer wants the engineer.
+      const data = (event.data ?? {}) as { engineerName?: string };
+      return `Assigned to ${data.engineerName ?? 'an engineer'}`;
+    }
     case 'REOPENED':
       return 'Ticket reopened';
     case 'APPROVAL': {

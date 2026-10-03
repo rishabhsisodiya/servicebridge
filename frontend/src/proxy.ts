@@ -28,7 +28,7 @@ function isPortalPage(pathname: string): boolean {
 }
 
 /**
- * 1. `/api/*` is forwarded to the ServiceBridge API. `API_INTERNAL_URL` is read
+ * 1. `/api/*` is forwarded to the ERPTick API. `API_INTERNAL_URL` is read
  *    on every request (Proxy runs on the Node.js runtime), so one build can be
  *    deployed for any install, and same-origin calls let auth cookies be
  *    SameSite=Strict.

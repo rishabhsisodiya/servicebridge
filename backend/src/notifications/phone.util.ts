@@ -1,7 +1,7 @@
 /**
  * E.164 phone-number normalization for the WhatsApp outbox. Pure.
  *
- * Rules (India-first, since ServiceBridge installs are Indian):
+ * Rules (India-first, since ERPTick installs are Indian):
  * - strip every non-digit; a leading "+" is remembered, never part of the digits
  * - 10 digits with no "+" → Indian mobile, prefix +91 (must start 6-9;
  *   Indian mobiles never start with 0)

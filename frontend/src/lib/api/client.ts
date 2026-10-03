@@ -1,5 +1,5 @@
 /**
- * Typed wrapper around fetch for the ServiceBridge API. Every failure becomes
+ * Typed wrapper around fetch for the ERPTick API. Every failure becomes
  * an ApiError carrying the API's stable `code`, so UI code can switch on codes
  * instead of parsing messages.
  */
@@ -29,7 +29,7 @@ export class ApiError extends Error {
   }
 }
 
-const NETWORK_MESSAGE = "Can't reach ServiceBridge. Check your connection and try again.";
+const NETWORK_MESSAGE = "Can't reach ERPTick. Check your connection and try again.";
 const SERVER_MESSAGE = "Something went wrong on our side. Try again.";
 
 interface ErrorEnvelope {

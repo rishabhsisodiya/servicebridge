@@ -19,7 +19,7 @@ const firaCode = Fira_Code({
 });
 
 export const metadata: Metadata = {
-  title: { default: "ServiceBridge", template: "%s · ServiceBridge" },
+  title: { default: "ERPTick", template: "%s · ERPTick" },
   description: "Field service and ERP operations in one place.",
 };
 

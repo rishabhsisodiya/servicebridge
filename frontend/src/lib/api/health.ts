@@ -16,7 +16,7 @@ export async function getReadiness(): Promise<Readiness> {
   try {
     response = await fetch(`${API_BASE}/health/ready`, { cache: "no-store" });
   } catch {
-    throw new ApiError(0, "NETWORK_ERROR", "Can't reach ServiceBridge.");
+    throw new ApiError(0, "NETWORK_ERROR", "Can't reach ERPTick.");
   }
   const body: unknown = await response.json().catch(() => undefined);
   if (typeof body === "object" && body !== null && "checks" in body) {

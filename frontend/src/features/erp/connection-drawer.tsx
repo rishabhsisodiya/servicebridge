@@ -242,7 +242,7 @@ function ConnectionForm({ open, connection, onClose, onSave, onReveal }: Connect
           )}
         </Field>
         <p className="rounded-lg bg-surface-2 px-3.5 py-2.5 text-[13px] text-muted">
-          In ERPNext, open the user ServiceBridge should use, then{" "}
+          In ERPNext, open the user ERPTick should use, then{" "}
           <span className="font-semibold text-text">Settings → API Access → Generate Keys</span>.
           Give that user only the roles it needs; the test below shows what it can read.
         </p>
@@ -369,7 +369,7 @@ function ConnectionForm({ open, connection, onClose, onSave, onReveal }: Connect
                 label="Connection limit"
                 required
                 error={errors["db.connectionLimit"]}
-                help="Most queries ServiceBridge runs at once against the ERP database (1–20). Keep it low so ServiceBridge never slows ERPNext down."
+                help="Most queries ERPTick runs at once against the ERP database (1–20). Keep it low so ERPTick never slows ERPNext down."
                 className="sm:col-span-2"
               >
                 {(p) => (

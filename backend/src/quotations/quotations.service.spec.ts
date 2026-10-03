@@ -42,7 +42,7 @@ function mocks() {
   const tickets = { visibleId: jest.fn().mockResolvedValue('ticket-1') };
   const settings = {
     company: jest.fn().mockResolvedValue({
-      name: 'ServiceBridge',
+      name: 'ERPTick',
       timezone: 'Asia/Kolkata',
       currency: 'INR',
       gstRatePercent: 18,
@@ -64,7 +64,7 @@ function mocks() {
 
 const chargeableTicket = {
   id: 'ticket-1',
-  number: 'SB-26-000101',
+  number: 'ET-26-000101',
   title: 'Press breakdown',
   coverage: 'CHARGEABLE',
 };
@@ -88,7 +88,7 @@ const draftQuotation = (patch: Record<string, unknown> = {}) => ({
   createdAt: new Date(),
   updatedAt: new Date(),
   lines: [],
-  ticket: { id: 'ticket-1', number: 'SB-26-000101', title: 'Press breakdown' },
+  ticket: { id: 'ticket-1', number: 'ET-26-000101', title: 'Press breakdown' },
   ...patch,
 });
 
@@ -705,7 +705,7 @@ describe('QuotationExpiryService', () => {
       number: 'QT-26-000007',
       status: 'SENT',
       validUntil: new Date('2020-01-01T00:00:00Z'),
-      ticket: { id: 'ticket-1', number: 'SB-26-000101', title: 'Press breakdown' },
+      ticket: { id: 'ticket-1', number: 'ET-26-000101', title: 'Press breakdown' },
     });
 
     const summary = await fire(service, {
@@ -724,7 +724,7 @@ describe('QuotationExpiryService', () => {
       expect.anything(),
     );
     expect(notifier.quotationExpired).toHaveBeenCalledWith(
-      expect.objectContaining({ number: 'SB-26-000101' }),
+      expect.objectContaining({ number: 'ET-26-000101' }),
       'QT-26-000007',
     );
   });
@@ -736,7 +736,7 @@ describe('QuotationExpiryService', () => {
       number: 'QT-26-000007',
       status: 'PO_RECEIVED',
       validUntil: new Date('2020-01-01T00:00:00Z'),
-      ticket: { id: 'ticket-1', number: 'SB-26-000101', title: 'x' },
+      ticket: { id: 'ticket-1', number: 'ET-26-000101', title: 'x' },
     });
 
     const summary = await fire(service, {

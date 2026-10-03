@@ -77,7 +77,7 @@ async function main(): Promise<void> {
       .get(UsersService)
       .createActiveAdmin({ email: values.email, name: values.name, password });
     console.log(
-      `\nAdministrator created: ${user.name} <${user.email}>. Sign in at your ServiceBridge address.`,
+      `\nAdministrator created: ${user.name} <${user.email}>. Sign in at your ERPTick address.`,
     );
   } finally {
     await app.close();

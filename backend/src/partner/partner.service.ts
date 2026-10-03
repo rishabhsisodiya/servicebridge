@@ -71,7 +71,7 @@ export class PartnerService {
       acknowledgeDuplicates: dto.acknowledgeDuplicates,
     };
 
-    // Partner tickets belong to ServiceBridge itself, not a person — the same
+    // Partner tickets belong to ERPTick itself, not a person — the same
     // seam AMC automation tickets use (createdById: null).
     const actor = {
       id: `partner:${partner.keyId}`,

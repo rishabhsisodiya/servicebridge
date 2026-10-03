@@ -20,7 +20,7 @@ describe('CsatService', () => {
     id: 'tok1',
     response,
     expiresAt: null,
-    ticket: { number: 'SB-26-1', title: 'Fix pump', customer: { name: 'Acme' } },
+    ticket: { number: 'ET-26-1', title: 'Fix pump', customer: { name: 'Acme' } },
     ...extra,
   });
 
@@ -135,7 +135,7 @@ describe('CsatService', () => {
       };
       const service = makeService(prisma);
       await expect(service.describe('t')).resolves.toMatchObject({
-        ticketNumber: 'SB-26-1',
+        ticketNumber: 'ET-26-1',
         answered: false,
       });
     });
@@ -145,7 +145,7 @@ describe('CsatService', () => {
         csatToken: { findUnique: jest.fn().mockResolvedValue(answeredRow(null, {})) },
       };
       const service = makeService(prisma);
-      await expect(service.describe('t')).resolves.toMatchObject({ ticketNumber: 'SB-26-1' });
+      await expect(service.describe('t')).resolves.toMatchObject({ ticketNumber: 'ET-26-1' });
     });
   });
 

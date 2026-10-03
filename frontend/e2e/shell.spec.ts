@@ -5,8 +5,8 @@ import { expect, test } from "./fixtures";
 const BUILT_PAGES = [
   "/",
   "/tickets",
-  "/tickets/SB-26-000415",
-  "/tickets/SB-26-000415/visits/v-d1",
+  "/tickets/ET-26-000415",
+  "/tickets/ET-26-000415/visits/v-d1",
   "/quotations",
   "/quotations/q-d1",
   "/quotations/q-d1/print",
@@ -64,11 +64,11 @@ test.describe("navigation", () => {
       "page",
     );
 
-    await page.getByRole("link", { name: "SB-26-000415" }).click();
-    await expect(page).toHaveURL(/\/tickets\/SB-26-000415$/);
+    await page.getByRole("link", { name: "ET-26-000415" }).click();
+    await expect(page).toHaveURL(/\/tickets\/ET-26-000415$/);
     const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
     await expect(crumbs.getByRole("link", { name: "Tickets" })).toBeVisible();
-    await expect(crumbs.getByText("SB-26-000415")).toHaveAttribute("aria-current", "page");
+    await expect(crumbs.getByText("ET-26-000415")).toHaveAttribute("aria-current", "page");
     // Focus moves to the new page's heading after client navigation.
     await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
   });
@@ -131,7 +131,7 @@ test.describe("theme", () => {
 
 test.describe("ticket actions", () => {
   test("resolving validates, confirms and announces the result", async ({ page }) => {
-    await page.goto("/tickets/SB-26-000415");
+    await page.goto("/tickets/ET-26-000415");
     await page.getByRole("button", { name: "Mark resolved" }).click();
     const dialog = page.getByRole("dialog", { name: "Mark this ticket resolved?" });
     await expect(dialog).toBeVisible();
@@ -149,7 +149,7 @@ test.describe("ticket actions", () => {
   });
 
   test("Escape closes a dialog and returns focus to its button", async ({ page }) => {
-    await page.goto("/tickets/SB-26-000415");
+    await page.goto("/tickets/ET-26-000415");
     const opener = page.getByRole("button", { name: "Put on hold" });
     await opener.click();
     await expect(page.getByRole("dialog")).toBeVisible();

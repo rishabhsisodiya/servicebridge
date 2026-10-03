@@ -53,7 +53,7 @@ export class ConnectionDbDto {
   @Type(() => Number)
   @IsInt()
   @Min(1, { message: 'Use at least 1.' })
-  @Max(20, { message: 'Use at most 20, so ServiceBridge never overloads the ERP database.' })
+  @Max(20, { message: 'Use at most 20, so ERPTick never overloads the ERP database.' })
   connectionLimit?: number;
 }
 

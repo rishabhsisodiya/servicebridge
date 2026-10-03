@@ -109,7 +109,7 @@ export function AuditLogScreen() {
     <div className="flex flex-col gap-6">
       <PageHeader
         title="Audit log"
-        description="Every change in ServiceBridge, in order. Entries can never be edited or deleted — only purged past the retention window by an administrator."
+        description="Every change in ERPTick, in order. Entries can never be edited or deleted — only purged past the retention window by an administrator."
         actions={
           canEdit ? (
             <>

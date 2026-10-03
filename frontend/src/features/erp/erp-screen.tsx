@@ -143,7 +143,7 @@ export function ErpScreen() {
     <>
       <PageHeader
         title="ERP connections"
-        description="Connect ERPNext so ServiceBridge can read customers, machines, stock and business figures."
+        description="Connect ERPNext so ERPTick can read customers, machines, stock and business figures."
         actions={
           canEdit && (
             <Button
@@ -172,7 +172,7 @@ export function ErpScreen() {
           <EmptyState
             icon={<Database className="size-6" />}
             title="No ERP connected yet"
-            description="Until you add one, ServiceBridge runs on its own sample data. You'll need an ERPNext address and an API key and secret."
+            description="Until you add one, ERPTick runs on its own sample data. You'll need an ERPNext address and an API key and secret."
             action={
               canEdit && (
                 <Button variant="primary" size="sm" onClick={() => setEditing("new")}>
@@ -418,7 +418,7 @@ function PurposesCard({
           .map((p) => [p, draft[p]]),
       );
       await erpApi.setPurposes(changes);
-      toast.success("Saved. ServiceBridge will use these connections.");
+      toast.success("Saved. ERPTick will use these connections.");
       await onSaved();
     } catch (caught) {
       onError(caught);

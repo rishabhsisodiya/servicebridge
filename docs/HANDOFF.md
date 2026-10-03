@@ -1,4 +1,4 @@
-# ServiceBridge — handoff for the next agent
+# ERPTick — handoff for the next agent
 
 Last updated 2026-09-28, after commit `142eb08` (custom roles, session B). Read this first, then
 [`AGENTS.md`](../AGENTS.md) for stack, commands, code structure, conventions and gotchas. This file
@@ -39,13 +39,13 @@ The developer (Rishabh) set these rules. Breaking them costs trust.
    in light and dark).
 6. **Communication:** concise, plain English, trade-offs stated, assumptions separated from
    confirmed decisions. Update this file and AGENTS.md when something significant changes.
-7. **No client code.** ServiceBridge was inspired by an earlier client project (Proman Edge,
+7. **No client code.** ERPTick was inspired by an earlier client project (Proman Edge,
    handed over to the client). Never copy its code, schema, business rules, names or data, and no
    client names or `*.frappe.cloud` URLs. Demo data is fictional ("Apex Crushing Systems (Demo)").
 
 ---
 
-## 2. What ServiceBridge is
+## 2. What ERPTick is
 
 A **field service and ERP operations platform** for equipment manufacturers. The service desk
 covers tickets, field visits, customers, equipment, AMC (annual maintenance) contracts, quotations
@@ -63,7 +63,7 @@ and SLAs. Master data comes from **ERPNext**, and admins configure ERP connectio
 | ERP connections | Admin adds them in the UI: ERPNext REST (API key/secret) plus an optional read-only MariaDB connection. Secrets are AES-256-GCM encrypted; only the master key lives in env. The DB connection is SELECT-only, enforced three ways. |
 | ERP purposes | `MASTER_SYNC` and `WRITEBACK`, one connection each. |
 | ERP writes | **REST only**, never through the DB connection. Sales invoices are always **drafts** (`docstatus 0`), never submitted automatically. |
-| Master data | Read-only in ServiceBridge while an ERP is connected ("for now"). |
+| Master data | Read-only in ERPTick while an ERP is connected ("for now"). |
 | Switches | Every write-back and every automation has its own on/off switch. Write-backs are **off by default**; ERP sync stays off until a connection exists. |
 | Jobs | **No polling crons for per-record work.** Use per-record BullMQ delayed jobs with fixed job IDs; workers reload from the DB and do nothing if the record changed. Timers are rebuilt once on startup. Only two periodic jobs: the optional nightly ERP catch-up and weekly housekeeping. |
 | Master sync | Signed ERPNext webhooks (HMAC-SHA256), with the nightly catch-up as a safety net. Built, **off by default**; the developer switches it on. |
@@ -89,7 +89,7 @@ and SLAs. Master data comes from **ERPNext**, and admins configure ERP connectio
 | 5b | ERP master-data sync (customers, contacts, sites, serial numbers as equipment, items, prices, warehouses, stock), signed webhooks, catch-up automation (all off by default) | `83fdb35` |
 | 6 | Demo company load/clear (typed confirmation), company settings, demo banner | `8249b93` |
 | 7 | Customers, equipment and items screens with coverage; service rules: SLA policies, business calendars, service types, priorities, stage labels, billing rates and price lists, regions (pincode prefixes, area manager), skill tags | `4603174`, `0283e1f` |
-| 8 | Tickets: workflow, coverage, SLA clocks with pause and per-ticket BullMQ timers, routing, duplicate check, attachments, yearly numbers (`SB-26-000123`), demo tickets; list, log-a-ticket and detail screens | `ad043e1`, `6f79729` |
+| 8 | Tickets: workflow, coverage, SLA clocks with pause and per-ticket BullMQ timers, routing, duplicate check, attachments, yearly numbers (`ET-26-000123`), demo tickets; list, log-a-ticket and detail screens | `ad043e1`, `6f79729` |
 | 9 | Engineer availability (duty status plus derived "On visit"), in-app notifications (bell), auto-assign automation (off by default), home page per permission, My tickets | `054f34e`, `caf1cc3` |
 | Roles A | `Role` table replacing the enum, permission catalog, roles API, permission-based checks, anti-escalation, hand-written migration `20260928090000_custom_roles` | `880998f` |
 | Roles B | Roles screen with permission grid; write buttons hidden without the matching `.edit`/`.create`/`.delete` permission | `142eb08` |

@@ -1,4 +1,4 @@
-# ServiceBridge
+# ERPTick
 
 Field service and ERP operations platform for equipment manufacturers: a service desk (tickets,
 field visits, customers, equipment, AMC contracts, quotations, SLAs) that reads master data from
@@ -95,7 +95,7 @@ Run from the repo root unless noted. Each app keeps its own `package-lock.json`.
   run history in `JobRun`, weekly clean-up (`housekeeping.ts`)
 - `backend/src/system/` — System monitor API (queues, jobs, ERP requests, connection health)
 - `backend/src/cli/` — command-line tools (`create-admin.ts`, `reencrypt-secrets.ts`)
-- `backend/prisma/schema.prisma` — ServiceBridge's own schema (never an ERP schema)
+- `backend/prisma/schema.prisma` — ERPTick's own schema (never an ERP schema)
 - `frontend/src/proxy.ts` — forwards `/api/*` to `API_INTERNAL_URL` at runtime, and redirects
   signed-out visitors to `/login` (cookie presence only; the API is the real check)
 - `frontend/src/lib/auth/` — `useSession()` (`me`, `can(permission)`, `signOut`), `safeNext`

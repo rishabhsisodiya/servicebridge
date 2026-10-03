@@ -1,4 +1,4 @@
-// ServiceBridge's own database. Unrelated to any ERP schema.
+// ERPTick's own database. Unrelated to any ERP schema.
 // Models are added per build session. Create migrations with `npm run migrate`.
 
 generator client {
@@ -342,7 +342,7 @@ model ErpWriteback {
   @@index([status])
 }
 
-/// Every call ServiceBridge makes to an ERP, for the System monitor.
+/// Every call ERPTick makes to an ERP, for the System monitor.
 /// Request bodies, query parameters and credentials are never stored.
 model ErpRequestLog {
   id           String         @id @default(cuid())
@@ -936,7 +936,7 @@ enum TicketEventType {
   APPROVAL
 }
 
-/// Yearly ticket number sequence: SB-26-000123.
+/// Yearly ticket number sequence: ET-26-000123.
 model TicketCounter {
   year Int @id
   last Int @default(0)
@@ -1063,7 +1063,7 @@ model TicketEvent {
   ticketId  String
   ticket    Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   type      TicketEventType
-  /// Null for ServiceBridge itself (routing, SLA timers).
+  /// Null for ERPTick itself (routing, SLA timers).
   actorId   String?
   actor     User?           @relation(fields: [actorId], references: [id], onDelete: SetNull)
   fromStage TicketStage?

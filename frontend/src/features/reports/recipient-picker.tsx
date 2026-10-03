@@ -17,7 +17,8 @@ export function RecipientPicker({
   error,
 }: {
   selected: string[];
-  onChange: (emails: string[]) => void;
+  /** User ids: the API stores and checks recipients by id. */
+  onChange: (userIds: string[]) => void;
   error?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -32,8 +33,9 @@ export function RecipientPicker({
     ? users.filter((u) => fullName(u).toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
     : users.slice(0, 50);
 
-  const toggle = (email: string) =>
-    onChange(selected.includes(email) ? selected.filter((e) => e !== email) : [...selected, email]);
+  const toggle = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter((e) => e !== id) : [...selected, id]);
+  const selectedNames = users.filter((u) => selected.includes(u.id)).map(fullName);
 
   return (
     <Field label="Recipients" error={error} help="Only active staff with an email address. The run uses your ticket scope.">
@@ -54,8 +56,8 @@ export function RecipientPicker({
               <label key={user.id} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-surface-2">
                 <input
                   type="checkbox"
-                  checked={selected.includes(user.email)}
-                  onChange={() => toggle(user.email)}
+                  checked={selected.includes(user.id)}
+                  onChange={() => toggle(user.id)}
                   className="size-4"
                 />
                 <span className="font-medium">{fullName(user)}</span>
@@ -65,7 +67,8 @@ export function RecipientPicker({
           </div>
           {selected.length > 0 && (
             <p className="text-xs text-muted">
-              {selected.length} recipient{selected.length === 1 ? "" : "s"}: {selected.join(", ")}
+              {selected.length} recipient{selected.length === 1 ? "" : "s"}
+              {selectedNames.length > 0 && `: ${selectedNames.join(", ")}`}
             </p>
           )}
         </div>

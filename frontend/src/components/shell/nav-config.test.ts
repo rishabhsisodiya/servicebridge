@@ -5,7 +5,7 @@ describe("findActiveItem", () => {
   it.each([
     ["/", "/"],
     ["/tickets", "/tickets"],
-    ["/tickets/SB-26-000123", "/tickets"],
+    ["/tickets/ET-26-000123", "/tickets"],
     ["/tickets/new", "/tickets/new"],
     ["/settings/erp", "/settings/erp"],
     ["/settings/erp/abc", "/settings/erp"],
@@ -28,9 +28,9 @@ describe("buildCrumbs", () => {
   });
 
   it("adds a detail segment after its section", () => {
-    expect(buildCrumbs("/tickets/SB-26-000123")).toEqual([
+    expect(buildCrumbs("/tickets/ET-26-000123")).toEqual([
       { label: "Tickets", href: "/tickets" },
-      { label: "SB-26-000123" },
+      { label: "ET-26-000123" },
     ]);
   });
 

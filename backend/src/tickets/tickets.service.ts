@@ -42,7 +42,7 @@ import { visibleTo } from './visibility';
 // Re-exported for existing importers (ticket-stats, quotations, reports, …).
 export { visibleTo };
 
-const NUMBER_PREFIX = 'SB';
+const NUMBER_PREFIX = 'ET';
 
 const ticketNotFound = () =>
   new AppException(
@@ -380,7 +380,7 @@ export class TicketsService {
     opts?: { createdById?: string | null; partnerKeyId?: string; externalRef?: string },
   ) {
     const now = new Date();
-    // Automation-created tickets (AMC visits) belong to ServiceBridge itself, not a person.
+    // Automation-created tickets (AMC visits) belong to ERPTick itself, not a person.
     const createdById = opts && 'createdById' in opts ? opts.createdById : user.id;
     const result = await this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.findUnique({

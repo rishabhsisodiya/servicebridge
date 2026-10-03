@@ -63,7 +63,7 @@ export function CompanyScreen() {
     <>
       <PageHeader
         title="Company & demo data"
-        description="Your company details, and the fictional demo company used for trying ServiceBridge."
+        description="Your company details, and the fictional demo company used for trying ERPTick."
       />
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <CompanyCard readOnly={!can("company.edit")} />

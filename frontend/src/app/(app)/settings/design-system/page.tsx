@@ -11,7 +11,7 @@ export default function DesignSystemPage() {
     <>
       <PageHeader
         title="Design system"
-        description="Colours, components and UI states used across ServiceBridge. For developers building new screens."
+        description="Colours, components and UI states used across ERPTick. For developers building new screens."
       />
       <Card aria-labelledby="ds-api">
         <CardHeader titleId="ds-api" title="Backend status" meta="Live" />

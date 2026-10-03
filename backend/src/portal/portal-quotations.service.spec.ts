@@ -13,7 +13,7 @@ const quotationRow = (overrides: Record<string, unknown> = {}) => ({
   id: 'q1',
   number: 'QT-26-0001',
   status: 'SENT',
-  ticket: { id: 't1', number: 'SB-26-0001', engineerId: 'eng1', areaManagerId: 'am1' },
+  ticket: { id: 't1', number: 'ET-26-0001', engineerId: 'eng1', areaManagerId: 'am1' },
   ...overrides,
 });
 
@@ -46,14 +46,14 @@ describe('PortalQuotationsService', () => {
     it('shows only SENT and PO_RECEIVED quotations on the customer\u2019s tickets', async () => {
       const { service, prisma } = makeService();
       prisma.quotation.findMany.mockResolvedValue([{ id: 'q1' }]);
-      await expect(service.list(identity, 'SB-26-0001')).resolves.toEqual({
+      await expect(service.list(identity, 'ET-26-0001')).resolves.toEqual({
         items: [{ id: 'q1' }],
       });
       expect(prisma.quotation.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: {
             status: { in: ['SENT', 'PO_RECEIVED'] },
-            ticket: { customerId: 'cust1', number: 'SB-26-0001' },
+            ticket: { customerId: 'cust1', number: 'ET-26-0001' },
           },
         }),
       );

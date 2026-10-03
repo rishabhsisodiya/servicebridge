@@ -1,4 +1,4 @@
-# ServiceBridge
+# ERPTick
 
 Service desk for equipment makers, connected to ERPNext: tickets, field visits, AMC contracts and
 quotations for your service team, with customers, machines, spares and stock read from ERPNext.
@@ -51,7 +51,7 @@ npm run test:e2e:web   # browser tests (first run: npx playwright install chromi
 
 | Variable | App | Purpose |
 |---|---|---|
-| `DATABASE_URL` | API | ServiceBridge's own Postgres database |
+| `DATABASE_URL` | API | ERPTick's own Postgres database |
 | `REDIS_URL` | API | Queues and timers |
 | `APP_ENCRYPTION_KEYS` | API | Encrypts ERP and email credentials saved in the app. Keep a backup. |
 | `JWT_SECRET` | API | Signs sign-in tokens. Changing it signs everyone out. |

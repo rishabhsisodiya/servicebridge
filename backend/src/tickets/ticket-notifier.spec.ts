@@ -25,7 +25,7 @@ function build() {
 
 const ticket = {
   id: 't1',
-  number: 'SB-26-000001',
+  number: 'ET-26-000001',
   title: 'Jaw dies worn',
   engineerId: 'eng1',
   areaManagerId: 'am1',
@@ -98,7 +98,7 @@ describe('TicketNotifier', () => {
       expect.objectContaining({
         to: 'farhan@example.com',
         templateKey: 'ticket.assigned',
-        variables: expect.objectContaining({ assigneeName: 'Farhan', ticketNumber: 'SB-26-000001' }),
+        variables: expect.objectContaining({ assigneeName: 'Farhan', ticketNumber: 'ET-26-000001' }),
       }),
     );
   });

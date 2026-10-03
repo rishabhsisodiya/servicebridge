@@ -12,11 +12,11 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("proxy page protection", () => {
   it("sends signed-out visitors to sign in, remembering where they were going", () => {
-    const res = proxy(req("/tickets/SB-26-000415?tab=activity"));
+    const res = proxy(req("/tickets/ET-26-000415?tab=activity"));
     expect(res.status).toBe(307);
     const location = new URL(res.headers.get("location")!);
     expect(location.pathname).toBe("/login");
-    expect(location.searchParams.get("next")).toBe("/tickets/SB-26-000415?tab=activity");
+    expect(location.searchParams.get("next")).toBe("/tickets/ET-26-000415?tab=activity");
   });
 
   it("lets signed-in visitors through", () => {

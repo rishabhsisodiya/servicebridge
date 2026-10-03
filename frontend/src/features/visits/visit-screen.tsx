@@ -33,7 +33,7 @@ export function VisitScreen({ visitId, ticketRef }: { visitId: string; ticketRef
     error,
     isLoading,
     mutate,
-  } = useSWR<VisitDetail, ApiError>(`/visits/${visitId}`, getVisit);
+  } = useSWR<VisitDetail, ApiError>(`/visits/${visitId}`, () => getVisit(visitId));
 
   if (isLoading) {
     return (

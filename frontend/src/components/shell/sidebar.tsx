@@ -14,13 +14,13 @@ export function BrandMark() {
         aria-hidden
         className="grid size-8 place-items-center rounded-lg bg-rail-accent font-mono text-[13px] font-bold text-[#022c22]"
       >
-        SB
+        ET
       </span>
       <span className="leading-tight">
         <span className="block text-[14px] font-semibold tracking-wide text-white">
-          ServiceBridge
+          ERPTick
         </span>
-        <span className="block text-[11px] text-rail-muted">Service &amp; ERP operations</span>
+        <span className="block text-[11px] text-rail-muted">Service Desk</span>
       </span>
     </span>
   );
@@ -35,7 +35,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col bg-rail text-rail-text">
       <div className="px-4 pt-4 pb-3">
-        <Link href="/" onClick={onNavigate} className="inline-block rounded-lg" aria-label="ServiceBridge home">
+        <Link href="/" onClick={onNavigate} className="inline-block rounded-lg" aria-label="ERPTick home">
           <BrandMark />
         </Link>
       </div>

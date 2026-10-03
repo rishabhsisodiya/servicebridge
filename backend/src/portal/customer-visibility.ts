@@ -18,7 +18,7 @@ export function visibleToCustomer(customerId: string): Prisma.TicketWhereInput {
 
 /**
  * The synthetic actor passed into tickets.create(). Portal tickets belong to
- * ServiceBridge itself (createdById: null), exactly like the partner seam;
+ * ERPTick itself (createdById: null), exactly like the partner seam;
  * the contact is identified in the audit summary instead.
  */
 export function portalActor(identity: CustomerIdentity): AuthUser {

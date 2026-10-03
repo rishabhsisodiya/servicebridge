@@ -17,7 +17,7 @@ const makeService = (overrides: Record<string, unknown> = {}) => {
     ticketAttachment: { findMany: jest.fn().mockResolvedValue([]) },
     ...overrides,
   };
-  const tickets = { create: jest.fn().mockResolvedValue({ id: 't1', number: 'SB-26-0001' }) };
+  const tickets = { create: jest.fn().mockResolvedValue({ id: 't1', number: 'ET-26-0001' }) };
   const audit = { record: jest.fn() };
   const service = new PortalTicketsService(prisma as never, tickets as never, audit as never);
   return { service, prisma, tickets, audit };
@@ -30,7 +30,7 @@ describe('PortalTicketsService', () => {
     it('creates a PORTAL ticket through the synthetic-actor seam', async () => {
       const { service, tickets, audit } = makeService();
       await expect(service.create(identity, dto(), client)).resolves.toEqual({
-        number: 'SB-26-0001',
+        number: 'ET-26-0001',
       });
       const [actor, createDto, opts] = tickets.create.mock.calls[0];
       expect(actor.id).toBe('customer:c1');
@@ -78,7 +78,7 @@ describe('PortalTicketsService', () => {
     it('pages the customer\u2019s tickets newest-first', async () => {
       const { service, prisma } = makeService();
       prisma.ticket.count.mockResolvedValue(2);
-      prisma.ticket.findMany.mockResolvedValue([{ number: 'SB-26-0002' }, { number: 'SB-26-0001' }]);
+      prisma.ticket.findMany.mockResolvedValue([{ number: 'ET-26-0002' }, { number: 'ET-26-0001' }]);
       const result = await service.list(identity, 1, 20);
       expect(result).toMatchObject({ page: 1, pageSize: 20, total: 2 });
       expect(prisma.ticket.findMany).toHaveBeenCalledWith(
@@ -95,7 +95,7 @@ describe('PortalTicketsService', () => {
   describe('detail', () => {
     const ticketRow = (overrides: Record<string, unknown> = {}) => ({
       id: 't1',
-      number: 'SB-26-0001',
+      number: 'ET-26-0001',
       title: 'Compressor not starting',
       description: 'Loud noise',
       stage: 'IN_PROGRESS',
@@ -121,7 +121,7 @@ describe('PortalTicketsService', () => {
     it('404-masks tickets that are not the customer\u2019s', async () => {
       const { service, prisma } = makeService();
       prisma.ticket.findFirst.mockResolvedValue(null);
-      await expect(service.detail(identity, 'SB-26-9999')).rejects.toMatchObject({
+      await expect(service.detail(identity, 'ET-26-9999')).rejects.toMatchObject({
         code: 'TICKET_NOT_FOUND',
         status: 404,
       });
@@ -144,8 +144,8 @@ describe('PortalTicketsService', () => {
           });
         },
       );
-      const result = await service.detail(identity, 'SB-26-0001');
-      expect(result.number).toBe('SB-26-0001');
+      const result = await service.detail(identity, 'ET-26-0001');
+      expect(result.number).toBe('ET-26-0001');
       expect(result.equipment).toEqual({ id: 'eq1', name: 'Compressor X' });
       // NOTE is filtered at the query level; only CREATED + APPROVAL remain.
       expect(result.timeline.map((t: { type: string }) => t.type)).toEqual([
@@ -173,7 +173,7 @@ describe('PortalTicketsService', () => {
       prisma.ticketAttachment.findMany.mockResolvedValue([
         { id: 'a1', fileName: 'photo.jpg' },
       ]);
-      const result = await service.detail(identity, 'SB-26-0001');
+      const result = await service.detail(identity, 'ET-26-0001');
       expect(result.csat).toEqual({ state: 'answered' });
       expect(result.attachments).toEqual([{ id: 'a1', filename: 'photo.jpg' }]);
       expect(prisma.ticketAttachment.findMany).toHaveBeenCalledWith(

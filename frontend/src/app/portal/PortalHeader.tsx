@@ -20,10 +20,10 @@ export function PortalHeader() {
             aria-hidden
             className="grid size-8 shrink-0 place-items-center rounded-lg bg-accent-strong text-sm font-bold text-on-accent-strong"
           >
-            SB
+            ET
           </span>
           <span className="flex min-w-0 flex-col leading-tight">
-            <span className="truncate text-[15px] font-semibold text-text">ServiceBridge</span>
+            <span className="truncate text-[15px] font-semibold text-text">ERPTick</span>
             <span className="text-xs text-muted">Customer portal</span>
           </span>
         </Link>

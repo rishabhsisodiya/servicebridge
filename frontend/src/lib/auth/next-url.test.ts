@@ -17,7 +17,7 @@ describe("safeNext", () => {
 
   it("still allows plain same-app paths", () => {
     expect(safeNext("/tickets")).toBe("/tickets");
-    expect(safeNext("/tickets/SB-26-000001?tab=visits")).toBe("/tickets/SB-26-000001?tab=visits");
+    expect(safeNext("/tickets/ET-26-000001?tab=visits")).toBe("/tickets/ET-26-000001?tab=visits");
     expect(safeNext("/")).toBe("/");
   });
 

@@ -66,7 +66,7 @@ function CopyField({
   );
 }
 
-/** Sets up ERPNext webhooks so changes reach ServiceBridge within seconds. */
+/** Sets up ERPNext webhooks so changes reach ERPTick within seconds. */
 export function WebhooksDialog({
   connectionId,
   connectionName,
@@ -137,7 +137,7 @@ export function WebhooksDialog({
       open={connectionId !== null}
       onClose={close}
       title={`Webhooks for “${connectionName}”`}
-      description="ERPNext tells ServiceBridge when a record changes, so changes arrive within seconds instead of at the nightly catch-up."
+      description="ERPNext tells ERPTick when a record changes, so changes arrive within seconds instead of at the nightly catch-up."
       className="w-[min(640px,calc(100vw-32px))]!"
       footer={<Button onClick={close}>Done</Button>}
     >

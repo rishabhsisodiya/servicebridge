@@ -75,16 +75,16 @@ export const EMAIL_TEMPLATE_SEEDS: TemplateSeed[] = [
   {
     key: 'auth.invite',
     name: 'Account invite',
-    subject: '[{{companyName}}] You are invited to ServiceBridge',
-    bodyHtml: `<p>Hi {{name}},</p><p>You have been invited to {{companyName}} on ServiceBridge. Set up your account here (the link expires in {{expiresIn}}):</p><p><a href="{{inviteUrl}}">Accept the invite</a></p><p>— {{companyName}}</p>`,
+    subject: '[{{companyName}}] You are invited to ERPTick',
+    bodyHtml: `<p>Hi {{name}},</p><p>You have been invited to {{companyName}} on ERPTick. Set up your account here (the link expires in {{expiresIn}}):</p><p><a href="{{inviteUrl}}">Accept the invite</a></p><p>— {{companyName}}</p>`,
     bodyText:
-      'Hi {{name}},\n\nYou have been invited to {{companyName}} on ServiceBridge. Set up your account here (the link expires in {{expiresIn}}):\n\n{{inviteUrl}}\n\n— {{companyName}}',
+      'Hi {{name}},\n\nYou have been invited to {{companyName}} on ERPTick. Set up your account here (the link expires in {{expiresIn}}):\n\n{{inviteUrl}}\n\n— {{companyName}}',
     enabled: true,
   },
   {
     key: 'auth.reset',
     name: 'Password reset',
-    subject: '[{{companyName}}] Reset your ServiceBridge password',
+    subject: '[{{companyName}}] Reset your ERPTick password',
     bodyHtml: `<p>Hi {{name}},</p><p>An administrator created a password reset link for your {{companyName}} account (it expires in {{expiresIn}}):</p><p><a href="{{resetUrl}}">Reset your password</a></p><p>If you did not ask for this, tell your administrator. — {{companyName}}</p>`,
     bodyText:
       'Hi {{name}},\n\nAn administrator created a password reset link for your {{companyName}} account (it expires in {{expiresIn}}):\n\n{{resetUrl}}\n\nIf you did not ask for this, tell your administrator. — {{companyName}}',
@@ -111,7 +111,7 @@ export const EMAIL_TEMPLATE_SEEDS: TemplateSeed[] = [
   {
     key: 'portal.magic_link',
     name: 'Portal sign-in link',
-    subject: '[{{companyName}}] Your ServiceBridge portal sign-in link',
+    subject: '[{{companyName}}] Your ERPTick portal sign-in link',
     bodyHtml: `<p>Hi {{name}},</p><p>Use this link to sign in to the customer portal (expires in 15 minutes):</p><p><a href="{{magicLink}}">Sign in</a></p><p>— {{companyName}}</p>`,
     bodyText:
       'Hi {{name}},\n\nUse this link to sign in to the customer portal (expires in 15 minutes):\n\n{{magicLink}}\n\n— {{companyName}}',
@@ -271,9 +271,9 @@ export class EmailService implements OnModuleInit {
     try {
       await this.send(credentials, {
         to,
-        subject: `[${company.name}] Test email from ServiceBridge`,
-        html: `<p>This is a test email from ServiceBridge (${company.name}). Your SMTP settings work.</p>`,
-        text: `This is a test email from ServiceBridge (${company.name}). Your SMTP settings work.`,
+        subject: `[${company.name}] Test email from ERPTick`,
+        html: `<p>This is a test email from ERPTick (${company.name}). Your SMTP settings work.</p>`,
+        text: `This is a test email from ERPTick (${company.name}). Your SMTP settings work.`,
       });
     } catch (error) {
       throw new AppException(

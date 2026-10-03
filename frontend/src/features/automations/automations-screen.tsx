@@ -152,7 +152,7 @@ export function AutomationsScreen() {
     <>
       <PageHeader
         title="Automations"
-        description="Background work ServiceBridge does on its own. Each one can be switched off. Nothing runs unless there is work to do."
+        description="Background work ERPTick does on its own. Each one can be switched off. Nothing runs unless there is work to do."
       />
       {can("company.read") && <AmcSettingsCard />}
       {isLoading && (

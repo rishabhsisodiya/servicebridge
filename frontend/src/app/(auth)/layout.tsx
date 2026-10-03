@@ -16,7 +16,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
           </p>
         </div>
         <p className="text-xs text-rail-muted">
-          Need access? Ask your ServiceBridge administrator.
+          Need access? Ask your ERPTick administrator.
         </p>
       </aside>
       <main id="main" className="flex items-center justify-center px-4 py-12">

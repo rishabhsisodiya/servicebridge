@@ -24,7 +24,7 @@ export const PURPOSE_DOCTYPES: Record<ErpPurpose, string[]> = {
   WRITEBACK: ['Stock Entry', 'Sales Invoice'],
 };
 
-/** Custom field ServiceBridge stamps on documents it creates (session 11). */
+/** Custom field ERPTick stamps on documents it creates (session 11). */
 export const SB_REF_FIELD = 'custom_sb_ref';
 export const SB_REF_DOCTYPES = ['Stock Entry', 'Sales Invoice'];
 
@@ -59,7 +59,7 @@ export interface ConnectionTestResult {
     error?: CheckError;
   };
   setup: {
-    /** Missing ServiceBridge custom fields; null when they couldn't be checked. */
+    /** Missing ERPTick custom fields; null when they couldn't be checked. */
     missingFields: { doctype: string; fieldname: string }[] | null;
   };
 }
@@ -72,7 +72,7 @@ const toCheckError = (error: unknown): CheckError =>
 /**
  * Tests a connection without writing anything and without reading business
  * data: identity, versions, per-doctype read access (as counts), DB grants and
- * table access (LIMIT 0), and whether ServiceBridge's custom fields exist.
+ * table access (LIMIT 0), and whether ERPTick's custom fields exist.
  */
 export async function testConnection(
   credentials: ErpCredentials,

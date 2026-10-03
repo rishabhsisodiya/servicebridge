@@ -1,4 +1,4 @@
-// Minimal stand-in for the ServiceBridge API so the e2e suite can exercise the
+// Minimal stand-in for the ERPTick API so the e2e suite can exercise the
 // web app (proxy, sign-in, users screen) without Postgres or Redis.
 // Cookie `stub_role` picks the signed-in user's role (default ADMIN).
 // Cookie `stub_expire_once=1` makes the next /auth/me answer TOKEN_EXPIRED once.
@@ -179,7 +179,7 @@ function writebackState(session) {
           type: "INVOICE",
           status: "FAILED",
           ticketId: "t-d1",
-          ticketNumber: "SB-26-000415",
+          ticketNumber: "ET-26-000415",
           visitId: null,
           erpDocType: "Sales Invoice",
           erpDocName: null,
@@ -192,7 +192,7 @@ function writebackState(session) {
           type: "STOCK_ENTRY",
           status: "SUCCEEDED",
           ticketId: "t-d1",
-          ticketNumber: "SB-26-000415",
+          ticketNumber: "ET-26-000415",
           visitId: "v-d1",
           erpDocType: "Stock Entry",
           erpDocName: "MAT-STE-2026-00042",
@@ -205,7 +205,7 @@ function writebackState(session) {
           type: "INVOICE",
           status: "PROCESSING",
           ticketId: "t-d2",
-          ticketNumber: "SB-26-000416",
+          ticketNumber: "ET-26-000416",
           visitId: null,
           erpDocType: "Sales Invoice",
           erpDocName: null,
@@ -395,7 +395,7 @@ const signOutCookies = [
 ];
 
 // ── tickets (fictional fixture, per test session) ──
-const TICKET_NUMBER = "SB-26-000415";
+const TICKET_NUMBER = "ET-26-000415";
 const ticketStates = new Map();
 const minutesFromNow = (m) => new Date(Date.now() + m * 60_000).toISOString();
 const STAGE_ACTIONS = {
@@ -599,20 +599,20 @@ function notificationsFor(session) {
       {
         id: "n1",
         type: "SLA_AT_RISK",
-        title: "SB-26-000415: resolution time at risk",
+        title: "ET-26-000415: resolution time at risk",
         body: "Heavy vibration, output size drifting",
         readAt: null,
         createdAt: new Date().toISOString(),
-        ticket: { id: "t-415", number: "SB-26-000415" },
+        ticket: { id: "t-415", number: "ET-26-000415" },
       },
       {
         id: "n2",
         type: "TICKET_ASSIGNED",
-        title: "Assigned to you: SB-26-000415",
+        title: "Assigned to you: ET-26-000415",
         body: null,
         readAt: new Date().toISOString(),
         createdAt: new Date(Date.now() - 3_600_000).toISOString(),
-        ticket: { id: "t-415", number: "SB-26-000415" },
+        ticket: { id: "t-415", number: "ET-26-000415" },
       },
     ]);
   }
@@ -741,7 +741,7 @@ function quotationsFor(session) {
         sentBy: null,
         createdBy: { name: "Ravi Prakash" },
         revises: null,
-        ticket: { id: "t-415", number: "SB-26-000415", title: "Heavy vibration, output size drifting" },
+        ticket: { id: "t-415", number: "ET-26-000415", title: "Heavy vibration, output size drifting" },
         lines: [
           {
             id: "ql-1",
@@ -778,7 +778,7 @@ function quotationsFor(session) {
         sentBy: { name: "Kiran Shetty" },
         createdBy: { name: "Ravi Prakash" },
         revises: null,
-        ticket: { id: "t-415", number: "SB-26-000415", title: "Heavy vibration, output size drifting" },
+        ticket: { id: "t-415", number: "ET-26-000415", title: "Heavy vibration, output size drifting" },
         lines: [
           {
             id: "ql-3",
@@ -1140,7 +1140,7 @@ const server = createServer(async (req, res) => {
       sentBy: null,
       createdBy: { name: "Kiran Shetty" },
       revises: null,
-      ticket: { id: ticketId, number: "SB-26-000415", title: "Heavy vibration, output size drifting" },
+      ticket: { id: ticketId, number: "ET-26-000415", title: "Heavy vibration, output size drifting" },
       lines: [],
     };
     quotations.unshift(quotation);
@@ -1154,7 +1154,7 @@ const server = createServer(async (req, res) => {
     return send(res, 200, {
       company: { name: "Apex Crushing Systems (Demo)", timezone: "Asia/Kolkata", currency: "INR" },
       ticket: {
-        number: "SB-26-000415",
+        number: "ET-26-000415",
         title: "Heavy vibration, output size drifting",
         stage: "IN_PROGRESS",
         customer: { name: "Northfield Infra", taxId: null, mobile: "+91 90000 20097", email: null },
@@ -1611,7 +1611,7 @@ const server = createServer(async (req, res) => {
   }
   const emailSettings = {
     enabled: false,
-    fromName: "ServiceBridge",
+    fromName: "ERPTick",
     fromAddress: "service@example.com",
     host: "",
     port: 587,
@@ -1729,7 +1729,7 @@ const server = createServer(async (req, res) => {
   if (csatToken) {
     if (csatToken[1] === "csat-d1" && req.method === "GET")
       return send(res, 200, {
-        ticketNumber: "SB-26-000415",
+        ticketNumber: "ET-26-000415",
         ticketTitle: "Heavy vibration, output size drifting",
         customerName: "Sanjay Gowda",
         answered: false,
@@ -1952,7 +1952,7 @@ const server = createServer(async (req, res) => {
         readyForWriteback: !!conn,
         missingFields: [],
         fieldInstructions: [
-          "Add the custom field ServiceBridge uses to link ERP documents back to tickets:",
+          "Add the custom field ERPTick uses to link ERP documents back to tickets:",
           "",
           "1. In ERPNext, open “Customize Form”.",
           "2. Set DocType to “Stock Entry” and press Go.",
@@ -2087,7 +2087,7 @@ const server = createServer(async (req, res) => {
       ],
       rows: [
         {
-          ticket: "SB-26-000415",
+          ticket: "ET-26-000415",
           title: "Conveyor belt snapped",
           customer: "Apex Crushing Systems (Demo)",
         },

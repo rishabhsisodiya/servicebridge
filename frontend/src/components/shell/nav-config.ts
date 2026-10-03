@@ -291,6 +291,10 @@ export interface Crumb {
   href?: string;
 }
 
+/** Database ids mean nothing to a reader; show a plain word for them. */
+const RECORD_ID = /^c[a-z0-9]{20,}$/;
+const crumbLabel = (segment: string) => (RECORD_ID.test(segment) ? "Details" : segment);
+
 /**
  * Breadcrumbs from the nav tree: every nav item whose href prefixes the path,
  * then the remaining segment (e.g. a ticket number) as the current page.
@@ -308,7 +312,7 @@ export function buildCrumbs(pathname: string): Crumb[] {
       .slice(deepest.href.length + 1)
       .split("/")
       .filter(Boolean);
-    crumbs.push({ label: decodeURIComponent(rest[rest.length - 1] ?? "") });
+    crumbs.push({ label: crumbLabel(decodeURIComponent(rest[rest.length - 1] ?? "")) });
   }
   if (!deepest) {
     const last = pathname.split("/").filter(Boolean).pop() ?? "";

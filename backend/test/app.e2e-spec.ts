@@ -10,7 +10,7 @@ import { REDIS } from '../src/core/redis/redis.module';
 // Boots the real app with its real global setup; only Postgres and Redis are
 // replaced, so these tests need no infrastructure. Env comes from setup-env.ts.
 
-describe('ServiceBridge API (e2e)', () => {
+describe('ERPTick API (e2e)', () => {
   let app: INestApplication;
   const db = { $queryRaw: jest.fn(), $disconnect: jest.fn() };
   const redis = { ping: jest.fn(), status: 'end' };

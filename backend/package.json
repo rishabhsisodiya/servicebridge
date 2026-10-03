@@ -2,7 +2,7 @@
   "name": "servicebridge-backend",
   "version": "0.1.0",
   "private": true,
-  "description": "ServiceBridge API (NestJS)",
+  "description": "ERPTick API (NestJS)",
   "engines": {
     "node": ">=20.11"
   },

@@ -109,7 +109,7 @@ export class AutoAssignService implements OnModuleInit {
       'assign',
       ticket,
       { ...ticket, engineerId: pick.id },
-      { id: null, name: 'ServiceBridge' },
+      { id: null, name: 'ERPTick' },
       null,
     );
     return `${ticket.number}: assigned to ${pick.name}`;

@@ -146,7 +146,7 @@ export class PortalQuotationsService {
       userIds: [quotation.ticket.engineerId, quotation.ticket.areaManagerId],
       type: NotificationType.TICKET_NEW,
       title: `Quotation ${quotation.number} approved by ${identity.contactName}`,
-      body: `${quotation.ticket.number}: the customer approved ${quotation.number}${poNumber ? ` and supplied PO ${poNumber}` : ' (no PO yet — record it in ServiceBridge)'}.`,
+      body: `${quotation.ticket.number}: the customer approved ${quotation.number}${poNumber ? ` and supplied PO ${poNumber}` : ' (no PO yet — record it in ERPTick)'}.`,
       ticketId: quotation.ticket.id,
     });
 

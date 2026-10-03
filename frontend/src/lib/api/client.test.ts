@@ -58,7 +58,7 @@ describe("apiFetch", () => {
     await expect(apiFetch("/x")).rejects.toMatchObject({
       status: 0,
       code: "NETWORK_ERROR",
-      message: expect.stringContaining("Can't reach ServiceBridge"),
+      message: expect.stringContaining("Can't reach ERPTick"),
     });
   });
 

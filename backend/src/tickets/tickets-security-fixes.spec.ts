@@ -27,7 +27,7 @@ const ownEngineer = {
 
 const baseTicket = {
   id: 't1',
-  number: 'SB-26-000101',
+  number: 'ET-26-000101',
   title: 'Press breakdown',
   version: 3,
   engineerId: 'eng-1',
@@ -61,7 +61,7 @@ function buildAct(ticket: Record<string, unknown>) {
       findFirst: jest.fn().mockResolvedValue(ticket),
       findUnique: jest
         .fn()
-        .mockResolvedValue({ number: 'SB-26-000101', customer: { name: 'Acme', email: 'a@x.com' } }),
+        .mockResolvedValue({ number: 'ET-26-000101', customer: { name: 'Acme', email: 'a@x.com' } }),
       update: jest
         .fn()
         .mockImplementation(({ data }: { data: Record<string, unknown> }) =>
@@ -245,7 +245,7 @@ describe('ticket security fixes (audit run-1)', () => {
       },
       ticket: {
         findMany: jest.fn().mockResolvedValue(open),
-        create: jest.fn().mockResolvedValue({ id: 't2', number: 'SB-26-000201' }),
+        create: jest.fn().mockResolvedValue({ id: 't2', number: 'ET-26-000201' }),
       },
       ticketCounter: { upsert: jest.fn().mockResolvedValue({ year: 2026, last: 201 }) },
     });
@@ -291,7 +291,7 @@ describe('ticket security fixes (audit run-1)', () => {
     } as CreateTicketDto;
 
     it('409s without naming tickets outside the creator’s scope', async () => {
-      const { service, tx } = buildCreate([{ number: 'SB-26-000101' }]);
+      const { service, tx } = buildCreate([{ number: 'ET-26-000101' }]);
 
       const error = await catchError(service.create(ownEngineer, dto));
       expect(error.code).toBe('DUPLICATE_SUSPECTED');
@@ -308,9 +308,9 @@ describe('ticket security fixes (audit run-1)', () => {
     });
 
     it('still lets the ticket through once duplicates are acknowledged', async () => {
-      const { service } = buildCreate([{ number: 'SB-26-000101' }]);
+      const { service } = buildCreate([{ number: 'ET-26-000101' }]);
       const result = await service.create(ownEngineer, { ...dto, acknowledgeDuplicates: true });
-      expect(result).toMatchObject({ number: 'SB-26-000201' });
+      expect(result).toMatchObject({ number: 'ET-26-000201' });
     });
   });
 });

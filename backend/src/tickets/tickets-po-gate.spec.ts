@@ -19,7 +19,7 @@ const engineer = {
 
 const baseTicket = {
   id: 't1',
-  number: 'SB-26-000101',
+  number: 'ET-26-000101',
   title: 'Press breakdown',
   version: 3,
   engineerId: 'engineer-1',

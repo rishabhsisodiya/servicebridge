@@ -149,7 +149,7 @@ export function TestResultView({ result }: { result: TestResult }) {
                   <ShieldAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
                   <span className="text-text">
                     This database user can also: {result.db.extraPrivileges?.join(", ")}.
-                    ServiceBridge never writes to the database, but a user with only SELECT access
+                    ERPTick never writes to the database, but a user with only SELECT access
                     is safer. Ask your ERP administrator for one.
                   </span>
                 </li>
@@ -174,7 +174,7 @@ export function TestResultView({ result }: { result: TestResult }) {
               Couldn&apos;t check custom fields (the API user can&apos;t read Custom Field).
             </Line>
           ) : result.setup.missingFields.length === 0 ? (
-            <Line ok>ServiceBridge&apos;s reference field is set up.</Line>
+            <Line ok>ERPTick&apos;s reference field is set up.</Line>
           ) : (
             <Line ok={null}>
               Not needed yet. Before switching on write-backs, add a Data field named{" "}

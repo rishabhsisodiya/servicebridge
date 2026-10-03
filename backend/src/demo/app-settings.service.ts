@@ -54,7 +54,7 @@ export const DEFAULT_WRITEBACKS: WritebackSettings = {
   invoiceTaxTemplate: null,
 };
 export const DEFAULT_COMPANY: CompanySettings = {
-  name: 'ServiceBridge',
+  name: 'ERPTick',
   timezone: 'Asia/Kolkata',
   currency: 'INR',
   gstRatePercent: 18,

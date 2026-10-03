@@ -107,7 +107,7 @@ function describeNetworkError(error: unknown): ErpError {
   if (code === 'EBLOCKEDADDRESS') {
     return new ErpError(
       'blocked',
-      'This address points to a private network. If your ERP really runs on your own network, ask the person who installed ServiceBridge to allow private ERP hosts.',
+      'This address points to a private network. If your ERP really runs on your own network, ask the person who installed ERPTick to allow private ERP hosts.',
     );
   }
   if (code === 'ENOTFOUND' || code === 'EAI_AGAIN') {
@@ -212,7 +212,7 @@ export class FrappeRestClient {
           if (status >= 300 && status < 400) {
             lastError = new ErpError(
               'bad_response',
-              `The ERP answered with a redirect (HTTP ${status}); ServiceBridge does not follow redirects. Check the connection's base URL.`,
+              `The ERP answered with a redirect (HTTP ${status}); ERPTick does not follow redirects. Check the connection's base URL.`,
               status,
             );
           } else if (response.ok && body !== undefined) {

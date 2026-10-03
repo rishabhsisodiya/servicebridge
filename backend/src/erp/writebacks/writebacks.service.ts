@@ -54,7 +54,7 @@ export interface SetupCheckResult {
 }
 
 /**
- * Why ServiceBridge stamps its own reference on ERP documents: without
+ * Why ERPTick stamps its own reference on ERP documents: without
  * `custom_sb_ref` the worker can't pre-search for a document it already
  * created, and a retry after a network timeout could post a duplicate.
  * Rishabh decided against auto-creating the field, so the setup check fails
@@ -62,12 +62,12 @@ export interface SetupCheckResult {
  * copy-paste instructions for ERPNext's Customize Form.
  */
 export const FIELD_INSTRUCTIONS = [
-  'ServiceBridge stamps every document it creates with a reference field so',
+  'ERPTick stamps every document it creates with a reference field so',
   'retries can never post duplicates. Create it once per document type:',
   '',
   '1. In ERPNext open the document list (Stock > Stock Entry, or',
   '   Accounting > Sales Invoice), then the menu > Customize.',
-  '2. Add a custom field: label "ServiceBridge ref", fieldname',
+  '2. Add a custom field: label "ERPTick ref", fieldname',
   '   "custom_sb_ref" (exactly), type Data. Save the customization.',
   '3. Repeat for the other document type, then re-run the setup check here.',
 ].join('\n');
@@ -353,7 +353,7 @@ export class WritebacksService implements OnModuleInit {
         docstatus: 0, // Invoices are always drafts; the ERP submits them.
         [SB_REF_FIELD]: writeback.idempotencyKey,
         po_no: quotation.poNumber ?? undefined,
-        remarks: `ServiceBridge ${ticket.number} — quotation ${quotation.number}${zeroBill ? ' (AMC covered, zero bill)' : ''}`,
+        remarks: `ERPTick ${ticket.number} — quotation ${quotation.number}${zeroBill ? ' (AMC covered, zero bill)' : ''}`,
         items: quotation.lines.map((line) => ({
           item_code: line.item.itemCode,
           qty: Number(line.quantity),
@@ -436,7 +436,7 @@ export class WritebacksService implements OnModuleInit {
         from_warehouse: warehouseName,
         docstatus: settings.stockEntryAsDraft ? 0 : 1,
         [SB_REF_FIELD]: writeback.idempotencyKey,
-        remarks: `ServiceBridge visit ${visit.visitNumber} on ${visit.ticket.number}`,
+        remarks: `ERPTick visit ${visit.visitNumber} on ${visit.ticket.number}`,
         items: stockSpares.map((s) => ({
           item_code: s.item.itemCode,
           qty: s.quantity,
